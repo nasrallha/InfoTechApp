@@ -1,0 +1,169 @@
+import { z } from "zod";
+import {
+  nameField,
+  idField,
+  idsField,
+  moneyField,
+  imageField,
+} from "./common.schema";
+import { EXEMPTION_CODES, productTax } from "@/lib/zatca-tax";
+
+// باركود اختياري: نص فاضي يصبح null
+const optionalBarcode = z
+  .string()
+  .trim()
+  .max(50, "TextTooLong")
+  .nullish()
+  .transform((v) => (v ? v : null));
+
+// وحدة إضافية للمنتج (علبة، كرتونة ...)
+const productUnitSchema = z.object({
+  unitId: idField,
+  // كم وحدة أساسية داخل هذه الوحدة (كرتونة = 50 قطعة)، لازم أكبر من 1
+  conversionFactor: z
+    .number({ error: "RequiredField" })
+    .gt(1, "ConversionFactorInvalid"),
+  barcode: optionalBarcode,
+  cost: moneyField.default(0),
+  price: moneyField,
+  // الرصيد الافتتاحي بهذه الوحدة (10 كرتونة)
+  startStock: z
+    .number()
+    .min(0, "MustBePositive")
+    .max(1_000_000, "ValueOutOfRange")
+    .refine(
+      (v) => Math.abs(Math.round(v * 1000) - v * 1000) < 1e-6,
+      "QtyDecimals",
+    )
+    .default(0),
+});
+
+// القواعد المشتركة بين الإضافة والتعديل
+const productFields = {
+  code: z
+    .string({ error: "RequiredField" })
+    .trim()
+    .min(1, "RequiredField")
+    .max(50, "TextTooLong"),
+  arName: nameField(150),
+  enName: nameField(150),
+
+  categoryId: idField,
+  baseUnitId: idField,
+
+  cost: moneyField,
+  price: moneyField,
+  wholesalePrice: moneyField.default(0),
+
+  taxRate: z
+    .number()
+    .min(0, "MustBePositive")
+    .max(100, "TaxRateInvalid")
+    .default(0),
+  isPriceIncludeTax: z.boolean().default(false),
+
+  // الفوترة الإلكترونية: فئة الضريبة وسبب الإعفاء (للأصناف بنسبة 0 فقط)
+  taxCategory: z.enum(["S", "Z", "E", "O"]).default("S"),
+  taxExemptionCode: z.string().trim().max(20).nullish(),
+  taxExemptionReason: z.string().trim().max(255, "TextTooLong").nullish(),
+
+  // الرصيد الافتتاحي: كسور لحد 3 خانات (الأصناف الموزونة 1.250 كجم)
+  startStock: z
+    .number()
+    .min(0, "MustBePositive")
+    .max(1_000_000, "ValueOutOfRange")
+    .refine(
+      (v) => Math.abs(Math.round(v * 1000) - v * 1000) < 1e-6,
+      "QtyDecimals",
+    )
+    .default(0),
+  isActive: z.boolean().default(true),
+
+  image: imageField,
+
+  units: z.array(productUnitSchema).default([]),
+};
+
+// قواعد على الوحدات كلها مع بعض (لا يمكن كتابتها على حقل واحد)
+function checkUnits(product, ctx) {
+  const seenUnits = new Set();
+  const seenBarcodes = new Set([product.code]);
+
+  product.units.forEach((unit, index) => {
+    // الوحدة الأساسية لا تتكرر كوحدة إضافية
+    if (unit.unitId === product.baseUnitId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["units", index, "unitId"],
+        message: "BaseUnitInAdditional",
+      });
+    }
+
+    // نفس الوحدة لا تتكرر مرتين
+    if (seenUnits.has(unit.unitId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["units", index, "unitId"],
+        message: "DuplicateUnit",
+      });
+    }
+    seenUnits.add(unit.unitId);
+
+    // الباركود لا يتكرر داخل نفس المنتج (ولا يساوي كود المنتج)
+    if (unit.barcode) {
+      if (seenBarcodes.has(unit.barcode)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["units", index, "barcode"],
+          message: "BarcodeExists",
+        });
+      }
+      seenBarcodes.add(unit.barcode);
+    }
+  });
+}
+
+// الصنف بنسبة 0: لازم فئة (صفري / معفى / خارج النطاق) وسبب إعفاء من قائمة الهيئة
+function checkTax(product, ctx) {
+  if (Number(product.taxRate) > 0) return;
+  if (!["Z", "E", "O"].includes(product.taxCategory)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["taxCategory"],
+      message: "ZeroRateCategoryRequired",
+    });
+    return;
+  }
+  const codes = EXEMPTION_CODES[product.taxCategory].map((x) => x.code);
+  if (!codes.includes(product.taxExemptionCode)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["taxExemptionCode"],
+      message: "ExemptionCodeRequired",
+    });
+  }
+}
+
+// القيم النهائية للضريبة (النسبة > 0 = S بدون سبب)
+const withTax = (p) => ({ ...p, ...productTax(p) });
+
+// بيانات إضافة منتج
+export const createProductSchema = z
+  .object(productFields)
+  .superRefine(checkUnits)
+  .superRefine(checkTax)
+  .transform(withTax);
+
+// بيانات تعديل منتج = بيانات الإضافة + رقم المنتج + هل شال الصورة
+export const updateProductSchema = z
+  .object({
+    ...productFields,
+    id: idField,
+    removeImage: z.boolean().default(false),
+  })
+  .superRefine(checkUnits)
+  .superRefine(checkTax)
+  .transform(withTax);
+
+// حذف منتج أو أكثر
+export const deleteProductsSchema = idsField;

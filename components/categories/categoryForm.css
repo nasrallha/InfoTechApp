@@ -1,0 +1,9 @@
+:where(.css-dev-only-do-not-override-19u5a7b).ant-form-item .ant-form-item-label >label{
+    font-weight: bold;
+}
+.css-var-root.ant-input{
+    padding: 8px 4px !important;
+}
+:where(.css-dev-only-do-not-override-19u5a7b).ant-select.ant-select-in-form-item{
+      padding: 8px 4px !important;
+}

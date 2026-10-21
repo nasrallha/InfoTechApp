@@ -32,10 +32,41 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-
+.env
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/generated/prisma
+
+# الصور المرفوعة من المستخدمين
+/uploads
+
+# ZATCA Gateway (.NET)
+/zatca-gateway/bin/
+/zatca-gateway/obj/
+/zatca-gateway/appsettings.Local.json
+/zatca-gateway/publish/
+# مفاتيح الربط مع الزكاة (اعمل لها نسخة احتياطية، بس متترفعش على git)
+/.zatca/
+# النسخ الاحتياطية لقاعدة البيانات (فيها كل البيانات - متترفعش على git)
+/backups/
+# إعدادات وقت التشغيل (اللغة الافتراضية...)
+/.runtime/
+
+# الـ SDK الرسمي للزكاة (ملفات كبيرة جداً، أكبر من حد GitHub)
+# بيتنقل للسيرفر يدوي مرة واحدة جنب المشروع
+/zatca-einvoicing-sdk-*/
+
+# ملفات أدوات التطوير (مش جزء من البرنامج)
+/.claude/
+/.agents/
+/.windsurf/
+skills-lock.json
+
+# سجلات التشغيل
+/logs/
+*.log

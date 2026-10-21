@@ -1,0 +1,46 @@
+/* عدّ الفئات في قفل الوردية */
+.shift-den {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shift-den__row {
+  display: grid;
+  grid-template-columns: 90px 18px 110px 1fr;
+  align-items: center;
+  gap: 6px;
+}
+
+.shift-den__label {
+  font-size: 15px;
+}
+
+.shift-den__x {
+  color: #888;
+  text-align: center;
+}
+
+.shift-den__sum {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: #333;
+}
+
+.shift-den__total,
+.shift-left {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0f5ff;
+  border: 1px solid #adc6ff;
+  font-size: 16px;
+}
+
+.shift-left {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}

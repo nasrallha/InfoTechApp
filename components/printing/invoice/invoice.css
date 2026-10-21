@@ -1,0 +1,323 @@
+/* ============================================================
+   الفاتورة المطبوعة (A4 / 80mm / 58mm) - نفس الشكل في المعاينة والطباعة
+   ============================================================ */
+
+.inv {
+  box-sizing: border-box;
+  background: #fff;
+  color: #000;
+  font-family: Tahoma, Arial, sans-serif;
+  line-height: 1.35;
+}
+
+.inv bdi {
+  unicode-bidi: isolate;
+}
+
+.inv__sub {
+  font-size: 0.85em;
+  color: #333;
+}
+
+/* ---------- الرأس ---------- */
+.inv__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1mm;
+}
+
+.inv__logo {
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.inv__company-name {
+  font-weight: 800;
+  font-size: 1.25em;
+}
+
+.inv__title {
+  margin: 2mm 0;
+  padding: 1.2mm 0;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.1em;
+  border-top: 1px dashed #000;
+  border-bottom: 1px dashed #000;
+}
+
+.inv__meta > div,
+.inv__totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+}
+
+.inv__meta > div > span:first-child,
+.inv__totals > div > span:first-child {
+  color: #222;
+}
+
+/* ---------- الأصناف ---------- */
+.inv__items {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2mm 0;
+}
+
+.inv__items th {
+  font-weight: 800;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 1mm 0.5mm;
+  white-space: nowrap;
+}
+
+.inv__items td {
+  padding: 1mm 0.5mm;
+  vertical-align: top;
+  text-align: center;
+  border-bottom: 1px dotted #999;
+}
+
+.inv__items .inv__col-name {
+  text-align: start;
+  width: 45%;
+}
+
+/* ---------- الإجماليات ---------- */
+.inv__totals {
+  border-top: 1px solid #000;
+  padding-top: 1.5mm;
+}
+
+.inv__grand {
+  margin-top: 1mm;
+  padding: 1.2mm 0;
+  font-weight: 800;
+  font-size: 1.2em;
+  border-top: 1px dashed #000;
+  border-bottom: 1px dashed #000;
+}
+
+/* ---------- الحساب البنكي ---------- */
+.inv__bank {
+  margin-top: 2mm;
+  padding: 1.5mm 2mm;
+  border: 1px dashed #000;
+  border-radius: 1mm;
+}
+
+.inv__bank > div:not(.inv__bank-title) {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+}
+
+.inv__bank-title {
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 0.8mm;
+}
+
+.inv--a4 .inv__bank {
+  width: 50%;
+  margin-inline-start: auto;
+}
+
+/* ---------- الذيل ---------- */
+.inv__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5mm;
+  margin-top: 3mm;
+  text-align: center;
+}
+
+.inv__qr img,
+.inv__qr-empty {
+  width: 26mm;
+  height: 26mm;
+  display: block;
+}
+
+.inv__qr-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    #eee,
+    #eee 2mm,
+    #fff 2mm,
+    #fff 4mm
+  );
+}
+
+.inv__note {
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* ---------- A4: تصميم أعرض ---------- */
+.inv--a4 .inv__header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  text-align: start;
+  padding-bottom: 3mm;
+  border-bottom: 2px solid #000;
+}
+
+.inv--a4 .inv__company {
+  flex: 1;
+}
+
+.inv--a4 .inv__title {
+  margin: 4mm 0;
+  font-size: 1.4em;
+  border: 2px solid #000;
+}
+
+.inv--a4 .inv__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 10mm;
+}
+
+.inv--a4 .inv__items th {
+  background: #f1f1f1;
+  padding: 2mm 1.5mm;
+}
+
+.inv--a4 .inv__items td {
+  padding: 1.8mm 1.5mm;
+}
+
+.inv--a4 .inv__totals {
+  width: 50%;
+  margin-inline-start: auto;
+}
+
+.inv--a4 .inv__qr img,
+.inv--a4 .inv__qr-empty {
+  width: 32mm;
+  height: 32mm;
+}
+
+/* ---------- الكاشير: جدول مضغوط ---------- */
+.inv--thermal .inv__items th,
+.inv--thermal .inv__items td {
+  font-size: 0.9em;
+  padding-inline: 0.4mm;
+}
+
+.inv--thermal .inv__items th {
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.inv--thermal .inv__items .inv__col-name {
+  width: auto;
+}
+
+/* 58mm: خط الجدول أصغر حتى تتسع الأعمدة */
+.inv--58 .inv__items th,
+.inv--58 .inv__items td {
+  font-size: 0.85em;
+  padding-inline: 0.3mm;
+}
+
+/* المبلغ بالحروف */
+.inv__words {
+  margin-top: 1.5mm;
+  padding: 1mm 0;
+  font-size: 0.9em;
+  text-align: center;
+  border-bottom: 1px dashed #000;
+}
+
+/* فاتورة ضريبية لسه متعتمدتش من الهيئة */
+.inv__title-note {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px dashed #000;
+  padding: 2px 4px;
+  margin: 2px 0 4px;
+}
+
+/* ============================================================
+   الكاشير (طابعة حرارية): وضوح الطباعة
+   - الطابعة الحرارية مابتطبعش رمادي: أي لون فاتح بيطلع باهت أو متقطع
+     فكل الكلام أسود (بنفس وزن الخط العادي، والعناوين بس عريضة)
+   - QR أكبر: كود المرحلة التانية كثيف ولازم مساحة عشان يتقري
+   ============================================================ */
+.inv--thermal,
+.inv--thermal * {
+  color: #000 !important;
+}
+
+.inv--thermal .inv__items td {
+  border-bottom: 1px dashed #000;
+}
+
+/* النصوص الطويلة (إيميل، عنوان) تلف جوه عرض الورقة بدل ما تطلع بره وتتقص */
+.inv__header,
+.inv__header * {
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.inv__meta > div > span,
+.inv__totals > div > span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.inv__meta > div > span:last-child,
+.inv__totals > div > span:last-child,
+.inv__grand > div > span:last-child {
+  text-align: end;
+  white-space: nowrap;
+}
+/* الأرقام في جدول الأصناف ما تتكسرش، واسم الصنف هو اللي يلف */
+.inv__items td:not(.inv__col-name) {
+  white-space: nowrap;
+}
+.inv__items .inv__col-name {
+  overflow-wrap: break-word;
+}
+
+.inv--thermal .inv__qr img,
+.inv--thermal .inv__qr-empty {
+  width: 42mm;
+  height: 42mm;
+}
+
+.inv--58 .inv__qr img,
+.inv--58 .inv__qr-empty {
+  width: 38mm;
+  height: 38mm;
+}
+
+.inv--a4 .inv__qr img,
+.inv--a4 .inv__qr-empty {
+  width: 36mm;
+  height: 36mm;
+}
+
+/* المستند على عرض الطباعة الفعلي (72mm / 48mm) ومتوسّط في الورقة */
+.inv--thermal {
+  margin-inline: auto;
+}
+/* اسم المؤسسة: أصغر شوية في الكاشير، ولو طويل ينزل سطر تاني */
+.inv--thermal .inv__company-name {
+  font-size: 1.1em;
+  line-height: 1.3;
+}
+
+/* ملاحظة سطر الصنف (تحت اسمه) */
+.inv__note {
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

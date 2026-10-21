@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مشكلة في الاتصال</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: #f1f5f9; color: #1f2937;
+    font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
+  }
+  .card {
+    background: #fff; border-radius: 16px; max-width: 520px; width: 100%;
+    padding: 32px 24px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.12);
+  }
+  .icon { font-size: 56px; line-height: 1; margin-bottom: 12px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { margin: 0 0 16px; color: #4b5563; line-height: 1.8; }
+  ul { text-align: start; margin: 0 0 20px; padding-inline-start: 22px; line-height: 1.9; color: #374151; }
+  button {
+    background: #0d6e6e; color: #fff; border: 0; border-radius: 10px;
+    padding: 12px 28px; font-size: 16px; cursor: pointer; font-family: inherit;
+  }
+  button:disabled { opacity: .7; cursor: default; }
+  .en { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; direction: ltr; color: #6b7280; font-size: 14px; }
+  .auto { margin-top: 12px; font-size: 13px; color: #9ca3af; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon" id="icon">📡</div>
+    <h1 id="title">مفيش اتصال بالإنترنت</h1>
+    <p id="text">الجهاز ده مش متصل بالإنترنت دلوقتي، فمش قادرين نفتح البرنامج.</p>
+    <ul id="tips">
+      <li>اتأكد إن الواي فاي أو كابل النت متوصل.</li>
+      <li>جرّب تفتح أي موقع تاني عشان تتأكد إن النت شغال.</li>
+      <li>لو بتستخدم راوتر، اعمله إعادة تشغيل.</li>
+    </ul>
+    <button id="retry" type="button">إعادة المحاولة</button>
+    <div class="auto">البرنامج هيفتح لوحده أول ما الاتصال يرجع.</div>
+    <div class="en" id="en">No internet connection. Please check your network and try again.</div>
+  </div>
+<script>
+  (function () {
+    var server = {
+      icon: "🛠️",
+      title: "مشكلة في السيرفر",
+      text: "النت عندك شغال، بس سيرفر البرنامج مش بيرد دلوقتي.",
+      tips: [
+        "استنى دقيقة وجرّب تاني، ممكن السيرفر بيتحدّث أو بيعيد التشغيل.",
+        "لو المشكلة استمرت، كلّم الدعم الفني.",
+      ],
+      en: "The server is not responding right now. Please try again in a minute.",
+    };
+    function show() {
+      if (navigator.onLine === false) return;
+      document.getElementById("icon").textContent = server.icon;
+      document.getElementById("title").textContent = server.title;
+      document.getElementById("text").textContent = server.text;
+      document.getElementById("en").textContent = server.en;
+      var ul = document.getElementById("tips");
+      ul.innerHTML = "";
+      server.tips.forEach(function (t) {
+        var li = document.createElement("li");
+        li.textContent = t;
+        ul.appendChild(li);
+      });
+      document.title = server.title;
+    }
+    var btn = document.getElementById("retry");
+    function check(manual) {
+      if (manual) { btn.disabled = true; btn.textContent = "جاري التأكد..."; }
+      fetch("/api/health?t=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { if (r.ok) location.reload(); else fail(manual); })
+        .catch(function () { fail(manual); });
+    }
+    function fail(manual) {
+      show();
+      if (manual) { btn.disabled = false; btn.textContent = "إعادة المحاولة"; }
+    }
+    btn.addEventListener("click", function () { check(true); });
+    window.addEventListener("online", function () { check(false); });
+    show();
+    setInterval(function () { check(false); }, 10000);
+  })();
+</script>
+</body>
+</html>

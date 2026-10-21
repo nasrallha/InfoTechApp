@@ -1,0 +1,107 @@
+.ant-table-css-var [class*=" ant-table"] {
+    font-weight: bold !important;
+    text-align: center;
+}
+
+.ant-table-thead {
+    font-size: 16px;
+}
+
+.ant-table-wrapper .ant-table-thead>tr>th,
+.ant-table-wrapper .ant-table-thead>tr>td {
+    background-color: #34495e !important;
+    color: #fff !important;
+
+}
+
+.ant-table-wrapper .ant-table-column-sorter-inner {
+    color: #fff !important;
+    font-size: 20px !important;
+
+}
+
+.ant-table-wrapper .ant-table-filter-trigger {
+    color: #fff !important;
+    font-size: 20px !important;
+}
+
+
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-content >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-header >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>thead>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>thead>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>td {
+    border-bottom: 1px solid #34495e !important;
+}
+/* .ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-content >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-header >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>thead>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>thead>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>thead>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>thead>tr>td, */
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>td {
+    padding: 2px;
+}
+
+/* .ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-content >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-header >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-body >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-summary >table >thead>tr>th, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-content >table >thead>tr>td, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-header >table >thead>tr>td, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-body >table >thead>tr>td, 
+.ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-summary >table >thead>tr>td,  */
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tbody>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tbody>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>th,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-content>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>td,
+.ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>td {
+    border-inline-end: 1px solid #34495e !important;
+}

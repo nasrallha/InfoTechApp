@@ -1,0 +1,197 @@
+/* ============================================================
+   السندات المطبوعة (A4 / كاشير)
+   ============================================================ */
+
+.vch {
+  box-sizing: border-box;
+  background: #fff;
+  color: #111;
+  font-family: Tahoma, Arial, sans-serif;
+  line-height: 1.45;
+}
+
+.vch bdi {
+  unicode-bidi: isolate;
+}
+
+.vch--a4 {
+  padding: 12mm;
+  font-size: 10.5pt;
+}
+
+.vch--thermal {
+  padding: 2mm 3mm;
+  font-size: 8.5pt;
+}
+
+.vch__header {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+}
+
+.vch--thermal .vch__header {
+  flex-direction: column;
+  text-align: center;
+  gap: 1mm;
+}
+
+.vch__logo {
+  height: 18mm;
+  max-width: 45mm;
+  object-fit: contain;
+}
+
+.vch--thermal .vch__logo {
+  height: 12mm;
+}
+
+.vch__company-name {
+  font-weight: 800;
+  font-size: 1.3em;
+}
+
+.vch--a4 .vch__company-name {
+  color: #1f4e78;
+}
+
+.vch__title {
+  margin: 4mm 0 3mm;
+  padding: 2mm;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.35em;
+  border-radius: 2mm;
+  color: #fff;
+  background: #1f4e78;
+}
+
+.vch__title--receipt {
+  background: #1e8449;
+}
+
+.vch__title--payment {
+  background: #b03a2e;
+}
+
+.vch__title--settlement {
+  background: #6c3483;
+}
+
+.vch--thermal .vch__title {
+  color: #000;
+  background: none !important;
+  border-top: 1px dashed #000;
+  border-bottom: 1px dashed #000;
+  border-radius: 0;
+  font-size: 1.1em;
+  margin: 2mm 0;
+}
+
+.vch__subtitle {
+  font-size: 0.75em;
+  font-weight: 600;
+}
+
+.vch__meta > div,
+.vch__lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  padding: 0.8mm 0;
+}
+
+.vch--a4 .vch__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+}
+
+.vch--a4 .vch__meta > div {
+  border: 1px solid #d8e1ec;
+  border-radius: 1.5mm;
+  padding: 2mm 3mm;
+  background: #f6f9fc;
+}
+
+.vch__amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 3mm 0;
+  padding: 2mm 3mm;
+  border: 2px solid #000;
+  border-radius: 1.5mm;
+  font-size: 1.25em;
+}
+
+.vch--a4 .vch__amount {
+  border-color: #1f4e78;
+  font-size: 1.5em;
+  width: 50%;
+  margin-inline-start: auto;
+}
+
+.vch--a4 .vch__lines > div {
+  border-bottom: 1px dotted #999;
+  padding: 2.5mm 0;
+}
+
+.vch__lines > div > span:first-child {
+  color: #444;
+  white-space: nowrap;
+}
+
+.vch__words b {
+  text-align: end;
+}
+
+.vch--thermal .vch__lines > div {
+  flex-direction: column;
+  gap: 0;
+}
+
+.vch__alloc {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 3mm 0;
+}
+
+.vch__alloc th,
+.vch__alloc td {
+  padding: 1mm 1.5mm;
+  border: 1px solid #ccc;
+  text-align: start;
+}
+
+.vch__alloc td:last-child,
+.vch__alloc th:last-child {
+  text-align: end;
+}
+
+.vch--a4 .vch__alloc th {
+  background: #1f4e78;
+  color: #fff;
+  border-color: #1f4e78;
+}
+
+.vch__signatures {
+  display: flex;
+  gap: 6mm;
+  margin-top: 10mm;
+}
+
+.vch__signatures > div {
+  flex: 1;
+  text-align: center;
+}
+
+.vch__sign {
+  min-height: 10mm;
+  border-bottom: 1px solid #333;
+  padding-top: 2mm;
+}
+
+.vch--thermal .vch__signatures {
+  margin-top: 5mm;
+}

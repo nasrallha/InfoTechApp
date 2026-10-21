@@ -1,0 +1,8 @@
+**
+!zatca-gateway/**
+!zatca-einvoicing-sdk-DotNet-238-R3.4.6/Lib/Dot-Net8/DLL/**
+!zatca-einvoicing-sdk-DotNet-238-R3.4.6/Data/Rules/**
+!zatca-einvoicing-sdk-DotNet-238-R3.4.6/Data/Certificates/**
+zatca-gateway/bin/
+zatca-gateway/obj/
+zatca-gateway/appsettings.Local.json

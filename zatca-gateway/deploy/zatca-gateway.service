@@ -1,0 +1,22 @@
+# systemd (Linux):
+#   dotnet publish -c Release -o /opt/zatca-gateway
+#   sudo cp deploy/zatca-gateway.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now zatca-gateway
+#   journalctl -u zatca-gateway -f
+[Unit]
+Description=ZATCA Gateway (e-invoicing SDK service)
+After=network.target
+
+[Service]
+Type=notify
+WorkingDirectory=/opt/zatca-gateway
+ExecStart=/usr/bin/dotnet /opt/zatca-gateway/ZatcaGateway.dll
+Restart=always
+RestartSec=5
+User=www-data
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+# نفس قيمة ZATCA_GATEWAY_KEY في .env بتاع المشروع
+Environment=ZATCA_GATEWAY_KEY=change-me
+
+[Install]
+WantedBy=multi-user.target

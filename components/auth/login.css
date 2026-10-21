@@ -1,0 +1,258 @@
+/* ============================================================
+   صفحة تسجيل الدخول (تصميم مستقل عن لوحة التحكم)
+   الألوان من نفس هوية النظام: #222f3e (داكن) و #006266 (أخضر مزرق)
+   الخصائص "المنطقية" (inset-inline / padding-inline) تعمل مع العربي والإنجليزي
+   ============================================================ */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: #f1f5f9;
+}
+
+@media (min-width: 1024px) {
+  .login-page {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+}
+
+/* ---------- لوحة التعريف ---------- */
+.login-brand {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  padding: 56px 64px;
+  color: #fff;
+  background: linear-gradient(145deg, #1b2735 0%, #222f3e 45%, #00494c 100%);
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+@media (min-width: 1024px) {
+  .login-brand {
+    display: flex;
+  }
+}
+
+.login-brand__glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.login-brand__glow--one {
+  width: 420px;
+  height: 420px;
+  background: #0aa2a8;
+  top: -120px;
+  inset-inline-end: -140px;
+}
+.login-brand__glow--two {
+  width: 360px;
+  height: 360px;
+  background: #3b5b7d;
+  bottom: -140px;
+  inset-inline-start: -120px;
+}
+
+.login-brand__content {
+  position: relative;
+  z-index: 1;
+  margin-block: auto;
+  max-width: 480px;
+}
+
+.login-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  color: #fff;
+  background: linear-gradient(135deg, #00a8a8, #006266);
+  box-shadow: 0 12px 30px rgba(0, 98, 102, 0.45);
+  margin-bottom: 28px;
+}
+
+.login-logo--mobile {
+  margin-inline: auto;
+  margin-bottom: 20px;
+}
+@media (min-width: 1024px) {
+  .login-logo--mobile {
+    display: none;
+  }
+}
+
+.login-brand__title {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 12px;
+  letter-spacing: -0.5px;
+}
+
+.login-brand__tagline {
+  font-size: 17px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0 0 44px;
+}
+
+.login-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.login-feature {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.login-feature__icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  background: rgba(10, 162, 168, 0.18);
+  color: #5fe3e6;
+}
+
+.login-feature__title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.login-feature__text {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.login-brand__footer {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ---------- لوحة الفورم ---------- */
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+.login-panel__top {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.login-lang {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.login-lang:hover {
+  border-color: #006266;
+  color: #006266;
+}
+
+.login-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 460px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 20px 45px -12px rgba(15, 23, 42, 0.15);
+  border: 1px solid #e2e8f0;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px 20px;
+  }
+}
+
+.login-card__title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+
+.login-card__subtitle {
+  color: #64748b;
+  font-size: 15px;
+  margin: 0 0 26px;
+}
+
+.login-card .ant-form-item-label > label {
+  font-weight: 600;
+  color: #334155;
+}
+
+.login-input-icon {
+  color: #94a3b8;
+  margin-inline-end: 4px;
+}
+
+.login-caps {
+  color: #d97706;
+  font-size: 13px;
+}
+
+.login-submit.ant-btn {
+  height: 48px;
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #00888c, #006266);
+  border: none;
+  box-shadow: 0 10px 24px -8px rgba(0, 98, 102, 0.6);
+}
+.login-submit.ant-btn:not(:disabled):hover {
+  background: linear-gradient(135deg, #009a9e, #00575a) !important;
+}
+
+.login-panel__secure {
+  margin-top: 20px;
+  font-size: 13px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

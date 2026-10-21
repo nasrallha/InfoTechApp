@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    ZATCA Gateway
+    خدمة صغيرة بتشغّل الـ SDK الرسمي لهيئة الزكاة (CSR، بناء الـ XML، التوقيع، الـ QR، التحقق)
+    وبتكلم بوابة فاتورة. المشروع (Next.js) بيكلمها على localhost بس.
+    بتشتغل على Windows و Linux (الـ SDK جواه IKVM لكل الأنظمة).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ZatcaGateway</RootNamespace>
+    <AssemblyName>ZatcaGateway</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- النسخة المبنية (publish) جوه نفس الفولدر: متدخلش في البناء تاني -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**;deploy/**</DefaultItemExcludes>
+    <!-- مكان الـ SDK: افتراضياً الفولدر اللي جنب المشروع، ويتغير بـ -p:ZatcaSdkDir=... -->
+    <ZatcaSdkDir Condition="'$(ZatcaSdkDir)' == ''">$(MSBuildProjectDirectory)/../zatca-einvoicing-sdk-DotNet-238-R3.4.6</ZatcaSdkDir>
+    <ZatcaSdkLib>$(ZatcaSdkDir)/Lib/Dot-Net8/DLL/Zatca.EInvoice.SDK/net8.0</ZatcaSdkLib>
+  </PropertyGroup>
+
+  <!-- نفس إصدارات اعتماديات الـ SDK (من ZATCA.EInvoice.SDK.deps.json) -->
+  <ItemGroup>
+    <PackageReference Include="IKVM" Version="8.10.0" />
+    <PackageReference Include="Portable.BouncyCastle" Version="1.9.0" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="ZATCA.EInvoice.SDK">
+      <HintPath>$(ZatcaSdkLib)/ZATCA.EInvoice.SDK.dll</HintPath>
+    </Reference>
+    <Reference Include="ZATCA.EInvoice.SDK.Contracts">
+      <HintPath>$(ZatcaSdkLib)/ZATCA.EInvoice.SDK.Contracts.dll</HintPath>
+    </Reference>
+    <Reference Include="ZATCA.EInvoice.SDK.Saxon">
+      <HintPath>$(ZatcaSdkLib)/ZATCA.EInvoice.SDK.Saxon.dll</HintPath>
+    </Reference>
+    <Reference Include="saxon">
+      <HintPath>$(ZatcaSdkLib)/saxon.dll</HintPath>
+    </Reference>
+    <Reference Include="xerces">
+      <HintPath>$(ZatcaSdkLib)/xerces.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    قواعد التحقق (Schematrons): الـ SDK بيدور على فولدر Rules جنب البرنامج
+    واسم الفولدر الفرعي لازم "Schematrons" بحرف كبير (مهم على Linux)
+  -->
+  <ItemGroup>
+    <None Include="$(ZatcaSdkDir)/Data/Rules/schematrons/*.xsl" Link="Rules/Schematrons/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- شهادة الهيئة التجريبية: للاختبار الذاتي وتسخين الـ SDK فقط -->
+    <None Include="$(ZatcaSdkDir)/Data/Certificates/*" Link="Samples/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

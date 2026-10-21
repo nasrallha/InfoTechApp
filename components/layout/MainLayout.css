@@ -1,0 +1,22 @@
+.ant-menu-dark .ant-menu-item, 
+.ant-menu-dark>.ant-menu .ant-menu-item, 
+.ant-menu-dark .ant-menu-submenu-title, 
+.ant-menu-dark>.ant-menu .ant-menu-submenu-title {
+    color: #fff !important;
+    font-size: 17px;
+}
+
+
+.ant-menu-inline.ant-menu-root .ant-menu-item >*, 
+.ant-menu-inline.ant-menu-root .ant-menu-submenu-title{
+    font-size: 17px;
+}
+
+
+/* الموبايل: خلفية غامقة خلف القائمة الجانبية وهي مفتوحة */
+.main-sider-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.45);
+}

@@ -1,0 +1,305 @@
+/* ============================================================
+   فاتورة A4 احترافية (نفس الشكل في الطباعة و PDF)
+   اللون الأساسي من --accent حسب نوع المستند
+   ============================================================ */
+
+.a4 {
+  --accent: #1f4e78;
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 296mm;
+  padding: 10mm;
+  background: #fff;
+  color: #1a1a1a;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 9.5pt;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+}
+
+.a4 bdi {
+  unicode-bidi: isolate;
+}
+
+.a4__sub {
+  font-size: 0.85em;
+  color: #555;
+}
+
+/* ---------- الرأس ---------- */
+.a4__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 2mm;
+  padding-bottom: 2mm;
+  border-bottom: 1px solid var(--accent);
+}
+
+.a4__company {
+  display: flex;
+  gap: 2mm;
+  align-items: flex-start;
+  color: #333;
+}
+
+.a4__logo {
+  height: 30mm;
+  max-width: 45mm;
+  object-fit: contain;
+}
+
+.a4__company-name {
+  font-size: 1.45em;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1.25;
+  margin-bottom: 1mm;
+}
+
+.a4__title-box {
+  min-width: 58mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3mm 4mm;
+  border-radius: 3mm;
+  background: var(--accent);
+  color: #fff;
+}
+
+.a4__title {
+  font-size: 1.45em;
+  font-weight: 800;
+}
+
+.a4__title-en {
+  font-size: 1em;
+}
+
+.a4__number {
+  margin-top: 1.5mm;
+  padding: 0.8mm 4mm;
+  border-radius: 10mm;
+  background: #fff;
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 1.15em;
+}
+
+.a4__qr {
+  /* QR المرحلة التانية كثيف: مقاس أكبر عشان يتقري */
+  width: 34mm;
+  height: 34mm;
+  margin-top: 2.5mm;
+  padding: 1.2mm;
+  background: #fff;
+  border-radius: 1.5mm;
+}
+
+.a4__qr--empty {
+  background: repeating-linear-gradient(
+    45deg,
+    #eee,
+    #eee 2mm,
+    #fff 2mm,
+    #fff 4mm
+  );
+}
+
+/* ---------- المربعات ---------- */
+.a4__boxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  margin: 3mm 0;
+}
+
+.a4__box,
+.a4__words,
+.a4__bank,
+.a4__notes,
+.a4__payments {
+  border: 1px solid #d6dde6;
+  border-radius: 2mm;
+  padding: 2.5mm 3.5mm;
+  background: #fafcfe;
+}
+
+.a4__box-title {
+  font-weight: bold;
+  color: var(--accent);
+  margin-bottom: 1.2mm;
+  padding-bottom: 1mm;
+  font-size: 1.4em;
+  border-bottom: 1px solid #e3e8ef;
+}
+
+.a4__party-name {
+  font-size: 1.2em;
+  font-weight: 800;
+}
+
+.a4__kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  padding: 0.4mm 0;
+}
+
+.a4__kv > span {
+  color: #555;
+}
+
+/* ---------- الأصناف ---------- */
+.a4__items {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.a4__items thead {
+  display: table-header-group;
+}
+
+.a4__items th {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  padding: 2mm 1.5mm;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.a4__items td {
+  padding: 1.8mm 1.5mm;
+  border-bottom: 1px solid #e3e8ef;
+  vertical-align: top;
+}
+
+.a4__items tbody tr:nth-child(even) td {
+  background: #f4f7fb;
+}
+
+.a4__items tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.a4__items .a4__col-name {
+  text-align: start;
+  width: 38%;
+}
+
+.a4__c {
+  text-align: center;
+}
+
+.a4__n {
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- الأسفل ---------- */
+.a4__bottom {
+  display: grid;
+  grid-template-columns: 1fr 78mm;
+  gap: 5mm;
+  margin-top: 5mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.a4__left {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+}
+
+.a4__notes > div:last-child {
+  white-space: pre-line;
+}
+
+.a4__totals {
+  align-self: start;
+  border: 1px solid #d6dde6;
+  border-radius: 2mm;
+  overflow: hidden;
+}
+
+.a4__totals .a4__kv {
+  padding: 1.6mm 3.5mm;
+  border-bottom: 1px solid #e3e8ef;
+}
+
+.a4__grand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 3mm;
+  padding: 2.5mm 3.5mm;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.2em;
+  font-weight: 800;
+}
+
+/* ---------- التوقيعات والذيل ---------- */
+.a4__signs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8mm;
+  margin-top: auto;
+  padding-top: 12mm;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.a4__signs span {
+  color: #444;
+  font-weight: 700;
+}
+
+.a4__sign-line {
+  margin-top: 10mm;
+  padding-top: 1mm;
+  border-top: 1px solid #333;
+  min-height: 5mm;
+}
+
+.a4__footer {
+  margin-top: 5mm;
+  padding-top: 2mm;
+  border-top: 2px solid var(--accent);
+  text-align: center;
+  color: #444;
+  white-space: pre-line;
+}
+
+.a4__footer p {
+  margin: 0;
+}
+
+/* فاتورة ضريبية لسه متعتمدتش من الهيئة */
+.a4__title-note {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b00;
+  border: 1px dashed #b00;
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+/* ملاحظة سطر الصنف (تحت اسمه) */
+.a4__note {
+  font-size: 0.85em;
+  color: #555;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}

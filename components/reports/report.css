@@ -1,0 +1,218 @@
+/* ============================================================
+   التقارير والقوائم المطبوعة (A4)
+   ============================================================ */
+
+.rep {
+  box-sizing: border-box;
+  background: #fff;
+  color: #111;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 9.5pt;
+  line-height: 1.4;
+}
+
+.rep bdi {
+  unicode-bidi: isolate;
+}
+
+.rep__muted {
+  color: #555;
+  font-size: 0.9em;
+}
+
+.rep__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6mm;
+  padding-bottom: 3mm;
+  border-bottom: 2px solid #1f4e78;
+}
+
+.rep__company {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+}
+
+.rep__logo {
+  height: 16mm;
+  max-width: 40mm;
+  object-fit: contain;
+}
+
+.rep__company-name {
+  font-weight: 800;
+  font-size: 1.3em;
+  color: #1f4e78;
+}
+
+.rep__title-box {
+  text-align: end;
+}
+
+.rep__title {
+  font-weight: 800;
+  font-size: 1.35em;
+  color: #1f4e78;
+  margin-bottom: 1mm;
+}
+
+.rep__info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5mm 4mm;
+  margin: 3mm 0;
+  padding: 2.5mm 3mm;
+  background: #f3f6fa;
+  border: 1px solid #d8e1ec;
+  border-radius: 2mm;
+}
+
+.rep__info > div,
+.rep__summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+}
+
+.rep__info span,
+.rep__summary span {
+  color: #444;
+}
+
+.rep__summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5mm;
+  margin: 3mm 0;
+}
+
+.rep__summary > div {
+  border: 1px solid #d8e1ec;
+  border-radius: 1.5mm;
+  padding: 1.5mm 2.5mm;
+}
+
+.rep__summary--strong {
+  background: #1f4e78;
+  border-color: #1f4e78 !important;
+}
+
+.rep__summary--strong span,
+.rep__summary--strong b {
+  color: #fff !important;
+}
+
+.rep__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2mm 0 4mm;
+}
+
+.rep__table thead {
+  display: table-header-group;
+}
+
+.rep__table th {
+  background: #1f4e78;
+  color: #fff;
+  font-weight: 700;
+  padding: 1.6mm 1.5mm;
+  border: 1px solid #1f4e78;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.rep__table td {
+  padding: 1.3mm 1.5mm;
+  border: 1px solid #dfe5ec;
+  vertical-align: top;
+}
+
+.rep__table tbody tr:nth-child(even) td {
+  background: #f6f9fc;
+}
+
+.rep__table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.rep__table tfoot td {
+  font-weight: 800;
+  background: #e7eef7;
+  border-top: 2px solid #1f4e78;
+}
+
+.rep__num {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.rep__section h3 {
+  margin: 4mm 0 1mm;
+  font-weight: 800;
+  font-size: 1.1em;
+  color: #1f4e78;
+}
+
+.rep__signatures {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+  margin-top: 12mm;
+}
+
+.rep__signatures > div {
+  flex: 1;
+  text-align: center;
+}
+
+.rep__sign-line {
+  margin-top: 12mm;
+  border-top: 1px solid #333;
+}
+
+/* ============================================================
+   شاشات التقارير
+   ============================================================ */
+.report-kpi {
+  height: 100%;
+}
+
+.report-kpi__title {
+  color: #666;
+  font-size: 13px;
+}
+
+.report-kpi__value {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-kpi__hint {
+  color: #888;
+  font-size: 12px;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 600px) {
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .report-kpi__value {
+    font-size: 17px;
+  }
+}

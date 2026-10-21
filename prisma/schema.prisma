@@ -1,0 +1,1840 @@
+// ============================================================
+// إعدادات Prisma
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+// رابط قاعدة البيانات موجود في prisma.config.ts (من DATABASE_URL في .env)
+datasource db {
+  provider = "mysql"
+}
+
+// ملاحظات عامة:
+// - اسم الموديل مفرد (Product)، واسم الجدول في MySQL جمع بحروف صغيرة (products) عن طريق @@map
+// - كل الأسماء بالعربي والإنجليزي (arName / enName)
+// - الحقول الاختيارية الفريدة (phone, taxNo, ...) تُحفظ null وليس نصاً فاضياً
+
+// ============================================================
+// الأدوار (Role)
+// ============================================================
+
+model Role {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(50)
+  enName   String  @unique @db.VarChar(50)
+  isActive Boolean @default(true)
+
+  // مدير النظام: له كل الصلاحيات وكل الفروع (لا يحتاج صفوف في role_permissions)
+  isSuper Boolean @default(false)
+  // دور مالك البرنامج (مخفي: مش بيظهر في شاشة الأدوار ولا في الاختيار)
+  isOwner Boolean @default(false)
+
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+// ============================================================
+// الفروع (Branch)
+// ============================================================
+
+model Branch {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(100)
+  enName   String  @unique @db.VarChar(100)
+  address  String  @db.VarChar(255)
+  isActive Boolean @default(true)
+
+  // بيانات الفرع في الفاتورة (لو فاضية تُؤخذ من بيانات الشركة)
+  phone          String? @db.VarChar(20)
+  registrationNo String? @db.VarChar(10) // السجل التجاري الفرعي
+  city           String? @db.VarChar(100)
+  district       String? @db.VarChar(100)
+  street         String? @db.VarChar(100)
+  buildingNo     String? @db.VarChar(4)
+  additionalNo   String? @db.VarChar(4)
+  postalCode     String? @db.VarChar(5)
+
+  // مستودع الفرع: مشترياته تدخله ومبيعاته تخرج منه
+  // (أكثر من فرع على نفس المستودع = مخزون مشترك)
+  warehouseId Int?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
+  // قائمة أسعار الفرع (لو الصنف ليس له سعر فيها: السعر الأساسي)
+  priceListId Int?
+  priceList   PriceList? @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+
+  users    User[]
+  sessions Session[] // الجلسات المفتوحة حالياً على هذا الفرع
+  purchases Purchase[] // فواتير المشتريات ومرتجعاتها المسجلة على الفرع
+  sales      Sale[]
+  quotations Quotation[]
+  shifts     Shift[]
+  vouchers      Voucher[]
+  cashMovements CashMovement[]
+
+  promotions PromotionBranch[]
+  zatcaUnit  ZatcaUnit? // وحدة الربط مع الزكاة (EGS) للفرع
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([warehouseId])
+  @@index([priceListId])
+  @@map("branches")
+}
+
+// ============================================================
+// المستخدمون (User)
+// ============================================================
+
+model User {
+  id         Int     @id @default(autoincrement())
+  username   String  @unique @db.VarChar(50)
+  arFullname String  @db.VarChar(100)
+  enFullname String  @db.VarChar(100)
+  password   String  @db.VarChar(255) // تُحفظ مشفّرة (hash) وليس النص الأصلي
+  image      String? @db.VarChar(255)
+  isActive   Boolean @default(true)
+  // مالك البرنامج: بيدخل بالحساب اللي في ملف الإعدادات (.env)، والصف ده مخفي
+  // (عشان الفواتير والمستندات اللي بيعملها تتسجل باسمه)
+  isOwner    Boolean @default(false)
+
+  roleId Int
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  // الفرع الأساسي: المستخدم يدخل عليه تلقائياً بعد تسجيل الدخول
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  lastLoginAt DateTime?
+
+  sessions Session[]
+  loginAttempts LoginAttempt[]
+  purchases Purchase[] // فواتير المشتريات التي سجلها
+  transfersCreated  StockTransfer[]  @relation("TransferCreatedBy")
+  transfersReceived StockTransfer[]  @relation("TransferReceivedBy")
+  countsCreated     InventoryCount[] @relation("CountCreatedBy")
+  countsPosted      InventoryCount[] @relation("CountPostedBy")
+  sales             Sale[]
+  quotations        Quotation[]
+  shifts            Shift[]          @relation("ShiftCashier")
+  shiftsClosed      Shift[]          @relation("ShiftClosedBy")
+  vouchers          Voucher[]
+  cashMovements     CashMovement[]
+
+  promotions        Promotion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roleId])
+  @@index([branchId])
+  @@map("users")
+}
+
+// ============================================================
+// صلاحيات الأدوار (RolePermission)
+// - كل صف = دور + صلاحية واحدة، مثال: (2, "products.create")
+// - قائمة الصلاحيات الموجودة في النظام مكتوبة في الكود: lib/permissions.js
+// ============================================================
+
+model RolePermission {
+  id Int @id @default(autoincrement())
+
+  // حذف الدور يحذف صلاحياته معه
+  roleId Int
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  permission String @db.VarChar(100)
+
+  @@unique([roleId, permission]) // نفس الصلاحية لا تتكرر لنفس الدور
+  @@index([roleId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// الجلسات (Session) - كل تسجيل دخول من جهاز = جلسة
+// - الـ cookie فيها رقم عشوائي، ونحفظ هنا الـ hash بتاعه فقط (لو تسربت قاعدة البيانات لا تُستخدم)
+// - branchId = الفرع الحالي الذي يعمل عليه المستخدم في هذه الجلسة
+// ============================================================
+
+model Session {
+  id        Int    @id @default(autoincrement())
+  tokenHash String @unique @db.VarChar(64)
+
+  // حذف المستخدم يحذف جلساته
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  userAgent String?  @db.VarChar(255)
+  ip        String?  @db.VarChar(45) // عنوان الجهاز وقت الدخول
+  expiresAt DateTime
+  // آخر نشاط (للخروج بعد عدم النشاط + شاشة الأجهزة)
+  lastSeenAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([branchId])
+  @@map("sessions")
+}
+
+// ============================================================
+// أمان الدخول: الإعدادات (صف واحد id = 1) + سجل المحاولات + القفل المؤقت
+// ============================================================
+
+model SecuritySettings {
+  id Int @id
+
+  // القفل بعد محاولات غلط (0 = بدون قفل)
+  maxAttempts          Int     @default(5)
+  attemptWindowMinutes Int     @default(15) // المحاولات بتتعد خلال المدة دي
+  lockMinutes          Int     @default(10)
+  progressiveLock      Boolean @default(true) // القفل يطول لو كرر الغلط
+  showRemaining        Boolean @default(true) // يظهر عدد المحاولات المتبقية
+  // القفل على الجهاز (IP) بعد محاولات غلط من أي أسماء (0 = بدون)
+  ipMaxAttempts        Int     @default(0)
+
+  // الجلسة
+  idleMinutes          Int     @default(0) // خروج بعد عدم نشاط (0 = بدون)
+  sessionHours         Int     @default(168) // أقصى مدة للجلسة
+  logoutOnBrowserClose Boolean @default(false)
+
+  // عدد الأجهزة للمستخدم في نفس الوقت (0 = بدون حد)
+  maxDevices        Int     @default(0)
+  deviceLimitMode   String  @default("oldest") @db.VarChar(10) // oldest | reject
+  deviceLimitSkipSuper Boolean @default(true) // مدير النظام مستثنى
+
+  logRetentionDays Int @default(90) // مدة الاحتفاظ بسجل الدخول
+
+  updatedAt DateTime @updatedAt
+
+  @@map("security_settings")
+}
+
+model LoginAttempt {
+  id       Int    @id @default(autoincrement())
+  username String @db.VarChar(50) // زي ما اتكتب (حتى لو المستخدم مش موجود)
+
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  success   Boolean
+  // ok | invalid | locked | ipLocked | disabled | branchInactive | deviceLimit
+  reason    String  @db.VarChar(20)
+  ip        String? @db.VarChar(45)
+  userAgent String? @db.VarChar(255)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([username, createdAt])
+  @@index([userId])
+  @@map("login_attempts")
+}
+
+model LoginLock {
+  id   Int    @id @default(autoincrement())
+  kind String @db.VarChar(4) // user | ip
+  key  String @db.VarChar(64) // اسم المستخدم (حروف صغيرة) أو الـ IP
+
+  failures    Int       @default(0)
+  windowStart DateTime
+  lastFailAt  DateTime
+  lockedUntil DateTime?
+  lockCount   Int       @default(0) // عدد مرات القفل (للقفل المتزايد)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, key])
+  @@index([lockedUntil])
+  @@map("login_locks")
+}
+
+// ============================================================
+// الأقسام (Category) - شجرة من مستويين: رئيسي ← فرعي
+// ============================================================
+
+model Category {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(100)
+  enName   String  @unique @db.VarChar(100)
+  image    String? @db.VarChar(255)
+  isActive Boolean @default(true)
+
+  // القسم الأب: فاضي (null) = قسم رئيسي، فيه رقم = قسم فرعي
+  parentId Int?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+
+  products Product[]
+
+  promotions PromotionCategory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ============================================================
+// الوحدات (Unit) - قطعة، علبة، كرتونة ...
+// ============================================================
+
+model Unit {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(100)
+  enName   String  @unique @db.VarChar(100)
+  isActive Boolean @default(true)
+
+  products     Product[] // المنتجات التي هذه الوحدة هي وحدتها الأساسية
+  productUnits ProductUnit[] // استخدام الوحدة كوحدة إضافية لمنتج
+  purchaseItems PurchaseItem[] // استخدام الوحدة في فواتير المشتريات
+  saleItems      SaleItem[]
+  quotationItems QuotationItem[]
+  transferItems StockTransferItem[]
+  prices        ProductPrice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("units")
+}
+
+// ============================================================
+// المنتجات (Product)
+// - الأسعار والتكلفة هنا للوحدة الأساسية
+// - code = باركود الوحدة الأساسية
+// ============================================================
+
+model Product {
+  id     Int     @id @default(autoincrement())
+  code   String  @unique @db.VarChar(50)
+  arName String  @db.VarChar(150)
+  enName String  @db.VarChar(150)
+  image  String? @db.VarChar(255)
+
+  // الأسعار (للوحدة الأساسية)
+  cost           Decimal @default(0) @db.Decimal(18, 4)
+  price          Decimal @default(0) @db.Decimal(18, 4)
+  wholesalePrice Decimal @default(0) @db.Decimal(18, 4)
+
+  // الضريبة
+  taxRate           Decimal @default(0) @db.Decimal(5, 2) // نسبة مئوية، مثال: 15.00
+  isPriceIncludeTax Boolean @default(false)
+  // فئة الضريبة للفوترة الإلكترونية: S خاضع | Z صفري | E معفى | O خارج النطاق
+  // (النسبة > 0 = S دائماً، والنسبة 0 لازم لها فئة وسبب إعفاء VATEX)
+  taxCategory        String  @default("S") @db.VarChar(1)
+  taxExemptionCode   String? @db.VarChar(20)
+  taxExemptionReason String? @db.VarChar(255)
+
+  // الرصيد الافتتاحي بالوحدة الأساسية (كسور: الأصناف الموزونة 1.250 كجم)
+  startStock Decimal @default(0) @db.Decimal(18, 3)
+
+  isActive Boolean @default(true)
+
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  baseUnitId Int
+  baseUnit   Unit @relation(fields: [baseUnitId], references: [id], onDelete: Restrict)
+
+  // الوحدات الإضافية (علبة، كرتونة ...)
+  productUnits ProductUnit[]
+
+  // أصناف فواتير المشتريات (لا يُحذف منتج عليه فواتير)
+  purchaseItems PurchaseItem[]
+
+  // أصناف فواتير المبيعات وعروض الأسعار
+  saleItems      SaleItem[]
+  quotationItems QuotationItem[]
+
+  // المخزون والتحويلات والجرد وقوائم الأسعار
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
+  transferItems  StockTransferItem[]
+  countItems     InventoryCountItem[]
+  prices         ProductPrice[]
+
+  promotions PromotionProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([baseUnitId])
+  @@map("products")
+}
+
+// ============================================================
+// الوحدات الإضافية للمنتج (ProductUnit)
+// - الوحدة الأساسية لا تُسجل هنا، هي baseUnit في Product
+// - conversionFactor = كم وحدة أساسية داخل هذه الوحدة (كرتونة = 50 قطعة)
+// ============================================================
+
+model ProductUnit {
+  id Int @id @default(autoincrement())
+
+  // حذف المنتج يحذف وحداته الإضافية معه
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  unitId Int
+  unit   Unit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  conversionFactor Decimal @default(1) @db.Decimal(18, 4)
+  barcode          String? @unique @db.VarChar(50)
+
+  // الرصيد الافتتاحي بهذه الوحدة (10 كرتونة)، يُضاف لرصيد الصنف الافتتاحي
+  startStock Decimal @default(0) @db.Decimal(18, 3)
+
+  // أسعار هذه الوحدة
+  cost  Decimal @default(0) @db.Decimal(18, 4)
+  price Decimal @default(0) @db.Decimal(18, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, unitId]) // نفس الوحدة لا تتكرر لنفس المنتج
+  @@index([productId])
+  @@index([unitId])
+  @@map("product_units")
+}
+
+// ============================================================
+// العملاء (Customer)
+// ============================================================
+
+model Customer {
+  id     Int    @id @default(autoincrement())
+  code   Int    @unique
+  arName String @db.VarChar(255)
+  enName String @db.VarChar(255)
+
+  // اختيارية لكن لا تتكرر
+  phone          String? @unique @db.VarChar(11)
+  taxNo          String? @unique @db.VarChar(15) // الرقم الضريبي
+  registrationNo String? @unique @db.VarChar(10) // قديم: السجل بقى في المعرّف (idScheme = CRN)
+
+  // معرّف العميل للربط مع الزكاة لو مالوش رقم ضريبي (أو العميل الأجنبي)
+  // idScheme: CRN سجل | 700 الرقم الموحد | NAT هوية | IQA إقامة | PAS جواز | GCC | TIN | MOM | MLS | SAG | OTH
+  idScheme String? @db.VarChar(5)
+  idNumber String? @db.VarChar(30)
+
+  // الدولة (كود ISO من حرفين): SA = عميل محلي، غيرها = عميل خارج المملكة (تصدير)
+  countryCode String @default("SA") @db.VarChar(2)
+
+  // العنوان (الوطني للعميل المحلي - اختياري بالكامل)
+  // المقاسات أوسع شوية عشان عناوين العملاء برّه المملكة
+  city         String? @db.VarChar(100)
+  district     String? @db.VarChar(100)
+  street       String? @db.VarChar(100)
+  buildingNo   String? @db.VarChar(10)
+  additionalNo String? @db.VarChar(10)
+  postalCode   String? @db.VarChar(10)
+
+  // الرصيد الافتتاحي (المنقول من النظام القديم): موجب = عليه لنا
+  openingBalance Decimal @default(0) @db.Decimal(18, 4)
+
+  isActive Boolean @default(true)
+
+  sales      Sale[]
+  quotations Quotation[]
+  vouchers   Voucher[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([idScheme, idNumber])
+  @@map("customers")
+}
+
+// ============================================================
+// الموردون (Supplier)
+// ============================================================
+
+model Supplier {
+  id     Int    @id @default(autoincrement())
+  code   Int    @unique
+  arName String @db.VarChar(255)
+  enName String @db.VarChar(255)
+
+  // اختيارية لكن لا تتكرر
+  phone          String? @unique @db.VarChar(11)
+  taxNo          String? @unique @db.VarChar(15) // الرقم الضريبي
+  registrationNo String? @unique @db.VarChar(10) // السجل التجاري
+
+  // العنوان الوطني (اختياري بالكامل)
+  city         String? @db.VarChar(100)
+  district     String? @db.VarChar(100)
+  street       String? @db.VarChar(100)
+  buildingNo   String? @db.VarChar(4)
+  additionalNo String? @db.VarChar(4)
+  postalCode   String? @db.VarChar(5)
+
+  // الرصيد الافتتاحي (المنقول من النظام القديم): موجب = له علينا
+  openingBalance Decimal @default(0) @db.Decimal(18, 4)
+
+  isActive Boolean @default(true)
+
+  vouchers Voucher[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[] // فواتير المشتريات (لا يُحذف مورد عليه فواتير)
+
+  @@map("suppliers")
+}
+
+// ============================================================
+// بيانات الشركة (Company) - صف واحد فقط (id = 1)
+// تظهر في الفواتير والتقارير: الاسم، الرقم الضريبي، العنوان الوطني، الشعار
+// ============================================================
+
+model Company {
+  id     Int    @id @default(1)
+  arName String @db.VarChar(255)
+  enName String @db.VarChar(255)
+
+  taxNo          String? @db.VarChar(15) // الرقم الضريبي
+  registrationNo String? @db.VarChar(10) // السجل التجاري
+  // معرّف البائع في الفاتورة الإلكترونية (الزكاة)
+  // CRN = السجل التجاري (من سجل الفرع أو الشركة) | 700 الرقم الموحد | MOM | MLS | SAG | OTH
+  sellerIdScheme String  @default("CRN") @db.VarChar(5)
+  sellerIdNumber String? @db.VarChar(30) // للأنواع غير السجل التجاري
+
+  // التواصل (يظهران على الفاتورة)
+  phone String? @db.VarChar(20)
+  email String? @db.VarChar(100)
+
+  // العنوان الوطني
+  city         String? @db.VarChar(100)
+  district     String? @db.VarChar(100)
+  street       String? @db.VarChar(100)
+  buildingNo   String? @db.VarChar(4)
+  additionalNo String? @db.VarChar(4)
+  postalCode   String? @db.VarChar(5)
+
+  // الحساب البنكي (يظهر على الفاتورة لو مفعّل في إعدادات الطباعة)
+  bankName          String? @db.VarChar(100)
+  bankAccountName   String? @db.VarChar(150) // اسم صاحب الحساب
+  bankAccountNumber String? @db.VarChar(30)
+  iban              String? @db.VarChar(34)
+
+  logo String? @db.VarChar(255) // مسار الشعار داخل uploads
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company")
+}
+
+// ============================================================
+// قوالب ملصقات الباركود (BarcodeLabel)
+// - كل قالب = مقاس ملصق (بالمللي) + ما يظهر عليه
+// - قالب واحد فقط يكون افتراضياً (isDefault)
+// ============================================================
+
+model BarcodeLabel {
+  id     Int    @id @default(autoincrement())
+  arName String @unique @db.VarChar(100)
+  enName String @unique @db.VarChar(100)
+
+  // مقاس الملصق بالمللي
+  width  Int
+  height Int
+
+  // نوع الباركود: CODE128 (يقبل أي كود) أو EAN13 (13 رقم)
+  barcodeFormat String @default("CODE128") @db.VarChar(20)
+  // حجم خطوط الباركود داخل الملصق: small / normal / large
+  barcodeSize   String @default("normal") @db.VarChar(10)
+
+  // ما يظهر على الملصق
+  showName     Boolean @default(true)
+  showPrice    Boolean @default(true)
+  priceWithTax Boolean @default(true) // السعر المطبوع شامل الضريبة؟
+  showCode     Boolean @default(true) // رقم الكود تحت الخطوط
+  showCompany  Boolean @default(false)
+
+  // أحجام الخط (pt)
+  nameFontSize  Int @default(8)
+  priceFontSize Int @default(10)
+
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("barcode_labels")
+}
+
+// ============================================================
+// إعدادات طباعة الفواتير (InvoicePrintSettings) - صف واحد فقط (id = 1)
+// بيانات الشركة والفرع وQR الزكاة تظهر دائماً (إجبارية)، وهنا الاختيارات فقط
+// ============================================================
+
+model InvoicePrintSettings {
+  id Int @id @default(1)
+
+  // الورق: A4 / 80mm / 58mm
+  paperSize String @default("80mm") @db.VarChar(10)
+
+  // الهوامش بالمللي
+  marginTop    Int @default(2)
+  marginBottom Int @default(2)
+  marginRight  Int @default(2)
+  marginLeft   Int @default(2)
+
+  // حجم الخط: small / normal / large
+  fontSize String @default("normal") @db.VarChar(10)
+
+  // لغة الفاتورة: ar / en / both
+  language String @default("both") @db.VarChar(5)
+
+  // الشعار
+  showLogo Boolean @default(true)
+  logoSize String  @default("medium") @db.VarChar(10) // small / medium / large
+
+  // رأس الفاتورة
+  showCashier  Boolean @default(true)
+  showCustomer Boolean @default(true)
+  // بيانات التواصل في رأس الفاتورة (بعنوانها: الجوال / البريد)
+  showPhone    Boolean @default(true)
+  showEmail    Boolean @default(false)
+
+  // أعمدة الأصناف
+  showItemCode Boolean @default(false)
+  showUnit     Boolean @default(true)
+  showDiscount Boolean @default(true)
+  showItemTax  Boolean @default(false)
+
+  // ذيل الفاتورة (يظهر قبل/بعد QR الزكاة)
+  showBankAccount Boolean @default(false) // الحساب البنكي للشركة
+
+  footerTextAr String? @db.VarChar(500)
+  footerTextEn String? @db.VarChar(500)
+
+  // التشغيل
+  autoPrint Boolean @default(false) // طباعة تلقائية بعد حفظ الفاتورة
+  copies    Int     @default(1) // عدد النسخ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invoice_print_settings")
+}
+
+// ============================================================
+// العملات (Currency)
+// - عملة أساسية واحدة فقط (isBase) يعمل بها النظام كله: الأسعار والمخزون والتقارير
+// - باقي العملات محفوظة للمستقبل (الشراء/البيع بعملة أخرى بسعر صرف)
+// ============================================================
+
+model Currency {
+  id       Int    @id @default(autoincrement())
+  code     String @unique @db.VarChar(3) // رمز ISO: SAR, EGP, USD
+  arName   String @db.VarChar(50)
+  enName   String @db.VarChar(50)
+  arSymbol String @db.VarChar(10) // ر.س
+  enSymbol String @db.VarChar(10) // SAR
+  decimals Int    @default(2) // عدد الخانات العشرية
+
+  isBase   Boolean @default(false)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("currencies")
+}
+
+// ============================================================
+// طرق الدفع (PaymentMethod)
+// type: cash (نقدي) / card (بطاقة) / wallet (محفظة) / transfer (تحويل) / credit (آجل)
+// النوع يحدد طريقة التعامل في الفاتورة (درج الكاشير، رقم العملية، دين على العميل)
+// ============================================================
+
+model PaymentMethod {
+  id     Int    @id @default(autoincrement())
+  arName String @unique @db.VarChar(50)
+  enName String @unique @db.VarChar(50)
+  type   String @db.VarChar(10)
+
+  // يطلب رقم العملية/الحوالة عند الدفع (للمطابقة)
+  requiresReference Boolean @default(false)
+
+  sortOrder Int     @default(0) // ترتيب الظهور في الفاتورة
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchasePayments PurchasePayment[]
+  salePayments     SalePayment[]
+  vouchers         Voucher[]
+
+  @@map("payment_methods")
+}
+
+// ============================================================
+// الإعدادات العامة للنظام (SystemSettings) - صف واحد فقط (id = 1)
+// purchaseTaxMode: وضع الأسعار الافتراضي في فواتير المشتريات
+//   exclusive = غير شامل الضريبة / inclusive = شامل الضريبة / none = بدون ضريبة
+// ============================================================
+
+model SystemSettings {
+  id              Int    @id
+  purchaseTaxMode String @default("exclusive") @db.VarChar(10)
+
+  // الضريبة: نسبة الضريبة في البرنامج (0 لو الشركة غير مسجلة في الضريبة)
+  // تُستخدم كقيمة افتراضية للأصناف الجديدة
+  taxRate Decimal @default(15) @db.Decimal(5, 2)
+
+  // الأصناف: السعر الذي يُسجّل للصنف الجديد شامل الضريبة؟
+  productPriceIncludesTax Boolean @default(false)
+
+  // المخزون: السماح بالبيع (أو الإخراج) بأكثر من الرصيد
+  // الرصيد يصبح سالباً، وأي بضاعة تدخل بعدها تُخصم منه تلقائياً
+  allowNegativeStock Boolean @default(false)
+
+  // النسخ الاحتياطي: مجلد الحفظ على السيرفر (فاضي = مجلد backups جوه المشروع)
+  backupDir String? @db.VarChar(500)
+
+  // النسخ الاحتياطي التلقائي (لمالك البرنامج)
+  // backupFrequency: hours (كل backupEveryHours ساعة) | daily (كل يوم backupTime) | weekly (backupWeekday + backupTime)
+  // backupKeep: عدد النسخ التلقائية اللي تتساب (الأقدم تتمسح) - 0 = كلها
+  backupAutoEnabled   Boolean   @default(false)
+  backupFrequency     String    @default("daily") @db.VarChar(8)
+  backupEveryHours    Int       @default(12)
+  backupTime          String    @default("03:00") @db.VarChar(5)
+  backupWeekday       Int       @default(5) // 0 = الأحد ... 6 = السبت
+  backupKeep          Int       @default(14)
+  backupAutoSince     DateTime? // من إمتى اتشغّل (عشان مايعملش نسخ عن مواعيد قبل التشغيل)
+  lastAutoBackupAt    DateTime?
+  lastAutoBackupOk    Boolean?
+  lastAutoBackupError String?   @db.VarChar(500)
+  lastAutoBackupFile  String?   @db.VarChar(200)
+
+  // باركود الميزان (الأصناف الموزونة) - نفس إعدادات برنامج الميزان
+  // scaleFormat: علامة+صنف+وزن/سعر(+إجمالي)+تحقق، مثال 1+6+5+1
+  // scaleValueType: weight وزن/عدد | total الإجمالي (السعر)
+  scaleEnabled        Boolean @default(false)
+  scaleFormat         String  @default("1+6+5+1") @db.VarChar(12)
+  scaleFlag           String  @default("1") @db.VarChar(2)
+  scaleValueType      String  @default("weight") @db.VarChar(6)
+  scaleWeightDecimals Int     @default(3)
+  scaleMoneyDecimals  Int     @default(2)
+
+  // لغة البرنامج الافتراضية (ar / en) + هل يستخدم لغة المتصفح لو المستخدم مااختارش
+  defaultLocale   String  @default("en") @db.VarChar(2)
+  localeDetection Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ============================================================
+// مسلسل المستندات: آخر رقم مستخدم لكل نوع (purchase / purchase_return ...)
+// يزيد داخل transaction فلا يتكرر رقم ولا تحدث فجوات
+// ============================================================
+
+model DocumentSequence {
+  key  String @id @db.VarChar(30)
+  last Int    @default(0)
+
+  @@map("document_sequences")
+}
+
+// ============================================================
+// المشتريات (Purchase): فاتورة الشراء ومرتجع الشراء في نفس الجدول
+// - type: purchase = فاتورة شراء / return = مرتجع مشتريات
+// - المرتجع مربوط بفاتورته الأصلية (returnOfId)
+// - الفاتورة بعد الحفظ لا تُعدل ولا تُحذف، والتصحيح يكون بمرتجع
+// - كل المبالغ محفوظة كما كانت وقت التسجيل (لا تتأثر بتغيير الإعدادات أو الأصناف)
+// ============================================================
+
+model Purchase {
+  id     Int    @id @default(autoincrement())
+  type   String @db.VarChar(10)
+  number Int // مسلسل مستقل لكل نوع
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // المستودع الذي دخلت إليه البضاعة (أو خرجت منه في المرتجع)
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  supplierId Int
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  // نسخة من بيانات المورد وقت التسجيل (تظهر في الطباعة)
+  supplierArName String  @db.VarChar(255)
+  supplierEnName String  @db.VarChar(255)
+  supplierTaxNo  String? @db.VarChar(15)
+
+  // فاتورة المورد: رقمها (للبحث ومنع التكرار) وتاريخها
+  supplierInvoiceNo   String?   @db.VarChar(50)
+  supplierInvoiceDate DateTime? @db.Date
+
+  // تاريخ التسجيل عندنا (عليه يُحسب المخزن والتقارير)
+  date DateTime
+
+  // وضع الأسعار: exclusive / inclusive / none
+  taxMode String @db.VarChar(10)
+
+  // خصم الفاتورة: percent = نسبة / amount = مبلغ
+  discountType  String  @default("amount") @db.VarChar(10)
+  discountValue Decimal @default(0) @db.Decimal(18, 4)
+
+  // الإجماليات
+  subtotal         Decimal @default(0) @db.Decimal(18, 4) // الكمية × السعر (كما أُدخل)
+  itemsDiscount    Decimal @default(0) @db.Decimal(18, 4) // مجموع خصومات الأصناف
+  invoiceDiscount  Decimal @default(0) @db.Decimal(18, 4) // خصم الفاتورة
+  netAmount        Decimal @default(0) @db.Decimal(18, 4) // الصافي قبل الضريبة
+  taxAmount        Decimal @default(0) @db.Decimal(18, 4) // الضريبة
+  totalAmount      Decimal @default(0) @db.Decimal(18, 4) // الإجمالي النهائي
+  paidAmount       Decimal @default(0) @db.Decimal(18, 4) // المدفوع
+  remainingAmount  Decimal @default(0) @db.Decimal(18, 4) // المتبقي (آجل على المورد)
+  settledAmount    Decimal @default(0) @db.Decimal(18, 4) // المسدد بعدها بسندات صرف/تسوية
+
+  allocations VoucherAllocation[]
+
+  notes String? @db.VarChar(500)
+
+  // المرتجع: الفاتورة الأصلية
+  returnOfId Int?
+  returnOf   Purchase?  @relation("PurchaseReturns", fields: [returnOfId], references: [id], onDelete: Restrict)
+  returns    Purchase[] @relation("PurchaseReturns")
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // بصمة الحفظ (idempotency): نفس الطلب لو اتبعت تاني يرجّع نفس المستند بدل ما يتكرر
+  requestId   String? @unique @db.VarChar(36)
+
+  items    PurchaseItem[]
+  payments PurchasePayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, number])
+  // نفس رقم فاتورة المورد لا يتكرر لنفس المورد
+  @@unique([type, supplierId, supplierInvoiceNo])
+  @@index([supplierInvoiceNo])
+  @@index([date])
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([warehouseId])
+  @@index([returnOfId])
+  @@index([createdById])
+  @@map("purchases")
+}
+
+// أصناف فاتورة المشتريات (أو المرتجع)
+model PurchaseItem {
+  id Int @id @default(autoincrement())
+
+  purchaseId Int
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // نسخة من بيانات الصنف وقت التسجيل
+  code   String @db.VarChar(50)
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+
+  // ملاحظة / وصف السطر (بتظهر تحت الصنف وفي الطباعة)
+  note String? @db.VarChar(500)
+
+  // الوحدة ومعامل التحويل (الوحدة الأساسية = 1)
+  unitId Int
+  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  factor Decimal @default(1) @db.Decimal(18, 4)
+
+  qty     Decimal @db.Decimal(18, 3) // بالوحدة المختارة
+  baseQty Decimal @db.Decimal(18, 4) // بالوحدة الأساسية (للمخزن)
+  price   Decimal @db.Decimal(18, 4) // سعر الوحدة كما أُدخل (حسب وضع الضريبة)
+
+  // خصم الصنف: percent / amount
+  discountType  String  @default("amount") @db.VarChar(10)
+  discountValue Decimal @default(0) @db.Decimal(18, 4)
+  itemDiscount    Decimal @default(0) @db.Decimal(18, 4) // خصم الصنف بالمبلغ
+  invoiceDiscount Decimal @default(0) @db.Decimal(18, 4) // نصيبه من خصم الفاتورة
+
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  netAmount   Decimal @default(0) @db.Decimal(18, 4) // الصافي قبل الضريبة
+  taxAmount   Decimal @default(0) @db.Decimal(18, 4)
+  totalAmount Decimal @default(0) @db.Decimal(18, 4)
+
+  // فاتورة الشراء: الكمية التي رُجّعت منه حتى الآن
+  returnedQty Decimal @default(0) @db.Decimal(18, 3)
+
+  // المرتجع: السطر الأصلي في فاتورة الشراء
+  returnOfItemId Int?
+  returnOfItem   PurchaseItem?  @relation("PurchaseItemReturns", fields: [returnOfItemId], references: [id], onDelete: Restrict)
+  returnItems    PurchaseItem[] @relation("PurchaseItemReturns")
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@index([unitId])
+  @@index([returnOfItemId])
+  @@map("purchase_items")
+}
+
+// مدفوعات فاتورة المشتريات (كاش، تحويل ... يمكن أكثر من طريقة)
+// الآجل ليس سطراً هنا: هو المتبقي في الفاتورة
+model PurchasePayment {
+  id Int @id @default(autoincrement())
+
+  purchaseId Int
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  paymentMethodId Int
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+
+  amount    Decimal @db.Decimal(18, 4)
+  reference String? @db.VarChar(100)
+
+  @@index([purchaseId])
+  @@index([paymentMethodId])
+  @@map("purchase_payments")
+}
+
+// ============================================================
+// المستودعات (المخازن)
+// - كل فرع مربوط بمستودع (الافتراضي)، وأكثر من فرع ممكن على نفس المستودع
+// - المستودع الرئيسي (isMain): الرصيد الافتتاحي للأصناف يُسجل عليه
+// ============================================================
+
+model Warehouse {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(100)
+  enName   String  @unique @db.VarChar(100)
+  isMain   Boolean @default(false)
+  isActive Boolean @default(true)
+  notes    String? @db.VarChar(255)
+
+  branches     Branch[]
+  purchases    Purchase[]
+  balances     StockBalance[]
+  movements    StockMovement[]
+  transfersOut StockTransfer[]  @relation("TransferFrom")
+  transfersIn  StockTransfer[]  @relation("TransferTo")
+  counts       InventoryCount[]
+  sales        Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("warehouses")
+}
+
+// رصيد كل صنف في كل مستودع (بالوحدة الأساسية)
+// = مجموع الحركات، ومحفوظ جاهزاً للسرعة (يتحدث مع كل حركة)
+model StockBalance {
+  id Int @id @default(autoincrement())
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  qty Decimal @default(0) @db.Decimal(18, 4)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+  @@map("stock_balances")
+}
+
+// حركات المخزون: كل دخول وخروج من أي مستند (كارت الصنف)
+// qty: موجب = دخول، سالب = خروج (بالوحدة الأساسية)
+// type: opening / purchase / purchase_return / transfer_out / transfer_in /
+//       transfer_cancel / count / sale / sale_return
+// refType + refId: المستند (purchase / transfer / count / product للافتتاحي)
+model StockMovement {
+  id Int @id @default(autoincrement())
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  qty  Decimal @db.Decimal(18, 4)
+  cost Decimal @default(0) @db.Decimal(18, 4) // تكلفة الوحدة الأساسية وقت الحركة
+
+  type    String  @db.VarChar(20)
+  refType String  @db.VarChar(20)
+  refId   Int
+  refNo   String? @db.VarChar(30) // رقم المستند للعرض (PI-5، TR-2 ...)
+
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  @@index([productId, warehouseId, date])
+  @@index([warehouseId])
+  @@index([refType, refId])
+  @@map("stock_movements")
+}
+
+// ============================================================
+// التحويلات المخزنية (خطوتين)
+// 1) إرسال: تخرج البضاعة من المستودع المُرسِل (status = sent، في الطريق)
+// 2) استلام: تدخل المستودع المستلِم (status = received)
+// إلغاء قبل الاستلام: ترجع للمرسِل (status = cancelled)
+// ============================================================
+
+model StockTransfer {
+  id     Int    @id @default(autoincrement())
+  number Int    @unique
+  status String @default("sent") @db.VarChar(10)
+
+  fromWarehouseId Int
+  fromWarehouse   Warehouse @relation("TransferFrom", fields: [fromWarehouseId], references: [id], onDelete: Restrict)
+
+  toWarehouseId Int
+  toWarehouse   Warehouse @relation("TransferTo", fields: [toWarehouseId], references: [id], onDelete: Restrict)
+
+  date       DateTime // تاريخ الإرسال
+  receivedAt DateTime?
+  notes      String?   @db.VarChar(500)
+
+  createdById  Int
+  createdBy    User  @relation("TransferCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  receivedById Int?
+  receivedBy   User? @relation("TransferReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
+
+  items StockTransferItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+  @@index([createdById])
+  @@index([receivedById])
+  @@index([status])
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id Int @id @default(autoincrement())
+
+  transferId Int
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  code   String @db.VarChar(50)
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+
+  unitId Int
+  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  factor Decimal @default(1) @db.Decimal(18, 4)
+
+  qty         Decimal  @db.Decimal(18, 3) // المُرسَل بالوحدة المختارة
+  baseQty     Decimal  @db.Decimal(18, 4) // المُرسَل بالوحدة الأساسية
+  receivedQty Decimal? @db.Decimal(18, 3) // المُستلَم فعلاً (بالوحدة المختارة)
+  cost        Decimal  @default(0) @db.Decimal(18, 4) // تكلفة الوحدة الأساسية وقت الإرسال
+
+  @@index([transferId])
+  @@index([productId])
+  @@index([unitId])
+  @@map("stock_transfer_items")
+}
+
+// ============================================================
+// الجرد: مسودة (نكتب الكميات الفعلية) ← ترحيل (الفرق يصبح حركة مخزون)
+// الكميات بالوحدة الأساسية
+// ============================================================
+
+model InventoryCount {
+  id     Int    @id @default(autoincrement())
+  number Int    @unique
+  status String @default("draft") @db.VarChar(10) // draft / posted
+
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  date     DateTime
+  postedAt DateTime?
+  notes    String?   @db.VarChar(500)
+
+  createdById Int
+  createdBy   User  @relation("CountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  postedById  Int?
+  postedBy    User? @relation("CountPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+
+  items InventoryCountItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([warehouseId])
+  @@index([createdById])
+  @@index([postedById])
+  @@map("inventory_counts")
+}
+
+model InventoryCountItem {
+  id Int @id @default(autoincrement())
+
+  countId Int
+  inventoryCount InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  systemQty  Decimal @default(0) @db.Decimal(18, 4) // رصيد البرنامج وقت الترحيل
+  countedQty Decimal @db.Decimal(18, 4) // الموجود فعلاً
+  diffQty    Decimal @default(0) @db.Decimal(18, 4) // الفعلي - البرنامج
+  cost       Decimal @default(0) @db.Decimal(18, 4)
+
+  @@unique([countId, productId])
+  @@index([productId])
+  @@map("inventory_count_items")
+}
+
+// ============================================================
+// قوائم الأسعار: سعر مختلف للصنف حسب الفرع (أو العميل لاحقاً)
+// الصنف بدون سعر في القائمة ← سعره الأساسي
+// ============================================================
+
+model PriceList {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(100)
+  enName   String  @unique @db.VarChar(100)
+  isActive Boolean @default(true)
+  notes    String? @db.VarChar(255)
+
+  prices   ProductPrice[]
+  branches Branch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("price_lists")
+}
+
+// سعر صنف بوحدة معيّنة في قائمة أسعار
+model ProductPrice {
+  id Int @id @default(autoincrement())
+
+  priceListId Int
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  unitId Int
+  unit   Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  price Decimal @db.Decimal(18, 4)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([priceListId, productId, unitId])
+  @@index([productId])
+  @@index([unitId])
+  @@map("product_prices")
+}
+
+// ============================================================
+// المبيعات: فاتورة البيع ومرتجع البيع في جدول واحد
+// type: sale = فاتورة بيع / return = مرتجع مبيعات (مربوط بفاتورته)
+// الضريبة لكل صنف حسب شاشة الصنف (نسبته، وهل سعره شامل الضريبة)
+// ============================================================
+model Sale {
+  id     Int    @id @default(autoincrement())
+  type   String @db.VarChar(10)
+  number Int // مسلسل مستقل لكل نوع (SI-15 / SR-7)
+
+  // من أين سُجلت: pos = شاشة الكاشير / invoice = فاتورة عادية
+  source String @default("invoice") @db.VarChar(10)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // المستودع الذي خرجت منه البضاعة (أو رجعت إليه في المرتجع)
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  // وردية الكاشير (المبيعات النقدية تُحسب في درجها)
+  shiftId Int?
+  shift   Shift? @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+
+  // العميل: فاضي = عميل نقدي
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  // نسخة من بيانات العميل وقت البيع (تظهر في الطباعة)
+  customerArName String? @db.VarChar(255)
+  customerEnName String? @db.VarChar(255)
+  customerTaxNo  String? @db.VarChar(15)
+  // فاتورة تصدير (خارج المملكة): ضريبة صفرية VATEX-SA-32 + فاتورة ضريبية للهيئة
+  isExport Boolean @default(false)
+
+  date DateTime
+
+  // خصم الفاتورة: percent = نسبة / amount = مبلغ
+  discountType  String  @default("amount") @db.VarChar(10)
+  discountValue Decimal @default(0) @db.Decimal(18, 4)
+
+  // الإجماليات
+  subtotal        Decimal @default(0) @db.Decimal(18, 4)
+  itemsDiscount   Decimal @default(0) @db.Decimal(18, 4)
+  invoiceDiscount Decimal @default(0) @db.Decimal(18, 4)
+  netAmount       Decimal @default(0) @db.Decimal(18, 4) // الصافي قبل الضريبة
+  taxAmount       Decimal @default(0) @db.Decimal(18, 4)
+  totalAmount     Decimal @default(0) @db.Decimal(18, 4)
+  paidAmount      Decimal @default(0) @db.Decimal(18, 4)
+  remainingAmount Decimal @default(0) @db.Decimal(18, 4) // آجل على العميل
+  // الكاشير: المبلغ الذي استلمه نقداً والباقي الذي رجّعه للعميل
+  tenderedAmount  Decimal @default(0) @db.Decimal(18, 4)
+  changeAmount    Decimal @default(0) @db.Decimal(18, 4)
+  // التكلفة (لتقرير الأرباح)
+  costAmount      Decimal @default(0) @db.Decimal(18, 4)
+  // المسدد بعد الفاتورة بسندات قبض/تسوية (من أقدم فاتورة تلقائياً)
+  settledAmount   Decimal @default(0) @db.Decimal(18, 4)
+
+  notes String? @db.VarChar(500)
+
+  allocations VoucherAllocation[]
+
+  // المرتجع: الفاتورة الأصلية
+  returnOfId Int?
+  returnOf   Sale?  @relation("SaleReturns", fields: [returnOfId], references: [id], onDelete: Restrict)
+  returns    Sale[] @relation("SaleReturns")
+
+  // الفاتورة المحوّلة من عرض سعر
+  quotation Quotation?
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // بصمة الحفظ (idempotency): نفس الطلب لو اتبعت تاني يرجّع نفس المستند بدل ما يتكرر
+  requestId   String? @unique @db.VarChar(36)
+
+  // عرض على إجمالي الفاتورة (لو اتطبق)
+  promotionId Int?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  items    SaleItem[]
+  payments SalePayment[]
+
+  // الفاتورة الإلكترونية (لو الفرع مربوط بالزكاة)
+  zatcaDocument ZatcaDocument?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, number])
+  @@index([date])
+  @@index([branchId])
+  @@index([warehouseId])
+  @@index([shiftId])
+  @@index([customerId])
+  @@index([returnOfId])
+  @@index([createdById])
+  @@index([promotionId])
+  @@map("sales")
+}
+
+model SaleItem {
+  id Int @id @default(autoincrement())
+
+  saleId Int
+  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  code   String @db.VarChar(50)
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+
+  // ملاحظة / وصف السطر (بتظهر تحت الصنف وفي الطباعة)
+  note String? @db.VarChar(500)
+
+  unitId Int
+  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  factor Decimal @default(1) @db.Decimal(18, 4)
+
+  qty     Decimal @db.Decimal(18, 3)
+  baseQty Decimal @db.Decimal(18, 4)
+  price   Decimal @db.Decimal(18, 4) // سعر الوحدة (شامل أو غير شامل حسب الصنف)
+
+  // السعر شامل الضريبة؟ (من شاشة الصنف وقت البيع)
+  priceIncludesTax Boolean @default(false)
+
+  discountType    String  @default("amount") @db.VarChar(10)
+  discountValue   Decimal @default(0) @db.Decimal(18, 4)
+  itemDiscount    Decimal @default(0) @db.Decimal(18, 4)
+  invoiceDiscount Decimal @default(0) @db.Decimal(18, 4)
+
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  // فئة الضريبة وسبب الإعفاء وقت البيع (للفوترة الإلكترونية)
+  taxCategory        String  @default("S") @db.VarChar(1)
+  taxExemptionCode   String? @db.VarChar(20)
+  taxExemptionReason String? @db.VarChar(255)
+  netAmount   Decimal @default(0) @db.Decimal(18, 4)
+  taxAmount   Decimal @default(0) @db.Decimal(18, 4)
+  totalAmount Decimal @default(0) @db.Decimal(18, 4)
+
+  // تكلفة الوحدة الأساسية وقت البيع، وإجمالي تكلفة السطر
+  cost       Decimal @default(0) @db.Decimal(18, 4)
+  costAmount Decimal @default(0) @db.Decimal(18, 4)
+
+  // فاتورة البيع: الكمية التي رُجّعت منه حتى الآن
+  returnedQty Decimal @default(0) @db.Decimal(18, 3)
+
+  // المرتجع: السطر الأصلي في فاتورة البيع
+  // عرض على الصنف (الخصم اتحسب منه تلقائياً)
+  promotionId Int?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  returnOfItemId Int?
+  returnOfItem   SaleItem?  @relation("SaleItemReturns", fields: [returnOfItemId], references: [id], onDelete: Restrict)
+  returnItems    SaleItem[] @relation("SaleItemReturns")
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([unitId])
+  @@index([returnOfItemId])
+  @@index([promotionId])
+  @@map("sale_items")
+}
+
+model SalePayment {
+  id Int @id @default(autoincrement())
+
+  saleId Int
+  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  paymentMethodId Int
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+
+  amount    Decimal @db.Decimal(18, 4)
+  reference String? @db.VarChar(100)
+
+  @@index([saleId])
+  @@index([paymentMethodId])
+  @@map("sale_payments")
+}
+
+// ============================================================
+// عروض الأسعار: لا تؤثر على المخزون ولا الحسابات
+// status: open = مفتوح / converted = تم تحويله لفاتورة
+// ============================================================
+model Quotation {
+  id     Int    @id @default(autoincrement())
+  number Int    @unique // QT-3
+  status String @default("open") @db.VarChar(10)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // العميل: من العملاء، أو اسم يُكتب يدوياً (عميل غير مسجل)
+  customerId     Int?
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerArName String?   @db.VarChar(255)
+  customerEnName String?   @db.VarChar(255)
+  customerTaxNo  String?   @db.VarChar(15)
+
+  date       DateTime
+  validUntil DateTime @db.Date
+
+  discountType    String  @default("amount") @db.VarChar(10)
+  discountValue   Decimal @default(0) @db.Decimal(18, 4)
+  subtotal        Decimal @default(0) @db.Decimal(18, 4)
+  itemsDiscount   Decimal @default(0) @db.Decimal(18, 4)
+  invoiceDiscount Decimal @default(0) @db.Decimal(18, 4)
+  netAmount       Decimal @default(0) @db.Decimal(18, 4)
+  taxAmount       Decimal @default(0) @db.Decimal(18, 4)
+  totalAmount     Decimal @default(0) @db.Decimal(18, 4)
+
+  notes String? @db.VarChar(1000)
+
+  // الفاتورة التي تحوّل إليها
+  saleId Int?  @unique
+  sale   Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  promotionId Int?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  items QuotationItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([customerId])
+  @@index([createdById])
+  @@index([date])
+  @@index([promotionId])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id Int @id @default(autoincrement())
+
+  quotationId Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  code   String @db.VarChar(50)
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+
+  // ملاحظة / وصف السطر (بتظهر تحت الصنف وفي الطباعة)
+  note String? @db.VarChar(500)
+
+  unitId Int
+  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  factor Decimal @default(1) @db.Decimal(18, 4)
+
+  qty              Decimal @db.Decimal(18, 3)
+  price            Decimal @db.Decimal(18, 4)
+  priceIncludesTax Boolean @default(false)
+
+  discountType    String  @default("amount") @db.VarChar(10)
+  discountValue   Decimal @default(0) @db.Decimal(18, 4)
+  itemDiscount    Decimal @default(0) @db.Decimal(18, 4)
+  invoiceDiscount Decimal @default(0) @db.Decimal(18, 4)
+
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  netAmount   Decimal @default(0) @db.Decimal(18, 4)
+  taxAmount   Decimal @default(0) @db.Decimal(18, 4)
+  totalAmount Decimal @default(0) @db.Decimal(18, 4)
+
+  promotionId Int?
+  promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  @@index([quotationId])
+  @@index([productId])
+  @@index([unitId])
+  @@index([promotionId])
+  @@map("quotation_items")
+}
+
+// ============================================================
+// ورديات الكاشير: فتح برصيد أول المدة ← قفل بجرد الفلوس
+// المتوقع في الدرج = أول المدة + المقبوض نقداً - المردود نقداً
+// status: open / closed
+// ============================================================
+model Shift {
+  id     Int    @id @default(autoincrement())
+  number Int    @unique
+  status String @default("open") @db.VarChar(10)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // الكاشير صاحب الوردية
+  userId Int
+  user   User @relation("ShiftCashier", fields: [userId], references: [id], onDelete: Restrict)
+
+  openedAt    DateTime
+  openingCash Decimal  @default(0) @db.Decimal(18, 4)
+
+  closedAt     DateTime?
+  closedById   Int?
+  closedBy     User?    @relation("ShiftClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+  // الاستلام: المتروك في الدرج من الوردية السابقة على نفس الفرع، والفرق عند العدّ
+  previousShiftId   Int?
+  expectedOpening   Decimal? @db.Decimal(18, 4)
+  openingDifference Decimal? @db.Decimal(18, 4)
+
+  expectedCash Decimal? @db.Decimal(18, 4) // المفروض في الدرج وقت القفل
+  countedCash  Decimal? @db.Decimal(18, 4) // الموجود فعلاً (جرد الكاشير)
+  difference   Decimal? @db.Decimal(18, 4) // الموجود - المفروض (سالب = عجز)
+  denominations Json?   // عدّ الفئات: { "500": 2, "100": 3, "coins": 12.5 }
+  // الشبكة: إجمالي إيصال تقفيل الجهاز مقارنة بمبيعات الشبكة
+  cardExpected   Decimal? @db.Decimal(18, 4)
+  cardCounted    Decimal? @db.Decimal(18, 4)
+  cardDifference Decimal? @db.Decimal(18, 4)
+  // التسليم: المورّد للخزنة والمتروك في الدرج للوردية التالية
+  depositedCash Decimal? @db.Decimal(18, 4)
+  leftCash      Decimal? @db.Decimal(18, 4)
+
+  notes String? @db.VarChar(500)
+
+  sales         Sale[]
+  vouchers      Voucher[]
+  cashMovements CashMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([userId])
+  @@index([status])
+  @@index([closedById])
+  @@map("shifts")
+}
+
+// ============================================================
+// الحسابات: سندات القبض والصرف والتسوية
+// type: receipt = قبض / payment = صرف / settlement = تسوية (خصم مسموح به / مكتسب)
+// partyType: customer / supplier / expense (مصروف) / other (إيراد أو صرف متنوع)
+// سند العميل/المورد يسدد من أقدم فاتورة تلقائياً (voucher_allocations)
+// ============================================================
+model ExpenseCategory {
+  id       Int     @id @default(autoincrement())
+  arName   String  @unique @db.VarChar(100)
+  enName   String  @unique @db.VarChar(100)
+  isActive Boolean @default(true)
+
+  vouchers Voucher[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("expense_categories")
+}
+
+model Voucher {
+  id        Int    @id @default(autoincrement())
+  type      String @db.VarChar(12)
+  number    Int
+  partyType String @db.VarChar(10)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // وردية الكاشير (السند النقدي يدخل/يخرج من درجه)
+  shiftId Int?
+  shift   Shift? @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  supplierId Int?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  expenseCategoryId Int?
+  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id], onDelete: Restrict)
+
+  // اسم الطرف وقت التسجيل (يظهر في الطباعة)
+  partyArName String? @db.VarChar(255)
+  partyEnName String? @db.VarChar(255)
+
+  // طريقة الدفع (التسوية بدون طريقة دفع: لا فلوس تتحرك)
+  paymentMethodId Int?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: Restrict)
+
+  amount    Decimal @db.Decimal(18, 4)
+  reference String? @db.VarChar(100)
+  date      DateTime
+  notes     String? @db.VarChar(500)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // بصمة الحفظ (idempotency): نفس الطلب لو اتبعت تاني يرجّع نفس المستند بدل ما يتكرر
+  requestId   String? @unique @db.VarChar(36)
+
+  allocations VoucherAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, number])
+  @@index([branchId])
+  @@index([shiftId])
+  @@index([customerId])
+  @@index([supplierId])
+  @@index([expenseCategoryId])
+  @@index([paymentMethodId])
+  @@index([createdById])
+  @@index([date])
+  @@map("vouchers")
+}
+
+// توزيع السند على الفواتير (فاضي = على الرصيد الافتتاحي)
+model VoucherAllocation {
+  id Int @id @default(autoincrement())
+
+  voucherId Int
+  voucher   Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  saleId     Int?
+  sale       Sale?     @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  purchaseId Int?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+
+  amount Decimal @db.Decimal(18, 4)
+
+  @@index([voucherId])
+  @@index([saleId])
+  @@index([purchaseId])
+  @@map("voucher_allocations")
+}
+
+// حركات الدرج اليدوية: سحب للخزنة (out) / إضافة فكة (in)
+model CashMovement {
+  id   Int    @id @default(autoincrement())
+  type String @db.VarChar(5)
+
+  shiftId Int
+  shift   Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  amount Decimal @db.Decimal(18, 4)
+  reason String? @db.VarChar(255)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([shiftId])
+  @@index([branchId])
+  @@index([createdById])
+  @@map("cash_movements")
+}
+
+// ============================================================
+// العروض والخصومات لفترة
+// scope: invoice (على إجمالي الفاتورة) | category (أقسام) | product (أصناف)
+// discountType: percent | amount (من سعر الوحدة الأساسية) | fixedPrice (سعر ثابت للوحدة الأساسية)
+//   (عرض الفاتورة: percent | amount فقط)
+// الصنف عليه أكتر من عرض ← الأفضل للعميل، وعرض الفاتورة يتطبق فوق خصومات الأصناف
+// ============================================================
+model Promotion {
+  id     Int    @id @default(autoincrement())
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+
+  scope        String  @db.VarChar(10)
+  discountType String  @db.VarChar(12)
+  value        Decimal @db.Decimal(18, 4)
+  minInvoice   Decimal? @db.Decimal(18, 4) // عرض الفاتورة: أقل إجمالي للفاتورة
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  isActive  Boolean  @default(true)
+
+  // كل الفروع، أو الفروع المختارة فقط
+  allBranches Boolean @default(true)
+  branches    PromotionBranch[]
+  categories  PromotionCategory[]
+  products    PromotionProduct[]
+
+  notes String? @db.VarChar(500)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  sales          Sale[]
+  saleItems      SaleItem[]
+  quotations     Quotation[]
+  quotationItems QuotationItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startDate, endDate])
+  @@index([createdById])
+  @@map("promotions")
+}
+
+model PromotionBranch {
+  promotionId Int
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  branchId    Int
+  branch      Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, branchId])
+  @@index([branchId])
+  @@map("promotion_branches")
+}
+
+model PromotionCategory {
+  promotionId Int
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  categoryId  Int
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, categoryId])
+  @@index([categoryId])
+  @@map("promotion_categories")
+}
+
+model PromotionProduct {
+  promotionId Int
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, productId])
+  @@index([productId])
+  @@map("promotion_products")
+}
+
+// ============================================================
+// الربط مع الزكاة (الفوترة الإلكترونية - المرحلة الثانية)
+// وحدة (EGS) لكل فرع، مسجّلة على بيئة واحدة:
+//   developer (بوابة المطورين) | simulation (المحاكاة) | production (الإنتاج)
+// status: draft (البيانات اتحفظت) → csr (اتعمل CSR) → compliance (شهادة الامتثال)
+//         → checked (فحص الامتثال نجح) → active (شهادة الإنتاج - جاهزة للفواتير)
+// الأسرار (المفتاح الخاص والـ secrets) متشفرة AES-256-GCM بمفتاح ZATCA_MASTER_KEY في .env
+// والشهادات نفسها عامة (مش سرية) فبتتخزن زي ما هي
+// icv / lastHash: سلسلة الفواتير للوحدة (بتبدأ من الصفر مع كل تسجيل جديد)
+// ============================================================
+model ZatcaUnit {
+  id       Int    @id @default(autoincrement())
+  branchId Int    @unique
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  environment String @db.VarChar(12)
+  status      String @default("draft") @db.VarChar(12)
+
+  // بيانات الـ CSR
+  commonName           String  @db.VarChar(100)
+  organizationUnitName String  @db.VarChar(100)
+  invoiceType          String  @default("1100") @db.VarChar(4)
+  locationAddress      String  @db.VarChar(150)
+  industry             String  @db.VarChar(100)
+  serialNumber         String? @db.VarChar(150)
+  csr                  String? @db.Text
+  privateKeyEnc        String? @db.Text
+
+  // شهادة الامتثال
+  complianceRequestId   String? @db.VarChar(50)
+  complianceCertificate String? @db.Text
+  complianceSecretEnc   String? @db.Text
+  complianceChecks      Json? // نتيجة فحص كل نوع مستند
+
+  // شهادة الإنتاج
+  productionRequestId   String?   @db.VarChar(50)
+  productionCertificate String?   @db.Text
+  productionSecretEnc   String?   @db.Text
+  certSerial            String?   @db.VarChar(100)
+  certIssuedAt          DateTime?
+  certExpiresAt         DateTime?
+  onboardedAt           DateTime?
+
+  // سلسلة الفواتير
+  icv      Int     @default(0)
+  lastHash String? @db.VarChar(100)
+
+  logs      ZatcaLog[]
+  documents ZatcaDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("zatca_units")
+}
+
+// سجل عمليات الربط (التسجيل، الشهادات، الفحص، إعادة الضبط)
+model ZatcaLog {
+  id     Int       @id @default(autoincrement())
+  unitId Int
+  unit   ZatcaUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  action      String  @db.VarChar(30)
+  environment String  @db.VarChar(12)
+  success     Boolean
+  message     String? @db.VarChar(1000)
+  details     Json?
+  userId      Int?
+  userName    String? @db.VarChar(150)
+
+  createdAt DateTime @default(now())
+
+  @@index([unitId, createdAt])
+  @@map("zatca_logs")
+}
+
+// ============================================================
+// الفاتورة الإلكترونية لكل فاتورة بيع / مرتجع (إشعار دائن) في فرع مربوط
+// - بتتوقّع وقت الحفظ: ICV (عداد الوحدة) + PIH (هاش اللي قبلها) + UUID ثابت
+// - kind: simplified (أفراد - إبلاغ خلال 24 ساعة) | standard (شركات - اعتماد قبل التسليم)
+// - docType: invoice | credit | debit
+// - status: pending (موقّعة ولسه متبعتتش) | reported | cleared | rejected | error (فشل اتصال - إعادة محاولة)
+// - signedXml: الـ XML الموقّع، clearedXml: المعتمد من الهيئة (للضريبية)
+// - الفاتورة بعد التوقيع مقفولة (لا تعديل ولا حذف): التصحيح بإشعار دائن
+// ============================================================
+model ZatcaDocument {
+  id     Int  @id @default(autoincrement())
+  saleId Int  @unique
+  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  unitId Int
+  unit   ZatcaUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  branchId    Int
+  environment String @db.VarChar(12)
+  kind        String @db.VarChar(10)
+  docType     String @db.VarChar(10)
+
+  icv  Int
+  uuid String @db.VarChar(36)
+  pih  String @db.VarChar(100)
+  hash String @db.VarChar(100)
+  qr   String @db.Text
+
+  signedXml  String  @db.MediumText
+  clearedXml String? @db.MediumText
+
+  status        String    @default("pending") @db.VarChar(12)
+  zatcaStatus   String?   @db.VarChar(30)
+  httpStatus    Int?
+  warnings      Json?
+  errors        Json?
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  acceptedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId, icv])
+  @@index([status, createdAt])
+  @@index([branchId, createdAt])
+  @@map("zatca_documents")
+}
+
+// إعدادات الإرسال والتنبيهات (صف واحد id = 1)
+model ZatcaSettings {
+  id              Int     @id
+  // الإرسال فور الحفظ (المبسطة) - الضريبية دايماً بتتعتمد وقت الحفظ
+  sendOnSave      Boolean @default(true)
+  // إرسال المعلّق تلقائياً في الخلفية كل intervalMinutes دقيقة
+  autoSend        Boolean @default(true)
+  intervalMinutes Int     @default(10)
+  // تنبيه آخر اليوم: الساعة (HH:mm) والحد الأدنى لعدد الفواتير اللي متبعتتش
+  alertTime       String  @default("22:00") @db.VarChar(5)
+  alertThreshold  Int     @default(1)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("zatca_settings")
+}

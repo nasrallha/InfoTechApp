@@ -1,0 +1,239 @@
+/* ============================================================
+   شاشات المشتريات
+   ============================================================ */
+
+/* ---------- البحث عن صنف / الماسح ---------- */
+.pur-picker {
+  position: relative;
+}
+
+.pur-picker__list {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  max-height: 340px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+}
+
+.pur-picker__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pur-picker__item.is-active {
+  background: #e6f4f1;
+}
+
+.pur-picker__name {
+  font-weight: 600;
+}
+
+.pur-picker__code,
+.pur-line__code {
+  font-size: 12px;
+  color: #888;
+}
+
+.pur-picker__units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.pur-line__name {
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* ---------- بيانات المورد ---------- */
+.pur-supplier {
+  font-size: 13px;
+  color: #555;
+}
+
+.pur-supplier--novat {
+  color: #d46b08;
+}
+
+/* ---------- المدفوعات ---------- */
+.pur-payments__hint {
+  color: #666;
+}
+
+.pur-payments__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.pur-payments__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.pur-payments__summary > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ---------- الإجماليات ---------- */
+.pur-invoice-discount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pur-invoice-discount > :last-child {
+  max-width: 340px;
+  flex: 1;
+}
+
+.pur-totals > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.pur-totals__muted {
+  color: #888;
+}
+
+.pur-totals__grand {
+  font-size: 18px;
+  font-weight: 700;
+  color: #006266;
+  border-bottom: none !important;
+  padding-top: 10px !important;
+}
+
+/* ---------- العرض ---------- */
+.pur-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 20px;
+}
+
+.pur-info > div > span:first-child {
+  display: block;
+  font-size: 12px;
+  color: #888;
+}
+
+.pur-info > div > :last-child {
+  font-weight: 600;
+}
+
+/* ---------- المرتجع ---------- */
+.pur-row--done td {
+  color: #aaa;
+}
+
+/* ---------- شريط إضافة الأصناف (بحث/ماسح + تصفح) ---------- */
+.pur-add-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pur-add-bar__search {
+  flex: 1 1 320px;
+}
+
+/* الخصم بلون أحمر في الإجماليات */
+.pur-totals__discount {
+  color: #cf1322;
+  font-weight: 600;
+}
+
+/* عنوان الإجماليات وعنوان الخصم: أيقونة الخصم حمراء */
+.pur-invoice-discount > span:first-child {
+  color: #cf1322;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   الخصم: صندوق بخلفية حمراء فاتحة، زرين النوع (% / ر.س) والقيمة
+   ============================================================ */
+.disc-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px;
+  background: #fff1f0;
+  border: 1px solid #ffccc7;
+  border-radius: 10px;
+}
+
+.disc-input__types {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.disc-input .disc-input__type {
+  min-width: 46px;
+  height: 32px;
+  padding-inline: 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.disc-input .disc-input__type:not(.ant-btn-variant-solid) {
+  background: #fff;
+}
+
+.disc-input .disc-input__value {
+  flex: 1;
+  min-width: 70px;
+  width: auto;
+  height: 32px;
+  background: #fff;
+}
+
+/* السعر بعد الخصم (عرض أو خصم يدوي) تحت السعر */
+.sale-price-after {
+  font-size: 12px;
+  color: #c41d7f;
+}
+
+/* ملاحظة / وصف سطر الصنف */
+.line-note {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.line-note__add.ant-btn {
+  padding-inline: 0;
+  height: auto;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.line-note__input {
+  margin-top: 6px;
+}

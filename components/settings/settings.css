@@ -1,0 +1,28 @@
+/* صفحة بيانات الشركة */
+
+.company-settings__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* خانة الشعار: مربع كبير في المنتصف */
+.company-logo-item {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+.company-logo-upload.ant-upload-wrapper .ant-upload.ant-upload-select,
+.company-logo-upload.ant-upload-wrapper .ant-upload-list-item-container {
+  width: 180px !important;
+  height: 180px !important;
+}
+
+/* الشعار يظهر كاملاً بدون قص */
+.company-logo-upload .ant-upload-list-item-thumbnail img {
+  object-fit: contain !important;
+}
