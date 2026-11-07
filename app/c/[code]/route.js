@@ -13,11 +13,13 @@ import {
 } from "@/lib/tenant";
 import { SESSION_COOKIE } from "@/lib/session-config";
 import { hasCompanyLocale, readAppLocale } from "@/lib/app-locale";
+import { publicUrl } from "@/lib/public-url";
 
 export async function GET(request, { params }) {
   const { code: raw } = await params;
   const { defaultLocale } = readAppLocale();
-  const login = new URL(`/${defaultLocale}/login`, request.url);
+  // الدومين الحقيقي (ورا Caddy) مش localhost
+  const login = publicUrl(`/${defaultLocale}/login`, request);
 
   if (!multiTenant()) return NextResponse.redirect(login);
 
