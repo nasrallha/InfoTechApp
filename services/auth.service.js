@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { hashPassword, verifyPassword, DUMMY_HASH } from "@/lib/password";
 import { createSession, deleteCurrentSession } from "@/lib/auth";
+import { getSubscription, isBlocked } from "@/lib/subscription";
 import { clientInfo, getSecuritySettings } from "@/lib/security-settings";
 import {
   OWNER_DB_USERNAME,
@@ -90,6 +91,13 @@ export async function login({ username, password }) {
   if (!user.isActive || !user.role.isActive) {
     await log(false, "disabled", user.id);
     throw new AppError("AccountDisabled");
+  }
+
+  // وضع الشركات: الاشتراك موقوف / منتهي / ملغي ← الدخول مقفول
+  const sub = await getSubscription();
+  if (isBlocked(sub)) {
+    await log(false, "subscription", user.id);
+    throw new AppError(`Subscription_${sub.state}`);
   }
 
   // الفرع الذي سيفتح عليه: فرعه الأساسي

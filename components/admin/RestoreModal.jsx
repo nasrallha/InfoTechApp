@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/dates";
 import { modal } from "@/components/common/feedback";
 import { showActionError } from "@/components/common/actionError";
 import { restoreBackupAction } from "@/actions/backup.actions";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // استرجاع نسخة احتياطية (مالك البرنامج)
@@ -69,7 +70,7 @@ export default function RestoreModal({ file, onClose }) {
       mask={{ closable: !running }}
       closable={!running}
       title={
-        <span style={{ color: "#cf1322" }}>
+        <span style={{ color: C.dangerText }}>
           <HistoryOutlined /> {t("RestoreTitle")}
         </span>
       }

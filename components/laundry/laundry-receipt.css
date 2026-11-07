@@ -1,0 +1,154 @@
+/* ============================================================
+   إيصال استلام الملابس (A4 / كاشير)
+   (مستند مطبوع: أبيض وأسود عشان الطابعة الحرارية)
+   ============================================================ */
+.lrc {
+  box-sizing: border-box;
+  background: #fff;
+  color: #111;
+  font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  line-height: 1.45;
+}
+.lrc bdi {
+  unicode-bidi: isolate;
+}
+.lrc--a4 {
+  padding: 12mm;
+  font-size: 10.5pt;
+}
+.lrc--thermal {
+  padding: 2mm 3mm;
+  font-size: 9pt;
+}
+
+.lrc__header {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+}
+.lrc--thermal .lrc__header {
+  flex-direction: column;
+  text-align: center;
+  gap: 1mm;
+}
+.lrc__logo {
+  height: 16mm;
+  max-width: 45mm;
+  object-fit: contain;
+}
+.lrc--thermal .lrc__logo {
+  height: 11mm;
+}
+.lrc__company-name {
+  font-weight: 700;
+  font-size: 1.25em;
+}
+
+.lrc__title {
+  margin: 3mm 0 2mm;
+  padding: 1.5mm;
+  text-align: center;
+  font-weight: 700;
+  border-top: 1px dashed #111;
+  border-bottom: 1px dashed #111;
+}
+
+/* رقم الطلب اليومي كبير وواضح (بيتكتب على الكيس) */
+.lrc__no {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1mm 0;
+}
+.lrc__no b {
+  font-size: 2.6em;
+  line-height: 1.1;
+}
+.lrc__day {
+  font-size: 0.95em;
+}
+.lrc__urgent {
+  margin: 1mm auto 2mm;
+  width: fit-content;
+  padding: 0.5mm 4mm;
+  border: 2px solid #111;
+  border-radius: 2mm;
+  font-weight: 800;
+}
+
+.lrc__meta > div,
+.lrc__totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+  padding: 0.6mm 0;
+}
+
+.lrc__items {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2mm 0;
+}
+.lrc__items th {
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+  padding: 1mm 0.5mm;
+  font-weight: 700;
+}
+.lrc__items td {
+  border-bottom: 1px dotted #999;
+  padding: 1mm 0.5mm;
+  vertical-align: top;
+}
+.lrc__items th:first-child,
+.lrc__items td:first-child,
+.lrc__items th:last-child,
+.lrc__items td:last-child {
+  white-space: nowrap;
+  text-align: center;
+}
+.lrc__qty {
+  font-weight: 700;
+}
+.lrc__tag {
+  margin-inline-start: 1mm;
+  padding: 0 1mm;
+  border: 1px solid #111;
+  border-radius: 1mm;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+.lrc__addons {
+  font-size: 0.85em;
+}
+
+.lrc__grand {
+  border-top: 1px solid #111;
+  font-size: 1.15em;
+}
+.lrc__notes {
+  margin-top: 1.5mm;
+}
+
+.lrc__barcode {
+  margin-top: 3mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.9em;
+}
+.lrc__barcode-svg {
+  width: 48mm;
+  height: 12mm;
+}
+.lrc__barcode-svg svg {
+  width: 100%;
+  height: 100%;
+}
+.lrc__footer {
+  margin-top: 2mm;
+  padding-top: 1.5mm;
+  border-top: 1px dashed #111;
+  text-align: center;
+  font-size: 0.9em;
+}

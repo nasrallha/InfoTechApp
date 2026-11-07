@@ -23,6 +23,7 @@ import {
   DatabaseOutlined,
   BarChartOutlined,
   SwapOutlined,
+  DiffOutlined,
   AuditOutlined,
   TagsOutlined,
   DesktopOutlined,
@@ -30,41 +31,70 @@ import {
   WalletOutlined,
   GiftOutlined,
   PieChartOutlined,
+  CalendarOutlined,
+  CarOutlined,
   CloudSyncOutlined,
   FileProtectOutlined,
   CloudServerOutlined,
   ClearOutlined,
   LockOutlined,
   CrownOutlined,
+  CustomerServiceOutlined,
+  NumberOutlined,
+  ToolOutlined,
+  ScheduleOutlined,
+  FileSyncOutlined,
+  IdcardOutlined,
+  SyncOutlined,
+  AppstoreOutlined,
+  ColumnWidthOutlined,
+  ShoppingOutlined,
+  SkinOutlined,
+  CoffeeOutlined,
 } from "@ant-design/icons";
 import { Button, Grid, Layout, Menu, theme } from "antd";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import UserAvatar from "./UserAvatar";
 import BranchSwitcher from "./BranchSwitcher";
 import HeaderMenu from "./HeaderMenu";
-import ZatcaBell from "@/components/zatca/ZatcaBell";
+import NotificationBell from "./NotificationBell";
 import InvoiceTypePicker, {
   useVisibleInvoiceTypes,
 } from "@/components/invoices/InvoiceTypePicker";
 import AccountsPicker, {
   useVisibleAccountPages,
 } from "@/components/accounts/AccountsPicker";
+import LaundryPicker, {
+  useVisibleLaundryPages,
+} from "@/components/laundry/LaundryPicker";
 import ReportsPicker, {
   useVisibleReports,
 } from "@/components/reports/ReportsPicker";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { useStaffWords } from "@/components/technicians/useStaffT";
+import { useCompany } from "@/components/common/CompanyProvider";
+import { imageUrl } from "@/lib/image";
+import PoweredBy from "@/components/support/PoweredBy";
+import SubscriptionBanner from "@/components/support/SubscriptionBanner";
 import { Link, usePathname } from "@/i18n/routing";
-import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
-import { MdCategory } from "react-icons/md";
-import { BsUnity } from "react-icons/bs";
-import { TbBrandProducthunt } from "react-icons/tb";
+import {
+  useCan,
+  useCurrentUser,
+  useModule,
+} from "@/components/auth/AuthProvider";
 
 import "./MainLayout.css";
 
 const { Header, Sider, Content } = Layout;
 
 // branches: الفروع التي يقدر يتنقل بينها (لمدير النظام فقط، غيره قائمة فارغة)
-const MainLayout = ({ children, branches = [] }) => {
+// vendor: بيانات الشركة المالكة (تنفيذ: ...) | subscription: حالة الاشتراك للتنبيه
+const MainLayout = ({
+  children,
+  branches = [],
+  vendor = null,
+  subscription = null,
+}) => {
   const [collapsed, setCollapsed] = useState(false);
   // الموبايل والتابلت الصغير (أقل من 992px): القائمة تطلع فوق الصفحة وتتقفل لوحدها
   const screens = Grid.useBreakpoint();
@@ -76,11 +106,21 @@ const MainLayout = ({ children, branches = [] }) => {
   // الجروبات المفتوحة: كلها مقفولة في البداية
   const [openKeys, setOpenKeys] = useState([]);
   const invoiceTypes = useVisibleInvoiceTypes();
+  // شاشات المغسلة (وحدة laundry)
+  const [laundryOpen, setLaundryOpen] = useState(false);
+  const laundryPages = useVisibleLaundryPages();
+  // نظام المغسلة: القائمة من غير المخازن والأصناف والمبيعات
+  const laundryOn = useModule("laundry");
+  // نظام المطعم: الأصناف من شاشة المطعم، والبيع من الكاشير بس (من غير الفواتير والمخازن)
+  const restaurantOn = useModule("restaurant");
+  const simpleMode = laundryOn  //|| restaurantOn;
   const [reportsOpen, setReportsOpen] = useState(false);
   const reports = useVisibleReports();
   const [accountsOpen, setAccountsOpen] = useState(false);
   const accountPages = useVisibleAccountPages();
   const t = useTranslations("Sidebar");
+  // اسم مقدم الخدمة حسب النشاط (الفنيون / العاملات / الحلاقون)
+  const staff = useStaffWords();
   const pathname = usePathname();
   const can = useCan();
   const currentUser = useCurrentUser();
@@ -110,6 +150,17 @@ const MainLayout = ({ children, branches = [] }) => {
     "/admin/backup",
     "/admin/data-reset",
     "/sales/shifts",
+    "/serials",
+    "/warranty-claims",
+    "/technicians/jobs",
+    "/technicians",
+    "/maintenance-contracts",
+    "/follow-ups",
+    "/vehicles",
+    "/bookings",
+    "/restaurant",
+    // كل صفحات المغسلة تلوّن زر "المغسلة"
+    "/laundry",
     // كل صفحات الحسابات تلوّن زر "الحسابات"
     "/accounts",
     "/reports",
@@ -117,17 +168,21 @@ const MainLayout = ({ children, branches = [] }) => {
     "/inventory/stock",
     "/inventory/transfers",
     "/inventory/counts",
+    "/inventory/adjustments",
     "/printing/barcode-labels",
     "/printing/barcodes",
     "/printing/invoice",
     // كل صفحات الفواتير تلوّن زر "الفواتير"
     "/invoices",
+    "/contact",
   ];
   const matchedPath = menuPaths.find((p) => pathname.startsWith(p));
   const selectedKey =
     matchedPath === "/invoices"
       ? "invoices"
-      : matchedPath === "/reports"
+      : matchedPath === "/laundry"
+        ? "laundry"
+        : matchedPath === "/reports"
         ? "reports"
         : matchedPath === "/accounts"
           ? "accounts"
@@ -137,27 +192,54 @@ const MainLayout = ({ children, branches = [] }) => {
   } = theme.useToken();
 
   // عنصر في القائمة يظهر فقط لو المستخدم يملك صلاحية عرض الصفحة
+  // الأسماء الطويلة (البحث بالرقم التسلسلي، عقود الصيانة...) بخط أصغر
+  // عشان تظهر كاملة من غير ما نعرّض القائمة
+  const menuText = (text) => (
+    <span
+      className={
+        text.length > 22
+          ? "menu-label menu-label--xlong"
+          : text.length > 16
+            ? "menu-label menu-label--long"
+            : "menu-label"
+      }
+      title={text}
+    >
+      {text}
+    </span>
+  );
+
   const link = (path, icon, labelKey, permission) =>
     !permission || can(permission)
-      ? { key: path, icon, label: <Link href={path}> {t(labelKey)} </Link> }
+      ? {
+          key: path,
+          icon,
+          label: <Link href={path}>{menuText(t(labelKey, staff))}</Link>,
+        }
       : null;
 
   // مجموعة تظهر فقط لو فيها عنصر واحد مسموح على الأقل
   const group = (key, icon, labelKey, children) => {
     const visible = children.filter(Boolean);
     return visible.length
-      ? { key, icon, label: t(labelKey), children: visible }
+      ? { key, icon, label: menuText(t(labelKey, staff)), children: visible }
       : null;
   };
 
   const menuItems = [
     link("/", <HomeFilled />, "Home"),
-    link("/categories", <MdCategory />, "Categories", "categories.view"),
-    link("/units", <BsUnity />, "Units", "units.view"),
-    link("/products", <TbBrandProducthunt />, "Products", "products.view"),
+    // نظام المغسلة: الأقسام والوحدات والأصناف مش ظاهرة
+    // (القطع وأسعارها من شاشة المغسلة)
+    !laundryOn &&
+      link("/categories", <AppstoreOutlined />, "Categories", "categories.view"),
+    !simpleMode &&
+      link("/units", <ColumnWidthOutlined />, "Units", "units.view"),
+    !simpleMode &&
+      link("/products", <ShoppingOutlined />, "Products", "products.view"),
+    // العروض والخصومات: في كل الأنشطة (والمغسلة كمان)
     link("/promotions", <GiftOutlined />, "Promotions", "promotions.view"),
     // الفواتير: زر واحد يفتح نافذة لاختيار نوع الفاتورة (يظهر لو يقدر يفتح نوع واحد على الأقل)
-    invoiceTypes.length
+    invoiceTypes.length  //&& !restaurantOn
       ? {
           key: "invoices",
           icon: <FileDoneOutlined />,
@@ -166,10 +248,54 @@ const MainLayout = ({ children, branches = [] }) => {
         }
       : null,
     // الكاشير والورديات
-    link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
+    // نظام المغسلة: الكاشير بيتفتح من نافذة المغسلة (استلام الملابس)
+    !laundryOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
+    // الحجوزات (وحدة bookings - الكوافير / الحلاق / المساج)
+    link("/bookings", <CalendarOutlined />, "Bookings", "bookings.view"),
+    // المطعم / المقهى (وحدة restaurant): المنيو والأحجام والإضافات والسائقين
+    link("/restaurant", <CoffeeOutlined />, "Restaurant", "restaurant.view"),
+    // المغسلة (وحدة laundry): زر واحد يفتح نافذة شاشاتها (الاستلام، الطلبات، القطع والأسعار...)
+    laundryPages.length
+      ? {
+          key: "laundry",
+          icon: <SkinOutlined />,
+          label: menuText(t("Laundry")),
+          onClick: () => setLaundryOpen(true),
+        }
+      : null,
     can("shifts.view") || can("sales.pos")
       ? link("/sales/shifts", <FieldTimeOutlined />, "Shifts")
       : null,
+    // خدمات ما بعد البيع (وحدات الأنشطة): الأرقام التسلسلية، الضمان والصيانة،
+    // الفنيون ومواعيدهم، عقود الصيانة الدورية
+    group("afterSales", <ToolOutlined />, "AfterSales", [
+      // السيارات (وحدة vehicles - الورش)
+      link("/vehicles", <CarOutlined />, "Vehicles", "vehicles.view"),
+      link("/serials", <NumberOutlined />, "SerialSearch", "serials.view"),
+      link(
+        "/warranty-claims",
+        <ToolOutlined />,
+        "WarrantyClaims",
+        "warrantyClaims.view",
+      ),
+      can("technicians.jobs") || can("maintenanceContracts.visits")
+        ? link("/technicians/jobs", <ScheduleOutlined />, "Jobs")
+        : null,
+      // المتابعة الدورية (الفلاتر والتحلية)
+      link("/follow-ups", <SyncOutlined />, "FollowUps", "followUps.view"),
+      link(
+        "/maintenance-contracts",
+        <FileSyncOutlined />,
+        "MaintenanceContracts",
+        "maintenanceContracts.view",
+      ),
+      link(
+        "/technicians",
+        <IdcardOutlined />,
+        "Technicians",
+        "technicians.view",
+      ),
+    ]),
     // الحسابات: زر واحد يفتح نافذة (السندات، كشوف الحساب، بنود المصروفات)
     accountPages.length
       ? {
@@ -189,7 +315,8 @@ const MainLayout = ({ children, branches = [] }) => {
         }
       : null,
     // المخزون: المستودعات، الأرصدة، التحويلات، الجرد
-    group("inventory", <InboxOutlined />, "Inventory", [
+    // نظام المغسلة: مفيش مخازن
+    group("inventory", <InboxOutlined />, "Inventory", simpleMode ? [] : [
       link("/inventory/stock", <BarChartOutlined />, "Stock", "stock.view"),
       link(
         "/inventory/transfers",
@@ -202,6 +329,13 @@ const MainLayout = ({ children, branches = [] }) => {
         <AuditOutlined />,
         "InventoryCounts",
         "inventoryCounts.view",
+      ),
+      // التوالف والزيادات
+      link(
+        "/inventory/adjustments",
+        <DiffOutlined />,
+        "Adjustments",
+        "stockAdjustments.view",
       ),
       link(
         "/inventory/warehouses",
@@ -315,6 +449,8 @@ const MainLayout = ({ children, branches = [] }) => {
         ),
       ]),
     ]),
+    // تواصل معنا (الدعم الفني): للكل
+    link("/contact", <CustomerServiceOutlined />, "Contact"),
   ].filter(Boolean);
 
   // جروب واحد مفتوح فقط: فتح جروب رئيسي يقفل اللي قبله
@@ -356,7 +492,8 @@ const MainLayout = ({ children, branches = [] }) => {
         collapsible
         collapsed={collapsed}
       >
-        <div className="demo-logo-vertical" />
+        {/* الشركة المفتوحة: اللوجو + الاسم (عشان يبان إنت على أنهي شركة) */}
+        <SiderBrand collapsed={collapsed} />
         <Menu
           theme="dark"
           mode="inline"
@@ -366,12 +503,17 @@ const MainLayout = ({ children, branches = [] }) => {
           onClick={closeOnMobile}
           items={menuItems}
         />
+        {/* تنفيذ: تكنولوجيا المعلومات */}
+        <PoweredBy vendor={vendor} variant="sider" collapsed={collapsed} />
       </Sider>
       <Layout>
         {/* الهيدر 3 أجزاء: زر القائمة | المستخدم في المنتصف | الفرع + النقاط الثلاث */}
         <Header
           className="shadow-lg"
           style={{
+            // ارتفاع الهيدر أقل من الافتراضي (64px) عشان يدي مساحة أكبر للشاشة
+            height: isMobile ? 50 : 54,
+            lineHeight: "normal",
             paddingInline: isMobile ? "0 6px" : "0 12px",
             background: colorBgContainer,
             position: "sticky",
@@ -391,8 +533,8 @@ const MainLayout = ({ children, branches = [] }) => {
               onClick={() => setCollapsed(!collapsed)}
               style={{
                 fontSize: "16px",
-                width: isMobile ? 48 : 60,
-                height: isMobile ? 48 : 60,
+                width: isMobile ? 40 : 44,
+                height: isMobile ? 40 : 44,
               }}
             />
           </div>
@@ -404,7 +546,8 @@ const MainLayout = ({ children, branches = [] }) => {
           <div className="flex items-center justify-end gap-1 sm:gap-2 min-w-0">
             {/* مدير النظام: تغيير الفرع الحالي */}
             <BranchSwitcher branches={branches} />
-            <ZatcaBell />
+            {/* الإشعارات: الزكاة + المواعيد + العقود + الضمان */}
+            <NotificationBell />
             <LanguageSwitcher />
             <HeaderMenu />
           </div>
@@ -419,9 +562,12 @@ const MainLayout = ({ children, branches = [] }) => {
             borderRadius: borderRadiusLG,
           }}
         >
+          <SubscriptionBanner sub={subscription} />
           {children}
         </Content>
       </Layout>
+      {/* نافذة شاشات المغسلة */}
+      <LaundryPicker open={laundryOpen} onClose={() => setLaundryOpen(false)} />
       {/* نافذة اختيار نوع الفاتورة */}
       <InvoiceTypePicker
         open={invoicePickerOpen}
@@ -438,3 +584,40 @@ const MainLayout = ({ children, branches = [] }) => {
   );
 };
 export default MainLayout;
+
+// أول القائمة الجانبية: لوجو الشركة واسمها (من بيانات الشركة في الإعدادات)
+// القائمة مقفولة ← اللوجو بس (أو أول حرف من الاسم لو مفيش لوجو)
+function SiderBrand({ collapsed }) {
+  const company = useCompany();
+  const locale = useLocale();
+  const name =
+    (locale === "ar"
+      ? company?.arName || company?.enName
+      : company?.enName || company?.arName) ?? "";
+  const pathname = usePathname();
+  // عنوان التبويب في المتصفح = اسم الشركة (بدل اسم البرنامج)
+  // (Next بيرجّع العنوان الأصلي مع كل تنقل، فبنعيده مع تغيّر الصفحة)
+  useEffect(() => {
+    if (name) document.title = name;
+  }, [name, pathname]);
+  if (!name && !company?.logo) return null;
+  return (
+    <Link
+      href="/"
+      className={`sider-brand${collapsed ? " sider-brand--collapsed" : ""}`}
+      title={name}
+    >
+      {company?.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl(company.logo)}
+          alt=""
+          className="sider-brand__logo"
+        />
+      ) : (
+        <span className="sider-brand__letter">{name.trim().charAt(0)}</span>
+      )}
+      {!collapsed && <span className="sider-brand__name">{name}</span>}
+    </Link>
+  );
+}

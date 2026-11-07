@@ -1,21 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { Alert, Button, Flex, Popconfirm, Space, Table, Tag } from "antd";
+import {
+  Alert,
+  Button,
+  Flex,
+  Popconfirm,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
 import { message } from "@/components/common/feedback";
 import {
   CheckOutlined,
   CreditCardOutlined,
+  LockOutlined,
   MinusOutlined,
+  DeleteOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
 import { useLocale, useTranslations } from "next-intl";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
 import { StatusBadge } from "@/components/common/tableFilters";
 import { useCan } from "@/components/auth/AuthProvider";
-import { deletePaymentMethodsAction } from "@/actions/payment-method.actions";
+import {
+  deletePaymentMethodsAction,
+  updatePaymentMethodAction,
+} from "@/actions/payment-method.actions";
 import PaymentMethodForm from "./PaymentMethodForm";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // لون كل نوع في الجدول
@@ -28,7 +44,11 @@ const TYPE_COLORS = {
 };
 
 // شاشة طرق الدفع: تظهر لاحقاً في شاشة الدفع بالفواتير بنفس الترتيب
-export default function PaymentMethodsView({ methods = [] }) {
+// lockFixed: طرق الدفع الثابتة (من لوحة التحكم) مقفولة ← تشغيل/إيقاف بس (وضع الشركات)
+export default function PaymentMethodsView({
+  methods = [],
+  lockFixed = false,
+}) {
   const [modal, setModal] = useState({ open: false, method: null });
   const [busyId, setBusyId] = useState(null);
 
@@ -43,6 +63,25 @@ export default function PaymentMethodsView({ methods = [] }) {
   const canCreate = can("paymentMethods.create");
   const canUpdate = can("paymentMethods.update");
   const canDelete = can("paymentMethods.delete");
+
+  const locked = (r) => lockFixed && Boolean(r.templateKey);
+
+  // تشغيل/إيقاف طريقة ثابتة
+  const toggle = async (r, isActive) => {
+    setBusyId(r.id);
+    const res = await updatePaymentMethodAction({
+      id: r.id,
+      arName: r.arName,
+      enName: r.enName,
+      type: r.type,
+      requiresReference: r.requiresReference,
+      sortOrder: r.sortOrder,
+      isActive,
+    });
+    setBusyId(null);
+    if (!res.success) return message.error(tAlerts(res.error));
+    message.success(tAlerts("PaymentMethodUpdated"));
+  };
 
   const remove = async (id) => {
     setBusyId(id);
@@ -65,7 +104,18 @@ export default function PaymentMethodsView({ methods = [] }) {
       key: "name",
       width: 220,
       ellipsis: true,
-      render: (_, r) => (locale === "ar" ? r.arName : r.enName),
+      render: (_, r) => (
+        <>
+          {locale === "ar" ? r.arName : r.enName}
+          {locked(r) && (
+            <Tooltip title={t("FixedHint")}>
+              <Tag icon={<LockOutlined />} color="gold" className="ms-2">
+                {t("Fixed")}
+              </Tag>
+            </Tooltip>
+          )}
+        </>
+      ),
     },
     {
       title: t("Type"),
@@ -83,9 +133,9 @@ export default function PaymentMethodsView({ methods = [] }) {
       align: "center",
       render: (v) =>
         v ? (
-          <CheckOutlined style={{ color: "#389e0d" }} />
+          <CheckOutlined style={{ color: C.successText }} />
         ) : (
-          <MinusOutlined style={{ color: "#bbb" }} />
+          <MinusOutlined style={{ color: C.subtle }} />
         ),
     },
     {
@@ -93,7 +143,16 @@ export default function PaymentMethodsView({ methods = [] }) {
       key: "status",
       width: 130,
       align: "center",
-      render: (_, r) => <StatusBadge active={r.isActive} tForm={tForm} />,
+      render: (_, r) =>
+        locked(r) && canUpdate ? (
+          <Switch
+            checked={r.isActive}
+            loading={busyId === r.id}
+            onChange={(v) => toggle(r, v)}
+          />
+        ) : (
+          <StatusBadge active={r.isActive} tForm={tForm} />
+        ),
     },
     ...(canUpdate || canDelete
       ? [
@@ -104,21 +163,21 @@ export default function PaymentMethodsView({ methods = [] }) {
             align: "center",
             render: (_, r) => (
               <Space>
-                {canUpdate && (
+                {canUpdate && !locked(r) && (
                   <Tag
-                    color="#006266"
+                    color={C.primary}
                     style={{
                       padding: "6px 12px",
                       fontSize: 14,
                       cursor: "pointer",
                     }}
-                    icon={<AiTwotoneEdit />}
+                    icon={<EditOutlined />}
                     onClick={() => setModal({ open: true, method: r })}
                   >
                     {tButtons("Edit")}
                   </Tag>
                 )}
-                {canDelete && (
+                {canDelete && !locked(r) && (
                   <Popconfirm
                     title={tAlerts("Confirm")}
                     description={tAlerts("ConfirmDelete")}
@@ -129,7 +188,7 @@ export default function PaymentMethodsView({ methods = [] }) {
                     <Button
                       size="small"
                       danger
-                      icon={<AiFillDelete />}
+                      icon={<DeleteOutlined />}
                       loading={busyId === r.id}
                     />
                   </Popconfirm>

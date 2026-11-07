@@ -1,15 +1,20 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Table, Space, Button, Tag, Popconfirm, Flex } from "antd";
+import { DeleteOutlined, EditOutlined, ColumnWidthOutlined } from "@ant-design/icons";
 import { message } from "@/components/common/feedback";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
-import { BsUnity } from "react-icons/bs";
 import { useLocale, useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
 import FormModal from "@/components/common/FormModal";
-import { textFilter, statusFilter, StatusBadge } from "@/components/common/tableFilters";
+import {
+  textFilter,
+  statusFilter,
+  StatusBadge,
+} from "@/components/common/tableFilters";
 import { deleteUnitsAction } from "@/actions/unit.actions";
 import EditUnitForm from "./EditUnitForm";
+import { listSep } from "@/lib/list-sep";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // units: الوحدات من قاعدة البيانات
@@ -45,8 +50,10 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
     setDeleting(false);
 
     if (!res.success) {
-      const names = res.details?.map(nameOf).join("، ");
-      message.error(names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error));
+      const names = res.details?.map(nameOf).join(listSep(locale));
+      message.error(
+        names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error),
+      );
       return;
     }
 
@@ -87,6 +94,21 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
       }),
     },
     {
+      title: tTable("AllowDecimals"),
+      dataIndex: "allowDecimals",
+      key: "allowDecimals",
+      align: "center",
+      // من غير عرض ثابت: العمود على قد العنوان (والعنوان في سطر واحد)
+      onHeaderCell: () => ({ style: { whiteSpace: "nowrap" } }),
+      render: (v) =>
+        v ? <Tag color="blue">0.250</Tag> : <Tag>{tTable("WholeOnly")}</Tag>,
+      filters: [
+        { text: "0.250", value: true },
+        { text: tTable("WholeOnly"), value: false },
+      ],
+      onFilter: (v, r) => r.allowDecimals === v,
+    },
+    {
       title: tTable("Status"),
       dataIndex: "isActive",
       key: "isActive",
@@ -110,7 +132,7 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
                 color="danger"
                 variant="outlined"
                 size="small"
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
                 loading={deleting}
               >
                 {tButtons("Delete")} ({selectedRows.length})
@@ -126,9 +148,9 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
           {/* تعديل */}
           {canEdit && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => {
                 setSelectedUnit(record);
                 setEditModalOpen(true);
@@ -148,10 +170,10 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
               cancelText={tButtons("No")}
             >
               <Tag
-                color="#EA2027"
+                color={C.danger}
                 variant="filled"
                 style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
               >
                 {tButtons("Delete")}
               </Tag>
@@ -181,7 +203,10 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
           },
         }}
         // التحديد متاح دائماً (للتصدير)، والحذف بصلاحيته
-        rowSelection={{ selectedRowKeys: selectedRows, onChange: (keys) => setSelectedRows(keys) }}
+        rowSelection={{
+          selectedRowKeys: selectedRows,
+          onChange: (keys) => setSelectedRows(keys),
+        }}
       />
 
       {/* نافذة التعديل */}
@@ -193,7 +218,7 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
         }}
         title={
           <Flex align="center" gap="small">
-            <BsUnity style={{ fontSize: 22 }} />
+            <ColumnWidthOutlined style={{ fontSize: 22 }} />
             <span>{tHeadings("EditUnitHeading")}</span>
           </Flex>
         }

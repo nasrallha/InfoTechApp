@@ -46,21 +46,28 @@ export default function PrintDocument({
 
     let timer;
     let printTimer;
-    // ننتظر رسم المستند (الشعار و QR) ثم نقيس طوله ونطبع
+    let cancelled = false;
+    // ننتظر رسم المستند (الشعار و QR) وتحميل الخط، ثم نقيس طوله ونطبع
     const raf = requestAnimationFrame(() => {
-      timer = setTimeout(() => {
-        if (paperSize === "A4") {
-          setPageCss(`@page { size: A4; margin: ${margin}mm; }`);
+      timer = setTimeout(async () => {
+        await document.fonts?.ready;
+        if (cancelled) return;
+        if (paperSize === "A4" || paperSize === "A4L") {
+          // A4L = A4 بالعرض (التقارير العريضة)
+          const size = paperSize === "A4L" ? "A4 landscape" : "A4";
+          setPageCss(`@page { size: ${size}; margin: ${margin}mm; }`);
         } else {
           // صفحة الكاشير بعرض الطباعة الفعلي (72/48mm) وبطول المستند
           // (لو الصفحة أعرض من ورق الطابعة، المستند العربي بيتقص من الشمال)
-          // +3mm احتياط، وأقل طول 40mm
+          // +3mm احتياط، وأقل طول = العرض + 10mm: الصفحة الأقصر من عرضها
+          // (تذكرة مطبخ / إيصال قصير) المتصفح بيعتبرها عرضية والطابعة بتطبعها بالعرض
+          const widthMm = PRINT_AREA[paperSize] ?? 72;
           const heightMm = Math.max(
-            40,
+            widthMm + 10,
             Math.ceil((page.current?.offsetHeight ?? 0) / PX_PER_MM) + 3,
           );
           setPageCss(
-            `@page { size: ${PRINT_AREA[paperSize] ?? 72}mm ${heightMm}mm; margin: 0; }`,
+            `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`,
           );
         }
         printTimer = setTimeout(() => window.print(), 150);
@@ -68,6 +75,7 @@ export default function PrintDocument({
     });
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       clearTimeout(timer);
       clearTimeout(printTimer);

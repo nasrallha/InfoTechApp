@@ -1,12 +1,14 @@
 "use client";
 
-import { Card, Table, Tag } from "antd";
+import { Alert, Card, Table, Tag } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { formatDateTime } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
 import { DocsTotal, KpiRow, ReportHeader, useFilterInfo } from "./ReportParts";
+import { C } from "@/lib/theme";
+import RestaurantFeesSection, { feesSummary } from "./RestaurantFeesSection";
 
 // ============================================================
 // تقرير المبيعات: الفواتير والمرتجعات بالفلاتر + الرسم + طرق الدفع
@@ -112,7 +114,7 @@ export default function SalesReportView({
             width: 100,
             align: "end",
             render: (_, r) => (
-              <span style={{ color: r.profit < 0 ? "#c0392b" : "#1e8449" }}>
+              <span style={{ color: r.profit < 0 ? C.dangerText : C.successText }}>
                 {money(r.profit)}
               </span>
             ),
@@ -153,6 +155,17 @@ export default function SalesReportView({
       [t("NetBeforeTax"), money(T.net)],
       [t("Tax"), money(T.tax)],
       [t("NetSales"), money(T.total), true],
+      // المغسلة: فواتير الاشتراك (للعلم): جوه المبيعات، وفلوسها دخلت وقت الشحن
+      ...(data.subscription
+        ? [
+            [
+              `${t("laundry.SubInvoices")} (${data.subscription.count}) - ${t("laundry.InfoOnly")}`,
+              money(data.subscription.amount),
+            ],
+          ]
+        : []),
+      // المطعم: الرسوم (جوه المبيعات، للعلم)
+      ...feesSummary(data.fees, t, money),
       ...(showProfit
         ? [
             [t("Cost"), money(T.cost)],
@@ -205,7 +218,7 @@ export default function SalesReportView({
       <ReportFilters
         filters={filters}
         options={options}
-        fields={["branch", "user", "customer", "method", "source", "q"]}
+        fields={["branch", "user", "customer", "method", "category", "source", "q"]}
         quarters
       />
       <KpiRow
@@ -214,29 +227,41 @@ export default function SalesReportView({
             title: t("Sales"),
             value: money(T.sales),
             hint: `${T.salesCount} ${t("Invoices")}`,
-            color: "#2471a3",
+            color: C.infoText,
           },
           {
             title: t("Returns"),
             value: money(T.returns),
             hint: `${T.returnsCount} ${t("Invoices")}`,
-            color: "#c0392b",
+            color: C.dangerText,
           },
           {
             title: t("NetSales"),
             value: `${money(T.total)} ${symbol}`,
-            color: "#1f4e78",
+            color: C.navy,
             strong: true,
           },
-          { title: t("Tax"), value: money(T.tax), color: "#7d3c98" },
-          { title: t("Credit"), value: money(T.credit), color: "#d35400" },
+          { title: t("Tax"), value: money(T.tax), color: C.purple },
+          { title: t("Credit"), value: money(T.credit), color: C.warningText },
           showProfit && {
             title: t("Profit"),
             value: money(T.profit),
-            color: "#1e8449",
+            color: C.successText,
           },
         ]}
       />
+      {/* المطعم: رسوم التبغ / الخدمة / التوصيل (للعلم) */}
+      <RestaurantFeesSection fees={data.fees} />
+      {/* المغسلة: فواتير الاشتراك للعلم (برا طرق الدفع؛ فلوسها دخلت وقت الشحن) */}
+      {data.subscription && (
+        <Alert
+          type="info"
+          showIcon
+          className="mb-4"
+          title={`${t("laundry.SubInvoices")} (${t("laundry.InfoOnly")}): ${data.subscription.count} — ${money(data.subscription.amount)}`}
+          description={t("laundry.SalesSubHint")}
+        />
+      )}
       <div className="report-grid">
         <Card size="small" title={t("ByPaymentMethod")}>
           <Table

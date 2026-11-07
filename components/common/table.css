@@ -1,27 +1,38 @@
 .ant-table-css-var [class*=" ant-table"] {
-    font-weight: bold !important;
+    font-weight: 500 !important;
     text-align: center;
 }
 
+/* رأس الجدول: تركواز غامق بخط واضح من غير ما يكون تقيل */
 .ant-table-thead {
-    font-size: 16px;
+    font-size: 14px;
+}
+.ant-table-wrapper .ant-table-thead > tr > th {
+    font-weight: 600 !important;
+}
+
+/* الصف مع الماوس: خلفية فاتحة بلون البرنامج */
+.ant-table-wrapper .ant-table-tbody > tr.ant-table-row:hover > td {
+    background: var(--c-primary-soft) !important;
 }
 
 .ant-table-wrapper .ant-table-thead>tr>th,
 .ant-table-wrapper .ant-table-thead>tr>td {
-    background-color: #34495e !important;
-    color: #fff !important;
+    /* فاتح بلون البرنامج وكتابة كحلي (مش غامق زي القائمة الجانبية) */
+    background-color: var(--c-table-head) !important;
+    color: var(--c-table-head-text) !important;
+    border-bottom: 2px solid var(--c-table-head-border) !important;
 
 }
 
 .ant-table-wrapper .ant-table-column-sorter-inner {
-    color: #fff !important;
+    color: var(--c-table-head-text) !important;
     font-size: 20px !important;
 
 }
 
 .ant-table-wrapper .ant-table-filter-trigger {
-    color: #fff !important;
+    color: var(--c-table-head-text) !important;
     font-size: 20px !important;
 }
 
@@ -50,7 +61,7 @@
 .ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>td,
 .ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>td,
 .ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>td {
-    border-bottom: 1px solid #34495e !important;
+    border-bottom: 1px solid var(--c-border-strong) !important;
 }
 /* .ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-content >table >thead>tr>th, 
 .ant-table-wrapper .ant-table.ant-table-bordered >.ant-table-container >.ant-table-header >table >thead>tr>th, 
@@ -103,5 +114,5 @@
 .ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-header>table>tfoot>tr>td,
 .ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-body>table>tfoot>tr>td,
 .ant-table-wrapper .ant-table.ant-table-bordered>.ant-table-container>.ant-table-summary>table>tfoot>tr>td {
-    border-inline-end: 1px solid #34495e !important;
+    border-inline-end: 1px solid var(--c-border-strong) !important;
 }

@@ -5,15 +5,22 @@
 
 .a4 {
   --accent: #1f4e78;
+  /* الخط والأوزان (نفس invoice.css): العناوين 700 ← التسميات 600 ← الأصناف 400 */
+  --print-font: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  --w-head: 700;
+  --w-label: 600;
+  --w-body: 400;
   box-sizing: border-box;
   width: 210mm;
   min-height: 296mm;
   padding: 10mm;
   background: #fff;
   color: #1a1a1a;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: var(--print-font);
+  font-weight: var(--w-body);
   font-size: 9.5pt;
-  line-height: 1.45;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   display: flex;
   flex-direction: column;
 }
@@ -52,7 +59,7 @@
 
 .a4__company-name {
   font-size: 1.45em;
-  font-weight: 800;
+  font-weight: var(--w-head);
   color: var(--accent);
   line-height: 1.25;
   margin-bottom: 1mm;
@@ -73,7 +80,7 @@
 
 .a4__title {
   font-size: 1.45em;
-  font-weight: 800;
+  font-weight: var(--w-head);
 }
 
 .a4__title-en {
@@ -86,7 +93,7 @@
   border-radius: 10mm;
   background: #fff;
   color: var(--accent);
-  font-weight: 800;
+  font-weight: var(--w-head);
   font-size: 1.15em;
 }
 
@@ -130,17 +137,17 @@
 }
 
 .a4__box-title {
-  font-weight: bold;
+  font-weight: var(--w-head);
   color: var(--accent);
   margin-bottom: 1.2mm;
   padding-bottom: 1mm;
-  font-size: 1.4em;
+  font-size: 1.15em;
   border-bottom: 1px solid #e3e8ef;
 }
 
 .a4__party-name {
   font-size: 1.2em;
-  font-weight: 800;
+  font-weight: var(--w-head);
 }
 
 .a4__kv {
@@ -152,6 +159,7 @@
 
 .a4__kv > span {
   color: #555;
+  font-weight: var(--w-label);
 }
 
 /* ---------- الأصناف ---------- */
@@ -164,10 +172,12 @@
   display: table-header-group;
 }
 
+/* رأس الجدول عريض وسطور الأصناف عادية: الفرق واضح بين العنوان والصنف */
 .a4__items th {
   background: var(--accent);
   color: #fff;
-  font-weight: 700;
+  font-weight: var(--w-head);
+  font-size: 0.95em;
   padding: 2mm 1.5mm;
   white-space: nowrap;
   text-align: center;
@@ -191,6 +201,12 @@
 .a4__items .a4__col-name {
   text-align: start;
   width: 38%;
+}
+
+/* اسم الصنف: أكبر شوية من باقي الأعمدة */
+.a4__items td.a4__col-name {
+  font-size: 1.05em;
+  font-weight: 500;
 }
 
 .a4__c {
@@ -244,7 +260,7 @@
   background: var(--accent);
   color: #fff;
   font-size: 1.2em;
-  font-weight: 800;
+  font-weight: var(--w-head);
 }
 
 /* ---------- التوقيعات والذيل ---------- */
@@ -261,7 +277,7 @@
 
 .a4__signs span {
   color: #444;
-  font-weight: 700;
+  font-weight: var(--w-head);
 }
 
 .a4__sign-line {

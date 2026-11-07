@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Card, Empty, Segmented, Tag } from "antd";
 import {
+  ToolOutlined,
   AppstoreOutlined,
   SafetyCertificateOutlined,
   ArrowDownOutlined,
@@ -31,10 +32,12 @@ import {
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
-import { formatDateTime, today } from "@/lib/dates";
+import { formatDateTime } from "@/lib/dates";
+import { useBizToday } from "@/components/common/useBusinessDay";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import { AreaLines, Donut, HBars } from "@/components/reports/Charts";
+import { C } from "@/lib/theme";
 import "./dashboard.css";
 
 // ============================================================
@@ -45,70 +48,70 @@ const QUICK_ACTIONS = [
     key: "pos",
     href: "/pos",
     Icon: DesktopOutlined,
-    color: "#006266",
+    color: C.primary,
     perm: "sales.pos",
   },
   {
     key: "newSale",
     href: "/invoices/sales/new",
     Icon: ShoppingCartOutlined,
-    color: "#2471a3",
+    color: C.infoText,
     perm: "sales.create",
   },
   {
     key: "newSaleReturn",
     href: "/invoices/sales-returns/new",
     Icon: RollbackOutlined,
-    color: "#c0392b",
+    color: C.dangerText,
     perm: "salesReturns.create",
   },
   {
     key: "newQuotation",
     href: "/invoices/quotations/new",
     Icon: FileSearchOutlined,
-    color: "#7d3c98",
+    color: C.purple,
     perm: "quotations.create",
   },
   {
     key: "newPurchase",
     href: "/invoices/purchases/new",
     Icon: ShoppingOutlined,
-    color: "#1d6f5f",
+    color: C.primary,
     perm: "purchases.create",
   },
   {
     key: "newReceipt",
     href: "/accounts/receipts/new",
     Icon: ArrowDownOutlined,
-    color: "#1e8449",
+    color: C.successText,
     perm: "receipts.create",
   },
   {
     key: "newPayment",
     href: "/accounts/payments/new",
     Icon: ArrowUpOutlined,
-    color: "#b03a2e",
+    color: C.dangerText,
     perm: "paymentVouchers.create",
   },
   {
     key: "dailyReport",
     href: "/reports/daily",
     Icon: CalendarOutlined,
-    color: "#b9770e",
+    color: C.warningText,
     perm: "reports.daily",
   },
   {
     key: "stock",
     href: "/inventory/stock",
     Icon: InboxOutlined,
-    color: "#5d6d7e",
+    color: C.muted,
     perm: "stock.view",
   },
   {
     key: "newProduct",
     href: "/products/addproduct",
     Icon: TagsOutlined,
-    color: "#2980b9",
+    color: C.info,
     perm: "products.create",
   },
 ];
@@ -120,10 +123,10 @@ const METHOD_ICON = {
   wallet: <WalletOutlined />,
 };
 const METHOD_COLOR = {
-  cash: "#1e8449",
-  card: "#2471a3",
-  transfer: "#7d3c98",
-  wallet: "#b9770e",
+  cash: C.successText,
+  card: C.infoText,
+  transfer: C.purple,
+  wallet: C.warningText,
 };
 
 // سهم المقارنة (أخضر صاعد / أحمر نازل)
@@ -203,7 +206,7 @@ function ZatcaDashCard({ z }) {
           </li>
         ))}
         {z.expiring.map((e, i) => (
-          <li key={i} className="dash-list__row" style={{ color: "#cf1322" }}>
+          <li key={i} className="dash-list__row" style={{ color: C.dangerText }}>
             {tZ("bell.cert", { branch: e.branch.arName, days: e.days })}
           </li>
         ))}
@@ -231,7 +234,8 @@ export default function Dashboard({ data }) {
       timeZone: "Asia/Riyadh",
     }).format(new Date()),
   );
-  const now = today();
+  // النهارده = يوم العمل الحالي (روابط "الشهر" و"النهارده" للتقارير)
+  const now = useBizToday();
   const monthStart = `${now.slice(0, 7)}-01`;
   const greeting =
     hour < 12 ? t("Morning") : hour < 18 ? t("Afternoon") : t("Evening");
@@ -246,7 +250,7 @@ export default function Dashboard({ data }) {
     },
   ).format(new Date());
 
-  const C = data.counts;
+  const cnt = data.counts;
   const counts = [
     {
       key: "categories",
@@ -352,7 +356,7 @@ export default function Dashboard({ data }) {
         <section className="dash-grid dash-grid--4">
           <Kpi
             icon={<ShoppingCartOutlined />}
-            color="#2471a3"
+            color={C.infoText}
             title={t("TodaySales")}
             value={`${money(data.today.sales)} ${symbol}`}
             sub={<Trend value={data.today.change} label={t("VsYesterday")} />}
@@ -360,14 +364,14 @@ export default function Dashboard({ data }) {
           />
           <Kpi
             icon={<FileTextOutlined />}
-            color="#7d3c98"
+            color={C.purple}
             title={t("TodayInvoices")}
             value={data.today.count}
             sub={`${t("AvgInvoice")}: ${money(data.today.avg)}`}
           />
           <Kpi
             icon={<BarChartOutlined />}
-            color="#16a085"
+            color={C.accent}
             title={t("MonthSales")}
             value={`${money(data.month.sales)} ${symbol}`}
             sub={<Trend value={data.month.change} label={t("VsLastMonth")} />}
@@ -379,7 +383,7 @@ export default function Dashboard({ data }) {
           />
           <Kpi
             icon={<LineChartOutlined />}
-            color={data.month.profit >= 0 ? "#1e8449" : "#c0392b"}
+            color={data.month.profit >= 0 ? C.successText : C.dangerText}
             title={t("MonthProfit")}
             value={`${money(data.month.profit)} ${symbol}`}
             sub={`${t("Margin")}: ${data.month.margin}%`}
@@ -413,7 +417,7 @@ export default function Dashboard({ data }) {
               <div
                 key={m.id}
                 className="dash-money__item"
-                style={{ "--c": METHOD_COLOR[m.type] ?? "#5d6d7e" }}
+                style={{ "--c": METHOD_COLOR[m.type] ?? C.muted }}
               >
                 <span className="dash-money__icon">
                   {METHOD_ICON[m.type] ?? <DollarOutlined />}
@@ -464,8 +468,8 @@ export default function Dashboard({ data }) {
               height={300}
               data={period === "days" ? data.days : data.months}
               series={[
-                { key: "sales", name: t("Sales"), color: "#2471a3" },
-                { key: "profit", name: t("Profit"), color: "#27ae60" },
+                { key: "sales", name: t("Sales"), color: C.infoText },
+                { key: "profit", name: t("Profit"), color: C.success },
               ]}
             />
           </Card>
@@ -567,7 +571,7 @@ export default function Dashboard({ data }) {
                   net: p.net,
                 }))}
                 dataKey="net"
-                color="#8e44ad"
+                color={C.purple}
                 height={260}
               />
             ) : (
@@ -577,6 +581,61 @@ export default function Dashboard({ data }) {
         )}
 
         {data.zatca?.enabled && <ZatcaDashCard z={data.zatca} />}
+
+        {/* زيارات عقود الصيانة: المتأخرة + خلال 7 أيام */}
+        {(data.visits?.overdue > 0 || data.visits?.upcoming > 0) && (
+          <Card
+            size="small"
+            className="dash-card"
+            title={
+              <span>
+                <ToolOutlined /> {t("Visits")}
+              </span>
+            }
+            extra={<Link href="/technicians/jobs">{t("ViewAll")}</Link>}
+          >
+            <div className="flex flex-wrap gap-2">
+              {data.visits.overdue > 0 && (
+                <Tag color="red">
+                  {t("VisitsOverdue", { n: data.visits.overdue })}
+                </Tag>
+              )}
+              {data.visits.upcoming > 0 && (
+                <Tag color="blue">
+                  {t("VisitsUpcoming", { n: data.visits.upcoming })}
+                </Tag>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* طلبات الضمان والصيانة: جاهز للتسليم + متأخر عند الوكيل */}
+        {data.claims?.open > 0 && (
+          <Card
+            size="small"
+            className="dash-card"
+            title={
+              <span>
+                <ToolOutlined /> {t("Claims")}
+              </span>
+            }
+            extra={<Link href="/warranty-claims">{t("ViewAll")}</Link>}
+          >
+            <div className="flex flex-wrap gap-2">
+              <Tag color="blue">{t("ClaimsOpen", { n: data.claims.open })}</Tag>
+              {data.claims.ready > 0 && (
+                <Tag color="green">
+                  {t("ClaimsReady", { n: data.claims.ready })}
+                </Tag>
+              )}
+              {data.claims.atAgentLate > 0 && (
+                <Tag color="red">
+                  {t("ClaimsAgentLate", { n: data.claims.atAgentLate })}
+                </Tag>
+              )}
+            </div>
+          </Card>
+        )}
 
         {data.openShifts && (
           <Card
@@ -629,7 +688,7 @@ export default function Dashboard({ data }) {
             className="dash-card"
             title={
               <span>
-                <WarningOutlined style={{ color: "#d35400" }} />{" "}
+                <WarningOutlined style={{ color: C.warningText }} />{" "}
                 {t("LowStockList", { threshold: data.lowStock.threshold })}
               </span>
             }
@@ -680,7 +739,7 @@ export default function Dashboard({ data }) {
             <Link key={key} href={href} className="dash-count">
               <Icon />
               <span>{t(`counts.${key}`)}</span>
-              <b>{C[key]}</b>
+              <b>{cnt[key]}</b>
             </Link>
           ))}
           {can("products.create") && (

@@ -53,6 +53,7 @@ import {
   fromParts,
   unitsBySize,
 } from "@/lib/unit-breakdown";
+import { C } from "@/lib/theme";
 import "@/components/purchases/purchases.css";
 import "@/components/common/table.css";
 
@@ -232,6 +233,16 @@ export default function CountForm({
     return res.data;
   };
 
+  // جرد جديد اتحفظ: الشاشة ترجع فاضية (Next بيحتفظ بها في الخلفية)
+  const clearNew = () => {
+    if (count) return;
+    setLines([]);
+    setNotes("");
+    setFilter("");
+    setCategoryId("all");
+    setUncountedZero(false);
+  };
+
   const saveDraft = async () => {
     setBusy(true);
     const saved = await save();
@@ -241,6 +252,7 @@ export default function CountForm({
       t("CountSaved", { number: formatDocNo("count", saved.number) }),
     );
     if (!count) router.push(`/inventory/counts/${saved.id}`);
+    clearNew();
   };
 
   const post = async () => {
@@ -254,6 +266,7 @@ export default function CountForm({
       t("CountPosted", { number: formatDocNo("count", saved.number) }),
     );
     if (!count) router.push(`/inventory/counts/${saved.id}`);
+    clearNew();
   };
 
   const remove = async () => {
@@ -296,7 +309,7 @@ export default function CountForm({
       render: (_, l) => (
         <div>
           <div style={{ fontWeight: 600 }}>{nameOf(l)}</div>
-          <div style={{ fontSize: 12, color: "#888" }}>
+          <div style={{ fontSize: 12, color: C.muted }}>
             <bdi>{l.code}</bdi>
           </div>
         </div>
@@ -351,7 +364,7 @@ export default function CountForm({
               />
             ))}
             {l.countedQty != null && (
-              <div style={{ fontSize: 12, color: "#666" }}>
+              <div style={{ fontSize: 12, color: C.muted }}>
                 = <b>{q3(l.countedQty)}</b> {nameOf(l.unit)}
               </div>
             )}

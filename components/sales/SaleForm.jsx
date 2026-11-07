@@ -8,6 +8,7 @@ import {
   Col,
   Form,
   Input,
+  InputNumber,
   Popconfirm,
   Row,
   Select,
@@ -45,6 +46,9 @@ import {
 import NextDocNo from "@/components/common/NextDocNo";
 import { message } from "@/components/common/feedback";
 import { showActionError } from "@/components/common/actionError";
+import { lineQtyProblem, qtyProblemKey } from "@/lib/unit-qty";
+import SizePickerModal from "@/components/products/SizePickerModal";
+import LineConversion from "@/components/common/LineConversion";
 import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import PageHeader from "@/components/common/PageHeader";
@@ -71,6 +75,19 @@ import {
 } from "@/lib/preview-doc";
 import { showZatcaResult } from "@/components/zatca/zatcaUi";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
+import { useModule, useModuleSettings } from "@/components/auth/AuthProvider";
+import LineJob from "@/components/technicians/LineJob";
+import LineFollowUp from "@/components/follow-ups/LineFollowUp";
+import RenewFollowUpsModal from "@/components/follow-ups/RenewFollowUpsModal";
+import { customerActiveFollowUpsAction } from "@/actions/follow-up.actions";
+import VehiclePicker from "@/components/vehicles/VehiclePicker";
+import { LoyaltyHint, useLoyalty } from "@/components/promotions/useLoyalty";
+import LineChange, { lineChangeValue } from "@/components/vehicles/LineChange";
+import LineSerials, {
+  serialInLines,
+  serialsShort,
+} from "@/components/serials/LineSerials";
+import { listSep } from "@/lib/list-sep";
 
 let lineSeq = 0;
 
@@ -85,6 +102,9 @@ export function lineFromProduct(product, unitId, qty = 1, price) {
     arName: product.arName,
     enName: product.enName,
     units: product.units,
+    // لون المقاس (دايرة جنب الاسم في السلة)
+    color: product.color ?? null,
+    colorHex: product.colorHex ?? null,
     unitId: unit.unit.id,
     qty,
     price: price ?? unit.price,
@@ -93,11 +113,36 @@ export function lineFromProduct(product, unitId, qty = 1, price) {
     discountValue: 0,
     taxRate: product.taxRate,
     taxMode: product.priceIncludesTax ? "inclusive" : "exclusive",
-    stock: product.stock,
+    // خدمة: مالهاش رصيد
+    stock: product.isService ? null : product.stock,
+    isService: Boolean(product.isService),
     cost: product.cost,
     categoryId: product.categoryId ?? null,
+    // الأرقام التسلسلية والضمان (وحدة serials)
+    serialCount: product.serialCount ?? 0,
+    serialLabel1: product.serialLabel1 ?? null,
+    serialLabel2: product.serialLabel2 ?? null,
+    warrantyMonths: product.warrantyMonths ?? 0,
+    serials: [],
+    // الفني والموعد لسطر الخدمة (وحدة technicians)
+    job: null,
+    // المتابعة الدورية (وحدة followUps): اختيارية للصنف اللي عليه متابعة
+    followUpDays: product.followUpDays ?? 0,
+    followUp: null,
+    // التغيير الدوري للسيارة (وحدة vehicles): null = تلقائي
+    changeKm: product.changeKm ?? 0,
+    changeMonths: product.changeMonths ?? 0,
+    change: null,
   };
 }
+
+// خدمات الحجز ← سطور (كل خدمة بمقدم الخدمة بتاع الحجز)
+export const bookingLines = (booking) =>
+  (booking?.items ?? []).map(({ product, technicianId }) => {
+    const line = lineFromProduct(product, product.units[0].unit.id, 1);
+    if (technicianId) line.job = { technicianId };
+    return line;
+  });
 
 // سطور محفوظة (فاتورة/عرض سعر) ← سطور الشاشة
 const savedLines = (doc) =>
@@ -122,9 +167,59 @@ const savedLines = (doc) =>
       note: i.note ?? "",
       taxRate: i.taxRate,
       taxMode: i.priceIncludesTax ? "inclusive" : "exclusive",
-      stock: product?.stock ?? null,
+      stock: product?.isService ? null : (product?.stock ?? null),
+      isService: Boolean(product?.isService),
       cost: product?.cost ?? 0,
       categoryId: product?.categoryId ?? null,
+      serialCount: product?.serialCount ?? 0,
+      serialLabel1: product?.serialLabel1 ?? null,
+      serialLabel2: product?.serialLabel2 ?? null,
+      warrantyMonths: i.warrantyMonths ?? product?.warrantyMonths ?? 0,
+      serials: (i.serials ?? []).map((x) => ({
+        serial: x.serialText,
+        serial2: x.serial2Text ?? null,
+        isUsed: Boolean(x.serial?.isUsed),
+      })),
+      job:
+        i.technicianId || i.jobAt
+          ? {
+              technicianId: i.technicianId ?? null,
+              at: i.jobAt ? new Date(i.jobAt).toISOString() : null,
+              address: i.jobAddress ?? null,
+              note: i.jobNote ?? null,
+              status: i.jobStatus === "done" ? "done" : "pending",
+              doneAt: i.jobDoneAt ? new Date(i.jobDoneAt).toISOString() : null,
+            }
+          : null,
+      followUpDays: product?.followUpDays ?? 0,
+      changeKm: product?.changeKm ?? 0,
+      changeMonths: product?.changeMonths ?? 0,
+      // الغيار القادم المحفوظ (فاتورة على سيارة): زي ما هو
+      change:
+        i.nextKm != null || i.nextDate
+          ? {
+              applied: true,
+              manual: true,
+              nextKm: i.nextKm ?? null,
+              nextDate: i.nextDate
+                ? new Date(i.nextDate).toISOString().slice(0, 10)
+                : null,
+            }
+          : doc?.vehicleId
+            ? { applied: false }
+            : null,
+      // المتابعة اللي اتعملت بالسطر (التعديل)
+      followUp: i.followUps?.[0]
+        ? {
+            id: i.followUps[0].id,
+            intervalDays: i.followUps[0].intervalDays,
+            place: i.followUps[0].place,
+            address: i.followUps[0].address,
+            locationUrl: i.followUps[0].locationUrl,
+            phone: i.followUps[0].phone,
+            notes: i.followUps[0].notes,
+          }
+        : null,
     };
   });
 
@@ -144,6 +239,12 @@ export default function SaleForm({
   perms = {},
   sale = null,
   quotation = null,
+  // فاتورة صيانة من طلب ضمان/صيانة (قطع ومصنعية)
+  claim = null,
+  // فاتورة صيانة من شاشة المتابعات: { id, customerId } (المتابعة متعلّم عليها)
+  followUp = null,
+  // فاتورة من حجز: { id, number, customerId, items: [{ product, technicianId }] }
+  booking = null,
   shift = null,
   promotions = [],
   zatca = null, // { active, sendOnSave } لو الفرع مربوط بالزكاة
@@ -159,7 +260,7 @@ export default function SaleForm({
   const isQuotation = mode === "quotation";
   // فاتورة التصدير: ضريبة صفرية على كل الأصناف (بنفس السعر) ولازم عميل برّه المملكة
   const exportMode = !isQuotation && (isExport || Boolean(sale?.isExport));
-  const source = sale ?? quotation;
+  const source = sale ?? quotation ?? claim;
   const isEdit = Boolean(sale) || (isQuotation && Boolean(quotation));
   const converting = !isQuotation && Boolean(quotation) && !sale;
   const zatcaOn = Boolean(zatca?.active) && !isQuotation;
@@ -170,12 +271,21 @@ export default function SaleForm({
   const t = useTranslations("Sales");
   const tP = useTranslations("Purchases");
   const tAlerts = useTranslations("Alerts");
+  const tSerial = useTranslations("Serials");
+  // الإلزام موجود بس لو الوحدة مفعّلة
+  // allowDuplicateLines: نفس الصنف يتضاف سطر جديد (كل سطر بوصفه) بدل زيادة الكمية
+  const { serialRequired = false, allowDuplicateLines = false } =
+    useModuleSettings();
   const { amount: money, decimals } = useCurrency();
   // بصمة الحفظ: الضغط على حفظ مرتين (أو بعد ما الرد يضيع) مايكررش المستند
   const saveKey = useSaveKey();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
-  const [items, setItems] = useState(() => savedLines(source));
+  // المقاسات (وحدة variants): رقم الموديل اللي شبكة مقاساته مفتوحة
+  const [sizePick, setSizePick] = useState(null);
+  const [items, setItems] = useState(() =>
+    booking && !source ? bookingLines(booking) : savedLines(source),
+  );
   const [discount, setDiscount] = useState(() =>
     source
       ? { type: source.discountType, value: source.discountValue }
@@ -193,13 +303,35 @@ export default function SaleForm({
       : null,
   );
   const [saving, setSaving] = useState(null);
+  // المتابعة الدورية (وحدة followUps): نافذة التجديد وقت الحفظ { list, resolve }
+  const followUpsOn = useModule("followUps");
+  const [renewAsk, setRenewAsk] = useState(null);
+  // السيارة (وحدة vehicles - الورش): فاتورة البيع بس (مش عرض السعر)
+  const vehiclesOn = useModule("vehicles") && !isQuotation;
+  const savedVehicle = sale?.vehicleId
+    ? {
+        id: sale.vehicleId,
+        plateNo: sale.vehiclePlate,
+        vehicleType: sale.vehicleType,
+      }
+    : null;
+  const [vehicle, setVehicle] = useState(savedVehicle);
   const customerId = Form.useWatch("customerId", form);
+  const odometer = Form.useWatch("odometer", form);
+  const saleDay = Form.useWatch("date", form) ?? today();
   const customer = customers.find((c) => c.id === customerId);
   const exportMissing = exportMode ? exportBuyerMissing(customer) : [];
   const todayDay = today();
 
+  // عروض الولاء للعميل (كل كام مرة ← مرة مجانية) - عرض السعر من غيرها
+  const loyalty = useLoyalty(
+    isQuotation ? null : customerId,
+    promotions,
+    sale?.id,
+  );
+
   // العروض الشغالة بتنزل لوحدها (نفس حساب السيرفر)
-  const { lines, totals, invoicePromo } = useMemo(() => {
+  const { lines, totals, invoicePromo, loyaltyInfo } = useMemo(() => {
     const applied = applyPromotions({
       items: exportMode
         ? items.map((l) => ({ ...l, taxRate: 0, taxMode: "exclusive" }))
@@ -208,6 +340,7 @@ export default function SaleForm({
       discountType: discount.type,
       discountValue: discount.value,
       decimals,
+      loyalty,
     });
     return {
       ...calcInvoice({
@@ -218,24 +351,39 @@ export default function SaleForm({
         decimals,
       }),
       invoicePromo: applied.invoicePromo,
+      loyaltyInfo: applied.loyaltyInfo,
     };
-  }, [items, discount, decimals, promotions, exportMode]);
+  }, [items, discount, decimals, promotions, exportMode, loyalty]);
   const hasLinePromo = lines.some((l) => l.promo);
 
   // ---------- الأصناف ----------
+  // options.serial: الرقم التسلسلي اللي اتمسح (القطعة بتتضاف برقمها)
   const addProduct = (product, unitId, options = {}) => {
+    // المقاسات (وحدة variants): الموديل ← شبكة المقاسات
+    if (product.sizePick) return setSizePick(product.sizePick);
     const addQty = options.qty > 0 ? options.qty : 1;
     const uid = unitId ?? product.exactUnitId ?? product.units[0].unit.id;
+    const serial = !isQuotation ? (options.serial ?? null) : null;
+    if (serial && serialInLines(items, product.id, serial.serial))
+      return message.warning(tSerial("DuplicateInList"));
     setItems((prev) => {
-      const found = prev.find(
-        (l) => l.productId === product.id && l.unitId === uid,
-      );
+      const found =
+        !allowDuplicateLines &&
+        prev.find((l) => l.productId === product.id && l.unitId === uid);
       if (found) {
         return prev.map((l) =>
-          l === found ? { ...l, qty: round(l.qty + addQty, 3) } : l,
+          l === found
+            ? {
+                ...l,
+                qty: round(l.qty + addQty, 3),
+                ...(serial ? { serials: [...(l.serials ?? []), serial] } : {}),
+              }
+            : l,
         );
       }
-      return [...prev, lineFromProduct(product, uid, addQty)];
+      const line = lineFromProduct(product, uid, addQty);
+      if (serial) line.serials = [serial];
+      return [...prev, line];
     });
   };
   const updateLine = (key, patch) =>
@@ -281,6 +429,9 @@ export default function SaleForm({
       customerArName: cust?.arName ?? header.customerName ?? null,
       customerEnName: cust?.enName ?? header.customerName ?? null,
       customerTaxNo: cust?.taxNo ?? null,
+      vehiclePlate: vehicle?.plateNo ?? null,
+      vehicleType: vehicle?.vehicleType ?? null,
+      odometer: vehicle ? (header.odometer ?? null) : null,
       notes: header.notes,
       items: previewItems(lines),
       ...previewTotals(totals),
@@ -294,6 +445,7 @@ export default function SaleForm({
   // ---------- الحفظ ----------
   const resetAll = () => {
     form.resetFields();
+    setVehicle(savedVehicle);
     setItems(savedLines(source));
     setDiscount(
       source
@@ -307,6 +459,7 @@ export default function SaleForm({
   // Next يحتفظ بالصفحة السابقة في الخلفية، فلازم نفضّيها بنفسنا
   const clearForm = () => {
     form.resetFields();
+    setVehicle(null);
     setItems([]);
     setDiscount({ type: "amount", value: 0 });
     setPayments(null);
@@ -323,6 +476,21 @@ export default function SaleForm({
     if (!items.length) return message.error(tAlerts("NoItems"));
     if (items.some((l) => !(l.qty > 0)))
       return message.error(tP("QtyRequired"));
+    // الوحدة متقبلش كسور (حبة) والكمية فيها كسر
+    const badQty = items.find((l) => lineQtyProblem(l));
+    if (badQty)
+      return message.error(
+        `${tAlerts(qtyProblemKey(lineQtyProblem(badQty)))}: ${nameOf(badQty)}`,
+      );
+
+    // الأرقام التسلسلية: الإلزام مفعّل والسطر ناقصه أرقام
+    const shortLine = !isQuotation
+      ? items.find((l) => serialsShort(l, factorOf(l), serialRequired))
+      : null;
+    if (shortLine)
+      return message.error(
+        tSerial("MissingForItem", { name: nameOf(shortLine) }),
+      );
 
     const itemsPayload = items.map((l) => ({
       productId: l.productId,
@@ -332,7 +500,23 @@ export default function SaleForm({
       discountType: l.discountType,
       discountValue: Number(l.discountValue) || 0,
       note: l.note?.trim() || null,
+      // عرض السعر من غير أرقام تسلسلية أو ضمان
+      ...(isQuotation
+        ? {}
+        : {
+            serials: l.serials ?? [],
+            warrantyMonths: l.warrantyMonths ?? null,
+            job: l.job ?? null,
+            followUp: l.followUpDays > 0 ? (l.followUp ?? null) : null,
+            change:
+              vehiclesOn && vehicle
+                ? lineChangeValue(l, { odometer, day: saleDay })
+                : null,
+          }),
     }));
+    // المتابعة محتاجة عميل مسجّل
+    if (!isQuotation && !header.customerId && items.some((l) => l.followUp))
+      return message.error(tAlerts("FollowUpNeedsCustomer"));
     if (exportMode && !header.customerId)
       return message.error(tAlerts("ExportCustomerRequired"));
     const common = {
@@ -375,12 +559,39 @@ export default function SaleForm({
         setSaving(null);
         return message.error(tAlerts("CustomerRequiredForCredit"));
       }
+      // فاتورة جديدة لعميل عنده متابعات: علاقة الفاتورة بكل متابعة
+      // (لا علاقة / تسجيل في السجل فقط / تسجيل وتجديد)
+      let renewFollowUpIds = [];
+      let logFollowUpIds = [];
+      if (!sale && header.customerId && followUpsOn) {
+        const r = await customerActiveFollowUpsAction(header.customerId);
+        const list = r.success ? r.data : [];
+        if (list.length) {
+          const picked = await new Promise((resolve) =>
+            setRenewAsk({ list, resolve }),
+          );
+          setRenewAsk(null);
+          if (picked === null) return setSaving(null);
+          renewFollowUpIds = picked.renew;
+          logFollowUpIds = picked.log;
+        }
+      }
       const payload = {
         ...common,
+        renewFollowUpIds,
+        logFollowUpIds,
+        ...(vehiclesOn
+          ? {
+              vehicleId: vehicle?.id ?? null,
+              odometer: vehicle ? (header.odometer ?? null) : null,
+            }
+          : {}),
         source: "invoice",
         isExport: exportMode,
         date: perms.changeDate ? header.date : undefined,
         quotationId: converting ? quotation.id : undefined,
+        claimId: claim && !sale ? claim.id : undefined,
+        bookingId: booking && !sale ? booking.id : undefined,
         zatcaSend: zatcaOn ? zatcaSend : undefined,
         payments: payments.map((p) => ({
           paymentMethodId: p.paymentMethodId,
@@ -462,6 +673,34 @@ export default function SaleForm({
               value={l.note}
               onChange={(note) => updateLine(l.key, { note })}
             />
+            {!isQuotation && (
+              <LineSerials
+                line={l}
+                factor={factorOf(l)}
+                onChange={(patch) => updateLine(l.key, patch)}
+              />
+            )}
+            {!isQuotation && (
+              <LineJob
+                line={l}
+                onChange={(patch) => updateLine(l.key, patch)}
+              />
+            )}
+            {vehiclesOn && vehicle && (
+              <LineChange
+                line={l}
+                odometer={odometer}
+                day={saleDay}
+                onChange={(patch) => updateLine(l.key, patch)}
+              />
+            )}
+            {!isQuotation && (
+              <LineFollowUp
+                line={l}
+                customer={customer}
+                onChange={(patch) => updateLine(l.key, patch)}
+              />
+            )}
           </div>
         );
       },
@@ -486,20 +725,27 @@ export default function SaleForm({
     {
       title: tP("Qty"),
       key: "qty",
-      width: 100,
+      width: 130,
       render: (_, l) => (
-        <ScanSafeNumber
-          field="qty"
-          size="small"
-          style={{ width: "100%" }}
-          min={0}
-          precision={3}
-          controls={false}
-          value={l.qty}
-          status={l.qty > 0 ? undefined : "error"}
-          onChange={(v) => updateLine(l.key, { qty: v ?? 0 })}
-          formatter={(v) => (v === "" || v == null ? "" : String(Number(v)))}
-        />
+        <>
+          <ScanSafeNumber
+            field="qty"
+            size="small"
+            style={{ width: "100%" }}
+            min={0}
+            precision={3}
+            controls={false}
+            value={l.qty}
+            status={l.qty > 0 && !lineQtyProblem(l) ? undefined : "error"}
+            onChange={(v) => updateLine(l.key, { qty: v ?? 0 })}
+            formatter={(v) => (v === "" || v == null ? "" : String(Number(v)))}
+          />
+          {/* م² ↔ كرتونة (السيراميك) + زرار التقريب */}
+          <LineConversion
+            line={l}
+            onRound={(qty) => updateLine(l.key, { qty })}
+          />
+        </>
       ),
     },
     {
@@ -624,9 +870,13 @@ export default function SaleForm({
       ? `${t("EditSale")} ${saleDocNo("sale", sale.number)}${exportMode ? ` — ${t("Export")}` : ""}`
       : converting
         ? `${t("NewSale")} — ${t("FromQuotation")} ${formatDocNo("quotation", quotation.number)}`
-        : exportMode
-          ? t("NewExportSale")
-          : t("NewSale");
+        : claim && !sale
+          ? `${t("NewSale")} — ${t("FromClaim")} ${formatDocNo("claim", claim.number)}`
+          : booking
+            ? `${t("NewSale")} — ${formatDocNo("booking", booking.number)}`
+            : exportMode
+              ? t("NewExportSale")
+              : t("NewSale");
 
   const plus15 = () => {
     const d = new Date();
@@ -667,12 +917,17 @@ export default function SaleForm({
           layout="vertical"
           requiredMark={false}
           initialValues={{
-            customerId: source?.customerId ?? undefined,
+            customerId:
+              source?.customerId ??
+              followUp?.customerId ??
+              booking?.customerId ??
+              undefined,
             customerName:
               isQuotation && !source?.customerId
                 ? source?.customerArName
                 : undefined,
             notes: source?.notes ?? "",
+            odometer: sale?.odometer ?? undefined,
             date: sale ? dayOf(sale.date) : todayDay,
             validUntil: isQuotation
               ? (quotation?.validUntil ?? plus15())
@@ -750,6 +1005,49 @@ export default function SaleForm({
               </Form.Item>
             </Col>
           </Row>
+          {/* السيارة + قراءة العداد (وحدة vehicles - الورش) */}
+          {vehiclesOn && (
+            <Row gutter={[12, 0]}>
+              <Col xs={24} md={8}>
+                <Form.Item label={t("Vehicle")}>
+                  <VehiclePicker
+                    value={vehicle}
+                    customers={customers}
+                    customerId={customerId}
+                    onChange={(v) => {
+                      setVehicle(v);
+                      // السيارة ليها عميل والفاتورة لسه من غير عميل
+                      if (v?.customerId && !form.getFieldValue("customerId"))
+                        form.setFieldValue("customerId", v.customerId);
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              {vehicle && (
+                <Col xs={12} md={4}>
+                  <Form.Item
+                    name="odometer"
+                    label={t("Odometer")}
+                    tooltip={t("OdometerHint")}
+                  >
+                    <InputNumber
+                      min={0}
+                      max={9999999}
+                      precision={0}
+                      controls={false}
+                      style={{ width: "100%" }}
+                      formatter={(v) =>
+                        v === "" || v == null
+                          ? ""
+                          : Number(v).toLocaleString("en")
+                      }
+                      parser={(v) => (v ?? "").replace(/[^\d]/g, "")}
+                    />
+                  </Form.Item>
+                </Col>
+              )}
+            </Row>
+          )}
           {customer && (
             <div className="pur-supplier">
               {customer.taxNo ? (
@@ -765,6 +1063,8 @@ export default function SaleForm({
           {customer && !isQuotation && !exportMode && (
             <CustomerB2BAlert customer={customer} />
           )}
+          {/* عروض الولاء: مجانية في الفاتورة دي / فاضل كام */}
+          {!isQuotation && <LoyaltyHint info={loyaltyInfo} />}
           {exportMode && customer && exportMissing.length > 0 && (
             <Alert
               type="warning"
@@ -773,7 +1073,7 @@ export default function SaleForm({
               title={t("ExportCustomerIncomplete")}
               description={exportMissing
                 .map((k) => tZ(`missing.${k}`))
-                .join("، ")}
+                .join(listSep(locale))}
             />
           )}
         </Form>
@@ -795,6 +1095,16 @@ export default function SaleForm({
             priceLabel={t("Price")}
             showLastCost={false}
           />
+          {sizePick && (
+            <SizePickerModal
+              modelId={sizePick}
+              onClose={() => setSizePick(null)}
+              onPick={(v) => {
+                setSizePick(null);
+                addProduct(v, v.units[0].unit.id);
+              }}
+            />
+          )}
         </div>
         <Table
           className="mt-3"
@@ -912,6 +1222,13 @@ export default function SaleForm({
           </Popconfirm>
         </Space>
       </Card>
+      {renewAsk && (
+        <RenewFollowUpsModal
+          list={renewAsk.list}
+          preselected={followUp?.id ? [followUp.id] : []}
+          onDone={renewAsk.resolve}
+        />
+      )}
     </div>
   );
 }

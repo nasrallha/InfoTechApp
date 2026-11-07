@@ -4,10 +4,11 @@ import { Alert, Card, Col, Row, Table } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import { formatDay } from "@/lib/dates";
 import ExportButtons from "./ExportButtons";
+import { C } from "@/lib/theme";
 import "./report.css";
 
 // كارت رقم في أعلى التقرير
-export function Kpi({ title, value, hint, color = "#1f4e78", strong }) {
+export function Kpi({ title, value, hint, color = C.navy, strong }) {
   return (
     <Card
       size="small"
@@ -32,7 +33,7 @@ export function Kpi({ title, value, hint, color = "#1f4e78", strong }) {
       {hint != null && (
         <div
           className="report-kpi__hint"
-          style={strong ? { color: "#eee" } : undefined}
+          style={strong ? { color: C.border } : undefined}
         >
           {hint}
         </div>
@@ -88,7 +89,10 @@ export function useFilterInfo(filters, options = {}) {
   const find = (list, id) => list?.find((x) => x.id === id);
   return () =>
     [
-      [t("Period"), `${formatDay(filters.from)} - ${formatDay(filters.to)}`],
+      [
+        t("Period"),
+        `${formatDay(filters.from)}${filters.fromTime ? ` ${filters.fromTime}` : ""} - ${formatDay(filters.to)}${filters.toTime ? ` ${filters.toTime}` : ""}`,
+      ],
       filters.year && [
         t("Year"),
         filters.qtr
@@ -112,6 +116,10 @@ export function useFilterInfo(filters, options = {}) {
         t("PaymentMethod"),
         nm(find(options.methods, filters.paymentMethodId)),
       ],
+      filters.categoryId && [
+        t("Category"),
+        nm(find(options.categories, filters.categoryId)),
+      ],
       filters.source && [
         t("Source"),
         t(filters.source === "pos" ? "SourcePos" : "SourceInvoice"),
@@ -125,7 +133,7 @@ export function useFilterInfo(filters, options = {}) {
 export function DocsTotal({ columns, label, values }) {
   const first = columns.findIndex((c) => values[c.key] !== undefined);
   return (
-    <Table.Summary.Row style={{ background: "#f3f6fa", fontWeight: 800 }}>
+    <Table.Summary.Row style={{ background: C.bg, fontWeight: 800 }}>
       <Table.Summary.Cell index={0} colSpan={first}>
         {label}
       </Table.Summary.Cell>

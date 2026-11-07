@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { Button, Card, Input, Select, Space } from "antd";
+import TimeBox from "@/components/common/TimeBox";
 import { ClearOutlined, SearchOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { today } from "@/lib/dates";
+import { bizToday } from "@/lib/business-day";
+import { useDayStartHour } from "@/components/common/useBusinessDay";
 import DayPicker from "@/components/common/DayPicker";
 
 const pad = (x) => String(x).padStart(2, "0");
@@ -22,11 +25,12 @@ const FIELD_KEY = {
   customer: "customerId",
   supplier: "supplierId",
   method: "paymentMethodId",
+  category: "categoryId",
 };
 
 // الفترات السريعة
-function presets() {
-  const now = today();
+// now: النهارده (يوم العمل الحالي، أو اليوم الحقيقي في تقرير الضريبة)
+function presets(now) {
   const y = Number(now.slice(0, 4));
   const m = Number(now.slice(5, 7));
   const prevMonth = m === 1 ? `${y - 1}-12` : `${y}-${pad(m - 1)}`;
@@ -52,12 +56,17 @@ export default function ReportFilters({
   options = {},
   fields = [],
   quarters,
+  // تقرير الضريبة: بالتاريخ الحقيقي (من غير بداية يوم العمل)
+  realDates,
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();
   const t = useTranslations("Reports");
   const [f, setF] = useState(filters);
+  // "النهارده" = يوم العمل الحالي (بداية يوم العمل)، والضريبة بالتاريخ الحقيقي
+  const dayStartHour = useDayStartHour();
+  const now = realDates ? today() : bizToday(dayStartHour);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v ?? null }));
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
   const userOf = (x) => (locale === "ar" ? x.arFullname : x.enFullname);
@@ -71,12 +80,16 @@ export default function ReportFilters({
       if (next.from) q.set("from", next.from);
       if (next.to) q.set("to", next.to);
     }
+    // الوقت (اختياري)
+    if (next.fromTime) q.set("ft", next.fromTime);
+    if (next.toTime) q.set("tt", next.toTime);
     const map = {
       branch: next.branchId,
       user: next.userId,
       customer: next.customerId,
       supplier: next.supplierId,
       method: next.paymentMethodId,
+      category: next.categoryId,
       source: next.source,
       q: next.q,
     };
@@ -85,7 +98,7 @@ export default function ReportFilters({
   };
 
   // السنوات: السنة الحالية و 5 سنين قبلها
-  const thisYear = Number(today().slice(0, 4));
+  const thisYear = Number(now.slice(0, 4));
   const yearOptions = Array.from({ length: 6 }, (_, i) => ({
     value: thisYear - i,
     label: String(thisYear - i),
@@ -96,7 +109,7 @@ export default function ReportFilters({
   }));
   const byYear = Boolean(f.year);
 
-  const P = presets();
+  const P = presets(now);
   const sel = (key, list, label, toLabel = nameOf) =>
     fields.includes(key) &&
     list && (
@@ -115,6 +128,12 @@ export default function ReportFilters({
       />
     );
 
+  // الفترة السريعة المختارة: أول واحدة تطابق بس
+  // (أول الأسبوع أو أول الشهر: "اليوم" و"هذا الأسبوع" نفس الفترة ← "اليوم" بس)
+  const activePreset = f.year
+    ? null
+    : Object.keys(P).find((k) => f.from === P[k].from && f.to === P[k].to);
+
   return (
     <Card size="small" className="mb-4 report-filters">
       <Space wrap size={[8, 8]} className="mb-2">
@@ -122,11 +141,7 @@ export default function ReportFilters({
           <Button
             key={k}
             size="small"
-            type={
-              !f.year && f.from === P[k].from && f.to === P[k].to
-                ? "primary"
-                : "default"
-            }
+            type={k === activePreset ? "primary" : "default"}
             onClick={() => {
               const next = { ...f, ...P[k], year: null, qtr: null };
               setF(next);
@@ -183,14 +198,30 @@ export default function ReportFilters({
           />
         </div>
         <div>
+          <div className="text-gray-500 text-xs mb-1">{t("FromTime")}</div>
+          <TimeBox
+            placeholder={t("AnyTime")}
+            value={f.fromTime}
+            onChange={(v) => set("fromTime", v)}
+          />
+        </div>
+        <div>
           <div className="text-gray-500 text-xs mb-1">{t("To")}</div>
           <DayPicker
             style={{ width: 150 }}
             value={f.to}
             min={f.from}
-            max={today()}
+            max={now}
             disabled={byYear}
             onChange={(v) => set("to", v)}
+          />
+        </div>
+        <div>
+          <div className="text-gray-500 text-xs mb-1">{t("ToTime")}</div>
+          <TimeBox
+            placeholder={t("AnyTime")}
+            value={f.toTime}
+            onChange={(v) => set("toTime", v)}
           />
         </div>
         {sel("branch", options.branches, t("AllBranches"))}
@@ -198,6 +229,7 @@ export default function ReportFilters({
         {sel("customer", options.customers, t("AllCustomers"))}
         {sel("supplier", options.suppliers, t("AllSuppliers"))}
         {sel("method", options.methods, t("AllMethods"))}
+        {sel("category", options.categories, t("AllCategories"))}
         {fields.includes("source") && (
           <Select
             allowClear
@@ -228,7 +260,13 @@ export default function ReportFilters({
           icon={<ClearOutlined />}
           onClick={() => {
             // إعادة الضبط: اليوم فقط وبدون أي فلاتر
-            const next = { ...P.today, year: null, qtr: null };
+            const next = {
+              ...P.today,
+              year: null,
+              qtr: null,
+              fromTime: null,
+              toTime: null,
+            };
             setF(next);
             go(next);
           }}

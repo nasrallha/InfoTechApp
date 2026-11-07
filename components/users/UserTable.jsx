@@ -2,8 +2,7 @@
 import { useEffect, useState } from "react";
 import { Table, Space, Button, Tag, Popconfirm, Flex, Avatar } from "antd";
 import { message } from "@/components/common/feedback";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
-import { CrownFilled, UserOutlined } from "@ant-design/icons";
+import { CrownFilled, UserOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import FormModal from "@/components/common/FormModal";
 import { textFilter, statusFilter, StatusBadge } from "@/components/common/tableFilters";
@@ -12,6 +11,7 @@ import { deleteUsersAction, unlockUserAction } from "@/actions/user.actions";
 import { LockOutlined, UnlockOutlined } from "@ant-design/icons";
 import { imageUrl } from "@/lib/image";
 import UserForm from "./UserForm";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // جدول المستخدمين
@@ -94,7 +94,7 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
       render: (_, r) => (
         <Space>
           {/* صورة المستخدم لو موجودة، وإلا أول حرف من اسمه */}
-          <Avatar size={32} src={imageUrl(r.image)} style={{ backgroundColor: "#006266" }}>
+          <Avatar size={32} src={imageUrl(r.image)} style={{ backgroundColor: C.primary }}>
             {fullNameOf(r)?.trim()?.charAt(0)?.toUpperCase()}
           </Avatar>
           <span className="font-bold">{fullNameOf(r)}</span>
@@ -186,7 +186,7 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
                 color="danger"
                 variant="outlined"
                 size="small"
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
                 loading={deleting}
               >
                 {tButtons("Delete")} ({selectedRows.length})
@@ -219,9 +219,9 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
           )}
           {canEdit && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => {
                 setSelected(record);
                 setEditModalOpen(true);
@@ -241,10 +241,10 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
               cancelText={tButtons("No")}
             >
               <Tag
-                color="#EA2027"
+                color={C.danger}
                 variant="filled"
                 style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
               >
                 {tButtons("Delete")}
               </Tag>

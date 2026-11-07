@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
 import { KpiRow, ReportHeader, useFilterInfo } from "./ReportParts";
+import { C } from "@/lib/theme";
 import "./report.css";
 
 // ============================================================
@@ -84,24 +85,24 @@ export default function ProfitReportView({ data, filters, options }) {
       />
       <KpiRow
         items={[
-          { title: t("NetRevenue"), value: money(D.revenue), color: "#2471a3" },
-          { title: t("CostOfSales"), value: money(D.cost), color: "#d35400" },
+          { title: t("NetRevenue"), value: money(D.revenue), color: C.infoText },
+          { title: t("CostOfSales"), value: money(D.cost), color: C.warningText },
           {
             title: t("GrossProfit"),
             value: money(D.gross),
             hint: `${D.grossMargin}%`,
-            color: "#16a085",
+            color: C.accent,
           },
           {
             title: t("TotalExpenses"),
             value: money(D.totalExpenses + D.discountAllowed),
-            color: "#c0392b",
+            color: C.dangerText,
           },
           {
             title: t("NetProfit"),
             value: `${money(D.net)} ${symbol}`,
             hint: `${D.netMargin}%`,
-            color: D.net >= 0 ? "#1e8449" : "#c0392b",
+            color: D.net >= 0 ? C.successText : C.dangerText,
             strong: true,
           },
         ]}
@@ -116,7 +117,7 @@ export default function ProfitReportView({ data, filters, options }) {
             dataSource={statement}
             onRow={(s) => ({
               style: s.strong
-                ? { fontWeight: 800, background: "#f3f6fa" }
+                ? { fontWeight: 800, background: C.bg }
                 : undefined,
             })}
             columns={[
@@ -126,7 +127,7 @@ export default function ProfitReportView({ data, filters, options }) {
                 key: "v",
                 align: "end",
                 render: (_, s) => (
-                  <span style={{ color: s.value < 0 ? "#c0392b" : undefined }}>
+                  <span style={{ color: s.value < 0 ? C.dangerText : undefined }}>
                     {money(s.value)}
                   </span>
                 ),

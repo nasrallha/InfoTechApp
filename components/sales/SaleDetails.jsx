@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { qtyText } from "@/lib/unit-qty";
 import {
   Button,
   Card,
@@ -21,7 +22,7 @@ import {
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/routing";
-import { formatDateTime } from "@/lib/dates";
+import { dbDateToDay, formatDateTime, formatDay } from "@/lib/dates";
 import {
   formatDocNo,
   paymentStatus,
@@ -43,6 +44,8 @@ import { returnStatus } from "@/components/purchases/PurchaseDetails";
 import SaleDocument from "./SaleDocument";
 import { LineNoteText } from "@/components/purchases/LineNote";
 import "@/components/purchases/purchases.css";
+import SerialPrintLines from "@/components/serials/SerialPrintLines";
+import OilStickerButton from "@/components/vehicles/OilSticker";
 
 // ============================================================
 // عرض فاتورة بيع أو مرتجع مبيعات: البيانات، الأصناف، المدفوعات، الطباعة
@@ -58,6 +61,8 @@ export default function SaleDetails({
   productionLive = false,
   autoPrint,
   zatcaActive = false,
+  // ميزة الزكاة في باقة الشركة (وضع الشركات)؛ غير كده دايماً true
+  zatcaEnabled = true,
   canZatcaSend = false,
   canZatcaExport = false,
 }) {
@@ -143,6 +148,26 @@ export default function SaleDetails({
             <bdi>{l.code}</bdi>
           </div>
           <LineNoteText note={l.note} />
+          {/* الغيار القادم (زيت...) للسيارة */}
+          {(l.nextKm != null || l.nextDate) && (
+            <div className="pur-line__code">
+              {t("NextChange")}:{" "}
+              {[
+                l.nextKm != null &&
+                  `${Number(l.nextKm).toLocaleString("en")} km`,
+                l.nextDate && formatDay(dbDateToDay(l.nextDate)),
+              ]
+                .filter(Boolean)
+                .join(` ${t("Or")} `)}
+            </div>
+          )}
+          <SerialPrintLines
+            line={l}
+            date={sale.date}
+            L={(ar, en) => (locale === "ar" ? ar : en)}
+            showWarranty={sale.type !== "return"}
+            className="pur-line__code"
+          />
         </div>
       ),
     },
@@ -157,7 +182,7 @@ export default function SaleDetails({
       key: "qty",
       width: 80,
       align: "center",
-      render: (_, l) => Number(l.qty),
+      render: (_, l) => qtyText(l.qty),
     },
     {
       title: t("Price"),
@@ -278,6 +303,8 @@ export default function SaleDetails({
               )
             }
           />
+          {/* ستيكر تغيير الزيت (فاتورة على سيارة) */}
+          <OilStickerButton sale={sale} company={company} />
           {!isReturn && canReturn && status !== "full" && (
             <Link href={`/invoices/sales-returns/new?sale=${sale.id}`}>
               <Button icon={<RollbackOutlined />}>{tP("MakeReturn")}</Button>
@@ -338,7 +365,8 @@ export default function SaleDetails({
         </Space>
       </div>
 
-      {(zdoc || zatcaActive) && (
+      {/* الزكاة: بتختفي لو ميزة الزكاة مقفولة للشركة (الباقة) */}
+      {(zdoc || zatcaActive) && zatcaEnabled && (
         <ZatcaStatusBox
           sale={sale}
           canSend={canZatcaSend}
@@ -367,6 +395,28 @@ export default function SaleDetails({
             <div>
               <span>{t("CustomerVat")}</span>
               <bdi>{sale.customerTaxNo}</bdi>
+            </div>
+          )}
+          {/* السيارة (الورش) */}
+          {sale.vehiclePlate && (
+            <div>
+              <span>{t("Vehicle")}</span>
+              <span>
+                <Link
+                  href={`/vehicles?q=${encodeURIComponent(sale.vehiclePlate)}`}
+                >
+                  <b>
+                    <bdi>{sale.vehiclePlate}</bdi>
+                  </b>
+                </Link>
+                {sale.vehicleType ? ` — ${sale.vehicleType}` : ""}
+              </span>
+            </div>
+          )}
+          {sale.vehiclePlate && sale.odometer != null && (
+            <div>
+              <span>{t("Odometer")}</span>
+              <bdi>{Number(sale.odometer).toLocaleString("en")} km</bdi>
             </div>
           )}
           <div>

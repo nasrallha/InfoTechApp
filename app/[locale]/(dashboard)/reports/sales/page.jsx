@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
 import { parseReportFilters } from "@/lib/report-pages";
+import { getDayStartHour } from "@/lib/business-day-server";
 import { getReportOptions, salesReport } from "@/services/report.service";
 import SalesReportView from "@/components/reports/SalesReportView";
 import NoAccess from "@/components/common/NoAccess";
@@ -13,10 +14,13 @@ async function Content({ searchParams }) {
   const { user, allowed } = await getPageAccess("reports.sales");
   if (!allowed) return <NoAccess />;
   await connection();
-  const filters = parseReportFilters(await searchParams);
+  // "النهارده" = يوم العمل الحالي (بداية يوم العمل في الإعدادات العامة)
+  const filters = parseReportFilters(await searchParams, {
+    dayStartHour: await getDayStartHour(),
+  });
   const [data, options] = await Promise.all([
     salesReport(filters, user),
-    getReportOptions(user, { parties: ["customer"] }),
+    getReportOptions(user, { parties: ["customer", "category"] }),
   ]);
   return (
     <SalesReportView

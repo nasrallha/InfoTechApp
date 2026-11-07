@@ -1,8 +1,8 @@
 "use client";
+import { AppstoreOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
-import { MdCategory } from "react-icons/md";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
 import { CategoriesExport } from "@/components/reports/ListExports";
@@ -44,7 +44,7 @@ export default function CategoriesView({ categories }) {
         onCancel={() => setAddCategoryModalOpen(false)}
         title={
           <>
-            <MdCategory
+            <AppstoreOutlined
               style={{
                 display: "inline-block",
                 fontSize: 25,

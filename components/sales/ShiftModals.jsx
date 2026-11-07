@@ -34,6 +34,7 @@ import {
 import { message } from "@/components/common/feedback";
 import { showActionError } from "@/components/common/actionError";
 import { useCurrency } from "@/components/common/CurrencyProvider";
+import { usePageActive } from "@/components/common/usePageActive";
 import ShiftReport from "./ShiftReport";
 import "./shift.css";
 
@@ -63,6 +64,8 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
   const t = useTranslations("Shifts");
   const tAlerts = useTranslations("Alerts");
   const { amount: money, decimals, symbol } = useCurrency();
+  // الكاشير بيفضل في الخلفية لما تخرج منه: النافذة تتعمل من جديد لما يرجع يظهر
+  const active = usePageActive();
 
   useEffect(() => {
     if (!open) return;
@@ -91,10 +94,16 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
     setSaving(false);
     if (!res.success) return showActionError(res, tAlerts, locale);
     message.success(
-      t("ShiftOpened", { number: formatDocNo("shift", res.data.number) }),
+      t("ShiftOpened", {
+        number: res.data.dayNo
+          ? `${formatDocNo("shift", res.data.number)} (${res.data.dayNo})`
+          : formatDocNo("shift", res.data.number),
+      }),
     );
     onOpened?.(res.data);
   };
+
+  if (!active) return null;
 
   return (
     <Modal
@@ -320,7 +329,12 @@ export function CloseShiftModal({ shiftId, open, onClose, onClosed }) {
       title={
         <span>
           <LockOutlined /> {t("CloseShift")}{" "}
-          {data && <Tag>{formatDocNo("shift", data.number)}</Tag>}
+          {data && (
+            <Tag>
+              {formatDocNo("shift", data.number)}
+              {data.dayNo ? ` (${data.dayNo})` : ""}
+            </Tag>
+          )}
         </span>
       }
       footer={

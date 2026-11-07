@@ -3,6 +3,7 @@ import { Avatar } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
 import { imageUrl } from "@/lib/image";
+import { C } from "@/lib/theme";
 
 // صورة واسم المستخدم الحالي في منتصف الهيدر
 // لو عنده صورة تظهر، وإلا أول حرف من اسمه
@@ -22,9 +23,9 @@ const UserAvatar = ({ hasName }) => {
         size={40}
         src={imageUrl(user.image)}
         style={{
-          backgroundColor: "#006266",
+          backgroundColor: C.primary,
           flexShrink: 0,
-          boxShadow: "0 0 0 2px #fff, 0 0 0 4px #00626633",
+          boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${C.primary}33`,
         }}
       >
         {fullName?.trim()?.charAt(0)?.toUpperCase()}

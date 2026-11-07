@@ -15,19 +15,21 @@ import {
   BarcodeOutlined,
   HistoryOutlined,
   PictureOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
-import { AiTwotoneEdit } from "react-icons/ai";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
 import { imageUrl } from "@/lib/image";
 import { formatDateTime } from "@/lib/dates";
 import { getProductDetailsAction } from "@/actions/product.actions";
-import { useCan } from "@/components/auth/AuthProvider";
+import { useCan, useModule } from "@/components/auth/AuthProvider";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { message } from "@/components/common/feedback";
 import { StatusBadge } from "@/components/common/tableFilters";
 import UnitBreakdown from "@/components/inventory/UnitBreakdown";
 import ItemCard from "@/components/inventory/ItemCard";
+import { VariantSwatches } from "./VariantsFields";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 const q3 = (v) => Number(Number(v ?? 0).toFixed(3));
@@ -49,6 +51,8 @@ export default function ProductDetailsModal({ productId, onClose }) {
   const tForm = useTranslations("Form");
   const tButtons = useTranslations("Buttons");
   const tAlerts = useTranslations("Alerts");
+  const tSerial = useTranslations("Serials");
+  const serialsOn = useModule("serials");
   const { amount: money } = useCurrency();
   const can = useCan();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
@@ -185,7 +189,7 @@ export default function ProductDetailsModal({ productId, onClose }) {
               {can("products.update") && (
                 <Button
                   type="primary"
-                  icon={<AiTwotoneEdit />}
+                  icon={<EditOutlined />}
                   onClick={() => router.push(`/products/${p.id}/edit`)}
                 >
                   {tButtons("Edit")}
@@ -207,8 +211,8 @@ export default function ProductDetailsModal({ productId, onClose }) {
                   width: 150,
                   height: 150,
                   borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  background: "#f8fafc",
+                  border: `1px solid ${C.border}`,
+                  background: C.bgSubtle,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -242,17 +246,22 @@ export default function ProductDetailsModal({ productId, onClose }) {
                   {p.enName}
                 </div>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <Tag icon={<BarcodeOutlined />} color="#2c3e50">
+                  <Tag icon={<BarcodeOutlined />} color={C.header}>
                     <bdi>{p.code}</bdi>
                   </Tag>
                   <StatusBadge active={p.isActive} tForm={tForm} />
                 </div>
 
+                {/* المقاسات والألوان: ألوان الموديل دواير ومقاساته برصيدها */}
+                {p.modelId && p.variants?.length > 0 && (
+                  <VariantSwatches product={p} />
+                )}
+
                 {/* الرصيد الحالي */}
                 <div
                   style={{
-                    background: p.stock < 0 ? "#fef2f2" : "#ecfdf5",
-                    border: `1px solid ${p.stock < 0 ? "#fecaca" : "#a7f3d0"}`,
+                    background: p.stock < 0 ? C.dangerSoft : C.successSoft,
+                    border: `1px solid ${p.stock < 0 ? C.dangerBorder : C.successBorder}`,
                     borderRadius: 10,
                     padding: "10px 14px",
                   }}
@@ -373,6 +382,38 @@ export default function ProductDetailsModal({ productId, onClose }) {
                     </span>
                   ),
                 },
+                // الأرقام التسلسلية والضمان (وحدة serials)
+                ...(serialsOn
+                  ? [
+                      {
+                        key: "serial",
+                        label: tSerial("TrackSerial"),
+                        children:
+                          p.serialCount > 0 ? (
+                            <span>
+                              {tSerial(`Count${p.serialCount}`)}
+                              {[p.serialLabel1, p.serialLabel2]
+                                .filter(Boolean)
+                                .map((l) => (
+                                  <Tag key={l} className="ms-1">
+                                    {l}
+                                  </Tag>
+                                ))}
+                            </span>
+                          ) : (
+                            tSerial("Count0")
+                          ),
+                      },
+                      {
+                        key: "warranty",
+                        label: tSerial("Warranty"),
+                        children:
+                          p.warrantyMonths > 0
+                            ? `${tSerial("MonthsN", { n: p.warrantyMonths })} — ${tSerial(`WarrantyType_${p.warrantyType ?? "store"}`)}`
+                            : tSerial("NoWarranty"),
+                      },
+                    ]
+                  : []),
                 {
                   key: "created",
                   label: t("CreatedAt"),

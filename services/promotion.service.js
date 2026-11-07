@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
-import { dayToDbDate, dbDateToDay, today } from "@/lib/dates";
+import { dayEnd, dayStart, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
 
 // ============================================================
 // العروض والخصومات لفترة
@@ -20,6 +20,8 @@ const listSelect = {
   discountType: true,
   value: true,
   minInvoice: true,
+  loyaltyEvery: true,
+  loyaltyTarget: true,
   startDate: true,
   endDate: true,
   isActive: true,
@@ -40,6 +42,8 @@ const toDTO = (p) => ({
   discountType: p.discountType,
   value: n(p.value),
   minInvoice: n(p.minInvoice),
+  loyaltyEvery: p.loyaltyEvery ?? null,
+  loyaltyTarget: p.loyaltyTarget ?? null,
   startDate: dbDateToDay(p.startDate),
   endDate: dbDateToDay(p.endDate),
   isActive: p.isActive,
@@ -116,10 +120,22 @@ export async function savePromotion(
   if (data.discountType === "percent" && data.value > 100) {
     throw new AppError("PercentMax", null, { value: "PercentMax" });
   }
-  if (data.scope === "category" && !categoryIds.length) {
+  // عرض الولاء: نسبة خصم على المرة المجانية (100 = مجانًا)
+  const loyalty = data.scope === "loyalty";
+  if (loyalty) {
+    if (!data.loyaltyEvery)
+      throw new AppError("RequiredField", null, {
+        loyaltyEvery: "RequiredField",
+      });
+    data.discountType = "percent";
+    data.loyaltyTarget = data.loyaltyTarget ?? "service";
+  }
+  // الأقسام/الأصناف: للعرض العادي أو عرض الولاء على أقسام/أصناف
+  const on = loyalty ? data.loyaltyTarget : data.scope;
+  if (on === "category" && !categoryIds.length) {
     throw new AppError("RequiredField", null, { categoryIds: "RequiredField" });
   }
-  if (data.scope === "product" && !productIds.length) {
+  if (on === "product" && !productIds.length) {
     throw new AppError("RequiredField", null, { productIds: "RequiredField" });
   }
   if (!data.allBranches && !branchIds.length) {
@@ -133,6 +149,8 @@ export async function savePromotion(
     discountType: data.discountType,
     value: data.value,
     minInvoice: data.scope === "invoice" ? (data.minInvoice ?? null) : null,
+    loyaltyEvery: loyalty ? data.loyaltyEvery : null,
+    loyaltyTarget: loyalty ? data.loyaltyTarget : null,
     startDate: dayToDbDate(data.startDate),
     endDate: dayToDbDate(data.endDate),
     ...(data.isActive === undefined ? {} : { isActive: data.isActive }),
@@ -147,15 +165,13 @@ export async function savePromotion(
     },
     categories: {
       create:
-        data.scope === "category"
+        on === "category"
           ? categoryIds.map((categoryId) => ({ categoryId }))
           : [],
     },
     products: {
       create:
-        data.scope === "product"
-          ? productIds.map((productId) => ({ productId }))
-          : [],
+        on === "product" ? productIds.map((productId) => ({ productId })) : [],
     },
   };
 
@@ -227,6 +243,9 @@ export async function getActivePromotions(branchId, day = today()) {
       discountType: true,
       value: true,
       minInvoice: true,
+      loyaltyEvery: true,
+      loyaltyTarget: true,
+      startDate: true,
       endDate: true,
       categories: {
         select: {
@@ -245,6 +264,9 @@ export async function getActivePromotions(branchId, day = today()) {
     discountType: p.discountType,
     value: Number(p.value),
     minInvoice: n(p.minInvoice),
+    loyaltyEvery: p.loyaltyEvery ?? null,
+    loyaltyTarget: p.loyaltyTarget ?? null,
+    startDate: dbDateToDay(p.startDate),
     endDate: dbDateToDay(p.endDate),
     productIds: p.products.map((x) => x.productId),
     categoryIds: [
@@ -256,4 +278,58 @@ export async function getActivePromotions(branchId, day = today()) {
       ),
     ],
   }));
+}
+
+// ------------------------------------------------------------
+// عروض الولاء لعميل: كام مرة دفع وكام مرة خد مجاني (جوه فترة كل عرض)
+// promos: العروض الشغالة (getActivePromotions) | excludeSaleId: الفاتورة اللي بتتعدل
+// ← { [promoId]: { paid, rewards } }
+// ------------------------------------------------------------
+export async function loyaltyStatus(
+  customerId,
+  promos,
+  { excludeSaleId } = {},
+) {
+  const list = (promos ?? []).filter(
+    (p) => p.scope === "loyalty" && p.loyaltyEvery > 0,
+  );
+  if (!customerId || !list.length) return {};
+  const out = {};
+  for (const p of list) {
+    const productWhere =
+      p.loyaltyTarget === "service"
+        ? { product: { isService: true } }
+        : p.loyaltyTarget === "category"
+          ? { product: { categoryId: { in: p.categoryIds } } }
+          : { productId: { in: p.productIds } };
+    const rows = await prisma.saleItem.findMany({
+      where: {
+        ...productWhere,
+        sale: {
+          type: "sale",
+          customerId,
+          date: { gte: dayStart(p.startDate), lte: dayEnd(p.endDate) },
+          ...(excludeSaleId ? { id: { not: excludeSaleId } } : {}),
+        },
+      },
+      select: {
+        qty: true,
+        returnedQty: true,
+        loyaltyQty: true,
+        promotionId: true,
+      },
+    });
+    let paid = 0;
+    let rewards = 0;
+    for (const r of rows) {
+      const free = r.promotionId === p.id ? Number(r.loyaltyQty) || 0 : 0;
+      rewards += free;
+      paid += Math.max(
+        0,
+        Math.floor(Number(r.qty) - Number(r.returnedQty) - free),
+      );
+    }
+    out[p.id] = { paid, rewards };
+  }
+  return out;
 }

@@ -1,9 +1,9 @@
 .add-product-form{
   margin: 0 auto !important;
-  border: 1px solid #30336b;
+  border: 1px solid var(--c-navy);
   border-radius: 20px;
   padding: 10px !important;
-  background-color: #f5f6fa;
+  background-color: var(--c-bg);
 }
 .ant-form-item .ant-form-item-label >label{
     font-size: 16 !important;

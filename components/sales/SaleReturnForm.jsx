@@ -10,6 +10,7 @@ import {
   Input,
   Popconfirm,
   Row,
+  Select,
   Space,
   Table,
   Tag,
@@ -81,6 +82,7 @@ export default function SaleReturnForm({
   const tZ = useTranslations("Zatca");
   const tS = useTranslations("Sales");
   const tAlerts = useTranslations("Alerts");
+  const tSerial = useTranslations("Serials");
   const { amount: money, decimals } = useCurrency();
   // بصمة الحفظ: الضغط على حفظ مرتين (أو بعد ما الرد يضيع) مايكررش المستند
   const saveKey = useSaveKey();
@@ -94,6 +96,8 @@ export default function SaleReturnForm({
   // الفاتورة المختارة والأصناف المرتجعة { itemId: qty }
   const [purchase, setPurchase] = useState(initialPurchase ?? null);
   const [selected, setSelected] = useState({});
+  // الأرقام التسلسلية المرتجعة لكل سطر { itemId: [serialId] }
+  const [serialPick, setSerialPick] = useState({});
   const [filter, setFilter] = useState("");
 
   const [notes, setNotes] = useState("");
@@ -107,6 +111,7 @@ export default function SaleReturnForm({
   const reset = (p) => {
     setPurchase(p);
     setSelected({});
+    setSerialPick({});
     setFilter("");
     setPayments(null);
     setCandidates([]);
@@ -187,6 +192,23 @@ export default function SaleReturnForm({
     setFilter("");
   };
 
+  // ---------- الأرقام التسلسلية ----------
+  const hasSerials = items.some((l) => l.soldSerials?.length);
+  // اختيار الأرقام ← كمية المرتجع = عدد القطع (بوحدة السطر)
+  const pickSerials = (line, ids) => {
+    setSerialPick((prev) => ({ ...prev, [line.id]: ids }));
+    if (ids.length) {
+      const factor = Number(line.factor) || 1;
+      setSelected((prev) => ({
+        ...prev,
+        [line.id]: Math.min(
+          Math.round((ids.length / factor) * 1000) / 1000,
+          line.available,
+        ),
+      }));
+    }
+  };
+
   // ---------- الحساب ----------
   const lines = useMemo(
     () =>
@@ -260,6 +282,7 @@ export default function SaleReturnForm({
     const chosen = Object.entries(selected).map(([id, qty]) => ({
       itemId: Number(id),
       qty: Number(qty),
+      serialIds: serialPick[id] ?? [],
     }));
     if (!chosen.length) return message.error(t("ChooseItemsToReturn"));
     if (chosen.some((c) => !(c.qty > 0)))
@@ -385,6 +408,33 @@ export default function SaleReturnForm({
           />
         ) : null,
     },
+    // الأرقام التسلسلية (لو الفاتورة فيها قطع بأرقام)
+    ...(hasSerials
+      ? [
+          {
+            title: tSerial("ReturnedSerials"),
+            key: "serials",
+            width: 230,
+            render: (_, l) =>
+              l.soldSerials?.length && l.available > 0 ? (
+                <Select
+                  mode="multiple"
+                  size="small"
+                  style={{ width: "100%" }}
+                  placeholder={tSerial("ChooseSerials")}
+                  disabled={selected[l.id] == null}
+                  value={serialPick[l.id] ?? []}
+                  optionFilterProp="label"
+                  onChange={(ids) => pickSerials(l, ids)}
+                  options={l.soldSerials.map((x) => ({
+                    value: x.id,
+                    label: x.serial2 ? `${x.serial} / ${x.serial2}` : x.serial,
+                  }))}
+                />
+              ) : null,
+          },
+        ]
+      : []),
     {
       title: t("Price"),
       key: "price",

@@ -16,6 +16,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { round } from "@/lib/invoice-calc";
 import { message } from "@/components/common/feedback";
 import { useCurrency } from "@/components/common/CurrencyProvider";
+import { C } from "@/lib/theme";
 
 const ICON = {
   cash: <DollarOutlined />,
@@ -24,10 +25,10 @@ const ICON = {
   transfer: <BankOutlined />,
 };
 const COLOR = {
-  cash: "#16a34a",
-  card: "#2563eb",
-  wallet: "#7c3aed",
-  transfer: "#0891b2",
+  cash: C.success,
+  card: C.info,
+  wallet: C.purple,
+  transfer: C.accent,
 };
 
 let seq = 0;
@@ -155,8 +156,8 @@ export default function PayModal({
           loading={loading}
           onClick={confirm}
           style={{
-            background: "#16a34a",
-            borderColor: "#16a34a",
+            background: C.success,
+            borderColor: C.success,
             minWidth: 200,
           }}
         >
@@ -196,7 +197,7 @@ export default function PayModal({
             type={rows.length === 0 ? "primary" : "default"}
             style={
               rows.length === 0
-                ? { background: "#ea580c", borderColor: "#ea580c" }
+                ? { background: C.warning, borderColor: C.warning }
                 : undefined
             }
             onClick={credit}
@@ -233,8 +234,8 @@ export default function PayModal({
             <div
               className="pos-change mt-3"
               style={{
-                background: change >= 0 ? "#ecfdf5" : "#fef2f2",
-                color: change >= 0 ? "#047857" : "#b91c1c",
+                background: change >= 0 ? C.successSoft : C.dangerSoft,
+                color: change >= 0 ? C.successText : C.dangerText,
               }}
             >
               {change >= 0 ? t("ChangeDue") : t("Missing")}:{" "}

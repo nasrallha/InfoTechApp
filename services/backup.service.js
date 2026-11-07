@@ -6,7 +6,9 @@ import path from "path";
 import os from "os";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
-import { dbConfig } from "@/lib/db-config";
+import { currentDbConfig } from "@/lib/db-config";
+import { currentCompanyCode, multiTenant } from "@/lib/tenant";
+import { clearCached, hasFlag, setFlag } from "@/lib/tenant-state";
 import { dumpDatabase } from "@/lib/db-backup";
 import { executeBackup, inspectBackup } from "@/lib/db-restore";
 import { spawn } from "child_process";
@@ -40,8 +42,19 @@ async function savedDir() {
   return s?.backupDir || null;
 }
 
-export async function getBackupDir() {
+// المجلد الأساسي (اللي اتختار من الشاشة، أو الافتراضي)
+async function baseBackupDir() {
   return (await savedDir()) || DEFAULT_BACKUP_DIR;
+}
+
+// وضع الشركات: كل شركة في فولدر باسم كودها جوه المجلد ده
+// (نسخ شركة متظهرش ولا تتلمس من شركة تانية)
+export async function getBackupDir() {
+  const base = await baseBackupDir();
+  if (!multiTenant()) return base;
+  const code = await currentCompanyCode();
+  if (!code) throw new AppError("NoCompany");
+  return path.join(base, code);
 }
 
 // الملف داخل مجلد النسخ بس (حماية من ../)
@@ -80,10 +93,10 @@ export async function listBackups() {
   );
   return {
     dir,
-    database: dbConfig().database,
-    isDefault: dir === DEFAULT_BACKUP_DIR,
+    database: (await currentDbConfig()).database,
+    isDefault: (await baseBackupDir()) === DEFAULT_BACKUP_DIR,
     defaultDir: DEFAULT_BACKUP_DIR,
-    running: !!g.__erpBackupRunning,
+    running: await hasFlag("backupRunning"),
     schedule: await getBackupSchedule(),
     files: files
       .filter(Boolean)
@@ -110,12 +123,12 @@ async function ensureWritable(dir) {
 
 // auto: النسخ التلقائي (الملف بيبدأ بـ auto_ عشان يتعرف ويتمسح القديم منه لوحده)
 export async function createBackup(user, { auto = false, prefix = null } = {}) {
-  if (g.__erpBackupRunning) throw new AppError("BackupRunning");
-  g.__erpBackupRunning = true;
+  if (await hasFlag("backupRunning")) throw new AppError("BackupRunning");
+  await setFlag("backupRunning", true);
   try {
     const dir = await getBackupDir();
     await ensureWritable(dir);
-    const db = dbConfig().database.replace(/[^\w-]/g, "_");
+    const db = (await currentDbConfig()).database.replace(/[^\w-]/g, "_");
     const name = `${prefix ?? (auto ? AUTO_PREFIX : "")}backup_${db}_${stamp()}.sql`;
     const started = Date.now();
     const { tables, rows } = await dumpDatabase(path.join(dir, name));
@@ -135,7 +148,7 @@ export async function createBackup(user, { auto = false, prefix = null } = {}) {
     console.error("[backup] failed:", error?.message ?? error);
     throw new AppError("BackupFailed", { message: error?.message ?? null });
   } finally {
-    g.__erpBackupRunning = false;
+    await setFlag("backupRunning", false);
   }
 }
 
@@ -561,10 +574,10 @@ async function zatcaChains() {
   }
 }
 
-export const isRestoring = () => Boolean(g.__erpRestoring);
+export const isRestoring = () => hasFlag("restoring");
 
 export async function restoreBackup(name, user) {
-  if (g.__erpRestoring || g.__erpBackupRunning)
+  if ((await hasFlag("restoring")) || (await hasFlag("backupRunning")))
     throw new AppError("BackupRunning");
   const file = await backupFilePath(name);
   try {
@@ -588,7 +601,7 @@ export async function restoreBackup(name, user) {
   // 1) نسخة أمان
   const safety = await createBackup(user, { prefix: SAFETY_PREFIX });
 
-  g.__erpRestoring = true;
+  await setFlag("restoring", true);
   const started = Date.now();
   try {
     try {
@@ -635,7 +648,7 @@ export async function restoreBackup(name, user) {
 
     // 6) كل المستخدمين يخرجوا + الإعدادات المحفوظة في الذاكرة تتقري من جديد
     await prisma.session.deleteMany({}).catch(() => {});
-    g.__erpSecurity = null;
+    await clearCached("security");
     try {
       const { syncAppLocale } = await import("./system-settings.service");
       await syncAppLocale();
@@ -654,6 +667,6 @@ export async function restoreBackup(name, user) {
       zatcaGap,
     };
   } finally {
-    g.__erpRestoring = false;
+    await setFlag("restoring", false);
   }
 }

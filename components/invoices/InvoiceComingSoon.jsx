@@ -8,6 +8,7 @@ import {
   FileSearchOutlined,
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
+import { C } from "@/lib/theme";
 
 // أيقونة كل نوع فاتورة
 const ICONS = {
@@ -27,7 +28,7 @@ export default function InvoiceComingSoon({ type }) {
 
   return (
     <Result
-      icon={<Icon style={{ color: "#006266" }} />}
+      icon={<Icon style={{ color: C.primary }} />}
       title={tSidebar(type)}
       subTitle={t(`descriptions.${type}`)}
       extra={<Tag color="processing">{t("ComingSoon")}</Tag>}

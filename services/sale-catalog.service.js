@@ -4,6 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { parseScaleBarcode, scaleQty } from "@/lib/scale-barcode";
 import { getScaleSettings } from "./system-settings.service";
 import { getMainWarehouseId } from "./stock.service";
+import { hasModule } from "@/lib/modules";
+import {
+  asModel,
+  collapseModels,
+  modelFields,
+  modelHeadsWhere,
+  variantsEnabled,
+  withModelColors,
+} from "./model-list";
 
 // ============================================================
 // الأصناف في شاشات البيع (الكاشير والفاتورة وعرض السعر)
@@ -13,7 +22,9 @@ import { getMainWarehouseId } from "./stock.service";
 // ============================================================
 
 const n = (v) => (v == null ? 0 : Number(v));
-const unitSelect = { select: { id: true, arName: true, enName: true } };
+const unitSelect = {
+  select: { id: true, arName: true, enName: true, allowDecimals: true },
+};
 
 // مستودع الفرع وقائمة أسعاره (الفرع بدون مستودع ← الرئيسي)
 export async function getBranchSaleContext(branchId) {
@@ -41,6 +52,20 @@ export const saleProductSelect = (ctx) => ({
   taxExemptionCode: true,
   taxExemptionReason: true,
   categoryId: true,
+  isService: true,
+  // الأرقام التسلسلية والضمان (وحدة serials)
+  serialCount: true,
+  serialLabel1: true,
+  serialLabel2: true,
+  warrantyMonths: true,
+  warrantyType: true,
+  // المتابعة الدورية (وحدة followUps): 0 = مالوش
+  followUpDays: true,
+  // التغيير الدوري للسيارات (وحدة vehicles): 0 = مالوش
+  changeKm: true,
+  changeMonths: true,
+  // المقاسات والألوان (وحدة variants)
+  ...modelFields,
   baseUnit: unitSelect,
   productUnits: {
     orderBy: { id: "asc" },
@@ -108,8 +133,23 @@ export function toSaleProduct(p, q = "") {
     }),
     cost: n(p.cost),
     stock: n(p.stockBalances?.[0]?.qty),
+    // خدمة: مالهاش رصيد (مفيش تنبيه "الرصيد لا يكفي")
+    isService: Boolean(p.isService),
+    serialCount: p.serialCount ?? 0,
+    serialLabel1: p.serialLabel1 ?? null,
+    serialLabel2: p.serialLabel2 ?? null,
+    warrantyMonths: p.warrantyMonths ?? 0,
+    warrantyType: p.warrantyType ?? null,
+    followUpDays: p.followUpDays ?? 0,
+    changeKm: p.changeKm ?? 0,
+    changeMonths: p.changeMonths ?? 0,
     units,
     exactUnitId: exact?.unit.id ?? null,
+    // المقاسات (وحدة variants): الموديل والمقاس واللون
+    modelId: p.modelId ?? null,
+    size: p.size ?? null,
+    color: p.color ?? null,
+    colorHex: p.colorHex ?? null,
   };
 }
 
@@ -123,7 +163,8 @@ const searchWhere = (q) => ({
 });
 
 // بحث سريع أثناء الكتابة أو بالماسح (أول 20)
-export async function searchSaleProducts(query, user) {
+// models: الموديل مرة واحدة ← شبكة المقاسات (الكاشير وفاتورة البيع بس)
+export async function searchSaleProducts(query, user, { models = false } = {}) {
   const q = query.trim();
   if (!q) return [];
   const ctx = await getBranchSaleContext(user.branch.id);
@@ -144,6 +185,39 @@ export async function searchSaleProducts(query, user) {
     }
   }
 
+  // الماسح على رقم تسلسلي لقطعة مسجلة (في المحل) ← الصنف بالرقم ده
+  if (q.length >= 4 && (await hasModule("serials"))) {
+    const found = await prisma.productSerial.findFirst({
+      where: {
+        // المباعة والتالفة متتباعش
+        status: { notIn: ["sold", "damaged"] },
+        OR: [{ serial: q }, { serial2: q }],
+        product: { isActive: true },
+      },
+      orderBy: { id: "desc" },
+      select: {
+        serial: true,
+        serial2: true,
+        isUsed: true,
+        product: { select: saleProductSelect(ctx) },
+      },
+    });
+    if (found) {
+      const p = toSaleProduct(found.product);
+      return [
+        {
+          ...p,
+          exactUnitId: p.units[0].unit.id,
+          scannedSerial: {
+            serial: found.serial,
+            serial2: found.serial2 ?? null,
+            isUsed: found.isUsed,
+          },
+        },
+      ];
+    }
+  }
+
   const products = await prisma.product.findMany({
     where: { isActive: true, ...searchWhere(q) },
     orderBy: { id: "desc" },
@@ -151,17 +225,21 @@ export async function searchSaleProducts(query, user) {
     select: saleProductSelect(ctx),
   });
   // الباركود المطابق تماماً أولاً
-  return products
-    .map((p) => toSaleProduct(p, q))
-    .sort(
-      (a, b) => Number(Boolean(b.exactUnitId)) - Number(Boolean(a.exactUnitId)),
-    );
+  const rows = products.map((p) => toSaleProduct(p, q));
+  const list =
+    models && (await variantsEnabled())
+      ? await withModelColors(collapseModels(products, rows))
+      : rows;
+  return list.sort(
+    (a, b) => Number(Boolean(b.exactUnitId)) - Number(Boolean(a.exactUnitId)),
+  );
 }
 
 // تصفح: بحث + قسم (وأقسامه الفرعية) + صفحات
 export async function browseSaleProducts(
   { q = "", categoryId, page = 1, pageSize = 20 },
   user,
+  { models = false } = {},
 ) {
   const ctx = await getBranchSaleContext(user.branch.id);
   const query = q.trim();
@@ -172,6 +250,9 @@ export async function browseSaleProducts(
       OR: [{ categoryId }, { category: { parentId: categoryId } }],
     });
   }
+  // المقاسات: الموديل مرة واحدة (أول مقاس منه)
+  const variantsOn = models && (await variantsEnabled());
+  if (variantsOn) conditions.push(await modelHeadsWhere());
   const where = {
     isActive: true,
     ...(conditions.length ? { AND: conditions } : {}),
@@ -186,7 +267,17 @@ export async function browseSaleProducts(
       select: saleProductSelect(ctx),
     }),
   ]);
-  return { total, page, pageSize, rows: products.map((p) => toSaleProduct(p)) };
+  return {
+    total,
+    page,
+    pageSize,
+    rows: await withModelColors(
+      products.map((p) => {
+        const row = toSaleProduct(p);
+        return variantsOn && p.modelId ? asModel(row, p.model) : row;
+      }),
+    ),
+  };
 }
 
 // الأقسام للكاشير: الرئيسية وتحت كل واحد أقسامه الفرعية (النشطة فقط)

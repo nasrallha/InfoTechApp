@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { qtyText, savedLineConversion } from "@/lib/unit-qty";
 import { qrDataUrl } from "@/lib/qr";
 import { imageUrl } from "@/lib/image";
 import { zatcaQrValue } from "@/lib/zatca";
@@ -10,6 +11,7 @@ import { addressLine, documentInfo } from "@/lib/branch-info";
 import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import "./invoice-a4.css";
+import SerialPrintLines from "@/components/serials/SerialPrintLines";
 
 const ACCENT = {
   // sale: "#1f4e78",
@@ -318,9 +320,29 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               <td className="a4__col-name">
                 {N(l.arName, l.enName)}
                 {l.note && <div className="a4__note">{l.note}</div>}
+                {isSale && !isQuotation && (
+                  <SerialPrintLines
+                    line={l}
+                    date={doc.date}
+                    L={L}
+                    showWarranty={!isReturn}
+                    className="a4__note"
+                  />
+                )}
               </td>
               <td className="a4__c">{N(l.unit?.arName, l.unit?.enName)}</td>
-              <td className="a4__c">{Number(l.qty)}</td>
+              <td className="a4__c">
+                {qtyText(l.qty)}
+                {/* السيراميك: الكمية بالوحدة التانية (كراتين / م²) */}
+                {(() => {
+                  const c = savedLineConversion(l);
+                  return c ? (
+                    <div className="a4__sub">
+                      {qtyText(c.qty)} {N(c.unit?.arName, c.unit?.enName)}
+                    </div>
+                  ) : null;
+                })()}
+              </td>
               <td className="a4__n">{money(l.price)}</td>
               {showDiscount && (
                 <td className="a4__n">

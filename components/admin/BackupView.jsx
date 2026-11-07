@@ -37,6 +37,7 @@ import {
   listBackupsAction,
   saveBackupDirAction,
 } from "@/actions/backup.actions";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 import "./admin.css";
 
@@ -261,91 +262,93 @@ export default function BackupView({ initialData, perms, full = false }) {
         }
       />
 
-      {full && (
-        <Card
-          size="small"
-          className="mb-4"
-          style={{ maxWidth: 860 }}
-          title={
-            <span>
-              <FolderOpenOutlined /> {t("Folder")}
-            </span>
-          }
-        >
-          <div className="mb-2">
-            <span className="backup-dir">{data.dir}</span>
-            {data.isDefault && (
-              <Tag className="ms-2" color="blue">
-                {t("DefaultFolder")}
-              </Tag>
-            )}
-          </div>
-          <div style={{ color: "#888", fontSize: 13 }} className="mb-3">
-            {t("FolderHint")}
-          </div>
-          {perms.settings && (
-            <Button
-              size="large"
-              className="backup-browse-btn mb-3"
-              icon={<FolderOpenOutlined />}
-              disabled={busy === "dir"}
-              onClick={() => setBrowsing(true)}
-            >
-              {t("Browse")}
-            </Button>
-          )}
-          {perms.settings && (
-            <Space.Compact style={{ width: "100%", maxWidth: 640 }}>
-              <Input
-                dir="ltr"
-                value={dir}
-                onChange={(e) => setDir(e.target.value)}
-                placeholder={t("FolderPlaceholder")}
-                onPressEnter={() => saveDir(dir)}
-              />
-              <Button
-                type="primary"
-                icon={<SaveOutlined />}
-                loading={busy === "dir"}
-                onClick={() => saveDir(dir)}
-              >
-                {t("SaveFolder")}
-              </Button>
-              {!data.isDefault && (
-                <Tooltip title={t("UseDefault")}>
-                  <Button
-                    icon={<UndoOutlined />}
-                    disabled={busy === "dir"}
-                    onClick={() => saveDir("")}
-                  />
-                </Tooltip>
+      {/* كارت المجلد وكارت النسخ التلقائي جنب بعض */}
+      <div className="settings-masonry">
+        {full && (
+          <Card
+            size="small"
+            className="mb-4"
+            title={
+              <span>
+                <FolderOpenOutlined /> {t("Folder")}
+              </span>
+            }
+          >
+            <div className="mb-2">
+              <span className="backup-dir">{data.dir}</span>
+              {data.isDefault && (
+                <Tag className="ms-2" color="blue">
+                  {t("DefaultFolder")}
+                </Tag>
               )}
-            </Space.Compact>
-          )}
-        </Card>
-      )}
+            </div>
+            <div style={{ color: C.muted, fontSize: 13 }} className="mb-3">
+              {t("FolderHint")}
+            </div>
+            {perms.settings && (
+              <Button
+                size="large"
+                className="backup-browse-btn mb-3"
+                icon={<FolderOpenOutlined />}
+                disabled={busy === "dir"}
+                onClick={() => setBrowsing(true)}
+              >
+                {t("Browse")}
+              </Button>
+            )}
+            {perms.settings && (
+              <Space.Compact style={{ width: "100%", maxWidth: 640 }}>
+                <Input
+                  dir="ltr"
+                  value={dir}
+                  onChange={(e) => setDir(e.target.value)}
+                  placeholder={t("FolderPlaceholder")}
+                  onPressEnter={() => saveDir(dir)}
+                />
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  loading={busy === "dir"}
+                  onClick={() => saveDir(dir)}
+                >
+                  {t("SaveFolder")}
+                </Button>
+                {!data.isDefault && (
+                  <Tooltip title={t("UseDefault")}>
+                    <Button
+                      icon={<UndoOutlined />}
+                      disabled={busy === "dir"}
+                      onClick={() => saveDir("")}
+                    />
+                  </Tooltip>
+                )}
+              </Space.Compact>
+            )}
+          </Card>
+        )}
 
-      {perms.settings && (
-        <FolderBrowser
-          open={browsing}
-          start={data.dir}
-          onClose={() => setBrowsing(false)}
-          onSelect={(path) => {
-            setBrowsing(false);
-            setDir(path);
-            saveDir(path);
-          }}
-        />
-      )}
+        {perms.settings && (
+          <FolderBrowser
+            open={browsing}
+            start={data.dir}
+            onClose={() => setBrowsing(false)}
+            onSelect={(path) => {
+              setBrowsing(false);
+              setDir(path);
+              saveDir(path);
+            }}
+          />
+        )}
 
-      {full && data.schedule && (
-        <BackupScheduleCard
-          key={JSON.stringify(data.schedule)}
-          schedule={data.schedule}
-          canEdit={perms.settings}
-          onSaved={(fresh) => setData(fresh)}
-        />
-      )}
+        {full && data.schedule && (
+          <BackupScheduleCard
+            key={JSON.stringify(data.schedule)}
+            schedule={data.schedule}
+            canEdit={perms.settings}
+            onSaved={(fresh) => setData(fresh)}
+          />
+        )}
+      </div>
 
       <Table
         rowKey="name"

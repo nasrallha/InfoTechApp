@@ -10,6 +10,19 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   taxRate: 15,
   productPriceIncludesTax: false,
   allowNegativeStock: false,
+  serialRequired: true,
+  allowDuplicateLines: false,
+  staffTitle: "technician",
+  // الحجوزات (وحدة bookings)
+  bookingOnline: false,
+  bookingOpen: "10:00",
+  bookingClose: "22:00",
+  bookingSlotMin: 30,
+  bookingDaysAhead: 30,
+  bookingHome: false,
+  bookingNote: null,
+  // بداية يوم العمل (0 = منتصف الليل)
+  dayStartHour: 0,
   purchaseTaxMode: "exclusive",
   // باركود الميزان
   ...DEFAULT_SCALE,
@@ -22,6 +35,17 @@ const select = {
   taxRate: true,
   productPriceIncludesTax: true,
   allowNegativeStock: true,
+  serialRequired: true,
+  allowDuplicateLines: true,
+  staffTitle: true,
+  bookingOnline: true,
+  bookingOpen: true,
+  bookingClose: true,
+  bookingSlotMin: true,
+  bookingDaysAhead: true,
+  bookingHome: true,
+  bookingNote: true,
+  dayStartHour: true,
   purchaseTaxMode: true,
   scaleEnabled: true,
   scaleFormat: true,
@@ -69,16 +93,39 @@ export async function saveSystemSettings(data) {
     update: data,
     select,
   });
-  // الـ proxy بيقرا اللغة من ملف (lib/app-locale)
-  writeAppLocale(saved);
+  // الـ proxy بيقرا اللغة من ملف (lib/app-locale)، لكل شركة ملفها
+  writeAppLocale(saved, await localeCode());
   return toDTO(saved);
 }
 
-// وقت تشغيل البرنامج: ملف اللغة يتطابق مع قاعدة البيانات
+// كود الشركة الحالية (وضع الشركات) لملف اللغة
+async function localeCode() {
+  const { multiTenant, currentCompanyCode } = await import("@/lib/tenant");
+  return multiTenant() ? await currentCompanyCode() : null;
+}
+
+// ملف اللغة يتطابق مع قاعدة البيانات
+// - وقت تشغيل البرنامج (وضع الشركات: كل الشركات)
+// - بعد الاسترجاع، وأول ما شركة تتفتح على السيرفر
 export async function syncAppLocale() {
-  const s = await prisma.systemSettings.findUnique({
-    where: { id: SETTINGS_ID },
-    select: { defaultLocale: true, localeDetection: true },
-  });
-  if (s) writeAppLocale(s);
+  const { multiTenant, currentCompanyCode, listCompanyCodes, runWithCompany } =
+    await import("@/lib/tenant");
+  const one = async (code) => {
+    const s = await prisma.systemSettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { defaultLocale: true, localeDetection: true },
+    });
+    if (s) writeAppLocale(s, code);
+  };
+  if (!multiTenant()) return one(null);
+  const current = await currentCompanyCode();
+  if (current) return one(current);
+  // تشغيل السيرفر: كل الشركات
+  for (const code of await listCompanyCodes()) {
+    try {
+      await runWithCompany(code, () => one(code));
+    } catch (e) {
+      console.error(`[locale] sync (${code}):`, e?.message ?? e);
+    }
+  }
 }

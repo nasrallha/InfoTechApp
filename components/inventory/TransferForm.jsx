@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { lineQtyProblem } from "@/lib/unit-qty";
 import {
   Alert,
   Button,
@@ -117,6 +118,8 @@ export default function TransferForm({
       t("TransferSent", { number: formatDocNo("transfer", res.data.number) }),
     );
     router.push(`/inventory/transfers/${res.data.id}`);
+    // الشاشة ترجع فاضية لتحويل جديد
+    reset();
   };
 
   const columns = [
@@ -166,7 +169,11 @@ export default function TransferForm({
           precision={3}
           controls={false}
           value={l.qty}
-          status={l.qty > 0 ? undefined : "error"}
+          status={
+            l.qty > 0 && !lineQtyProblem({ ...l, units: l.product.units })
+              ? undefined
+              : "error"
+          }
           onFocus={(e) => e.target.select()}
           formatter={(v) => (v === "" || v == null ? "" : String(Number(v)))}
           onChange={(v) => patch(l.key, { qty: v ?? 0 })}

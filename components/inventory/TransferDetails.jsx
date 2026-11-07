@@ -32,6 +32,7 @@ import { showActionError } from "@/components/common/actionError";
 import PrintDocument from "@/components/printing/PrintDocument";
 import StockDocument from "./StockDocument";
 import { TRANSFER_STATUS_COLOR } from "./TransfersList";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 const q3 = (v) => (v == null ? "" : Number(Number(v).toFixed(3)));
@@ -102,7 +103,7 @@ export default function TransferDetails({
       render: (_, it) => (
         <div>
           <div style={{ fontWeight: 600 }}>{nameOf(it)}</div>
-          <div style={{ fontSize: 12, color: "#888" }}>
+          <div style={{ fontSize: 12, color: C.muted }}>
             <bdi>{it.code}</bdi>
           </div>
         </div>

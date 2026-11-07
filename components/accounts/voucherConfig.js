@@ -1,3 +1,4 @@
+import { C } from "@/lib/theme";
 // إعدادات شاشات السندات (مشتركة بين القائمة والإضافة والعرض)
 
 export const VOUCHER_PATH = {
@@ -7,9 +8,9 @@ export const VOUCHER_PATH = {
 };
 
 export const VOUCHER_COLOR = {
-  receipt: "#1e8449",
-  payment: "#c0392b",
-  settlement: "#7d3c98",
+  receipt: C.successText,
+  payment: C.dangerText,
+  settlement: C.purple,
 };
 
 // الأطراف المسموحة لكل نوع (نفس ترتيب السيرفر)

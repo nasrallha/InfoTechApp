@@ -12,6 +12,8 @@ import { getCompany } from "@/services/company.service";
 import { CompanyProvider } from "@/components/common/CompanyProvider";
 import DbErrorScreen from "@/components/common/DbErrorScreen";
 import { withDb } from "@/lib/db-guard";
+import { getVendor } from "@/lib/vendor";
+import { getSubscription } from "@/lib/subscription";
 
 // كل الصفحات داخل (dashboard) تظهر داخل القائمة الجانبية والهيدر تلقائياً
 // وكلها تحتاج تسجيل دخول (غير المسجل يتحول لصفحة الدخول)
@@ -31,23 +33,38 @@ async function AuthenticatedShell({ children }) {
 
     // مدير النظام: قائمة الفروع ليتنقل بينها من الهيدر
     // + العملة الأساسية للنظام (تظهر في الملصقات والفواتير)
-    const [branches, currency, company, security] = await Promise.all([
-      getSwitchableBranches(user),
-      getBaseCurrency(),
-      getCompany(),
-      getSecuritySettings(),
-    ]);
+    const [branches, currency, company, security, vendor, sub] =
+      await Promise.all([
+        getSwitchableBranches(user),
+        getBaseCurrency(),
+        getCompany(),
+        getSecuritySettings(),
+        getVendor(),
+        getSubscription(),
+      ]);
     return {
       user,
       branches,
       currency,
       company,
       idleMinutes: security.idleMinutes,
+      vendor,
+      // للتنبيه بس (من غير باقي بيانات الاشتراك)
+      subscription: sub
+        ? {
+            state: sub.state,
+            daysLeft: sub.daysLeft ?? null,
+            endsAt: sub.endsAt ?? null,
+            graceEndsAt: sub.graceEndsAt ?? null,
+            readonlyEndsAt: sub.readonlyEndsAt ?? null,
+          }
+        : null,
     };
   });
   if (dbError) return <DbErrorScreen {...dbError} />;
 
-  const { user, branches, currency, company, idleMinutes } = data;
+  const { user, branches, currency, company, idleMinutes, vendor, subscription } =
+    data;
 
   // لا نرسل للمتصفح إلا ما تحتاجه الواجهة
   const clientUser = { ...user };
@@ -59,7 +76,13 @@ async function AuthenticatedShell({ children }) {
       <IdleGuard idleMinutes={idleMinutes} />
       <CurrencyProvider currency={currency}>
         <CompanyProvider company={company}>
-          <MainLayout branches={branches}>{children}</MainLayout>
+          <MainLayout
+            branches={branches}
+            vendor={vendor}
+            subscription={subscription}
+          >
+            {children}
+          </MainLayout>
         </CompanyProvider>
       </CurrencyProvider>
     </AuthProvider>

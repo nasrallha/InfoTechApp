@@ -41,7 +41,7 @@ export async function searchPurchaseProductsAction(query) {
   return runAction(
     productSearchSchema,
     query,
-    (q) => searchPurchaseProducts(q),
+    (q) => searchPurchaseProducts(q, { models: true }),
     {
       permission: "purchases.create",
     },
@@ -82,7 +82,7 @@ export async function browsePurchaseProductsAction(input) {
   return runAction(
     productBrowseSchema,
     input,
-    (d) => browsePurchaseProducts(d),
+    (d) => browsePurchaseProducts(d, { models: true }),
     { permission: "purchases.create" },
   );
 }

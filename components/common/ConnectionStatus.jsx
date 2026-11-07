@@ -10,6 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 import { message } from "@/components/common/feedback";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // شاشة واضحة لما الاتصال يقع (في كل صفحات البرنامج)
@@ -50,9 +51,9 @@ async function probe() {
 }
 
 const ICONS = {
-  offline: <DisconnectOutlined style={{ color: "#d4380d" }} />,
-  server: <CloudServerOutlined style={{ color: "#cf1322" }} />,
-  db: <DatabaseOutlined style={{ color: "#cf1322" }} />,
+  offline: <DisconnectOutlined style={{ color: C.warningText }} />,
+  server: <CloudServerOutlined style={{ color: C.dangerText }} />,
+  db: <DatabaseOutlined style={{ color: C.dangerText }} />,
 };
 
 export default function ConnectionStatus() {

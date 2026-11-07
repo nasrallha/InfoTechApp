@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { Alert } from "antd";
 import { useCan } from "@/components/auth/AuthProvider";
 import { SafetyCertificateOutlined } from "@ant-design/icons";
 import PageHeader from "@/components/common/PageHeader";
@@ -10,18 +11,27 @@ import RoleTable from "./RoleTable";
 
 // الجزء التفاعلي من صفحة الأدوار
 // roles: تصل من page.jsx (السيرفر) جاهزة، وتتحدث تلقائياً بعد أي عملية
-export default function RolesView({ roles }) {
+// customAllowed: الباقة بتسمح للمدير يعمل أدوار بنفسه (غير الأدوار الثابتة)
+// lockFixed: الأدوار الثابتة مقفولة (وضع الشركات)
+export default function RolesView({
+  roles,
+  customAllowed = true,
+  lockFixed = true,
+}) {
   const [addRoleModalOpen, setAddRoleModalOpen] = useState(false);
   const tSidebar = useTranslations("Sidebar");
   const tButtons = useTranslations("Buttons");
   const can = useCan();
   const tHeadings = useTranslations("Headings");
+  const tAlerts = useTranslations("Alerts");
 
   return (
     <>
       <PageHeader
         title={tSidebar("Roles")}
-        buttonTitle={can("roles.create") ? tButtons("AddNewRole") : null}
+        buttonTitle={
+          can("roles.create") && customAllowed ? tButtons("AddNewRole") : null
+        }
         onButtonClick={() => setAddRoleModalOpen(true)}
       />
 
@@ -46,7 +56,19 @@ export default function RolesView({ roles }) {
         <AddRoleForm />
       </FormModal>
 
-      <RoleTable roles={roles} />
+      {!customAllowed && (
+        <Alert
+          type="info"
+          showIcon
+          className="mb-4"
+          title={tAlerts("CustomRolesNotInPlan")}
+        />
+      )}
+      <RoleTable
+        roles={roles}
+        customAllowed={customAllowed}
+        lockFixed={lockFixed}
+      />
     </>
   );
 }

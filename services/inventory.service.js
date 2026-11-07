@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
+import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
 import { dayToDateTime, today } from "@/lib/dates";
 import {
@@ -71,7 +72,7 @@ async function resolveItems(items) {
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
-  return items.map((it, i) => {
+  const out = items.map((it, i) => {
     const p = byId.get(it.productId);
     if (!p) {
       throw new AppError("ProductNotFound", null, {
@@ -86,6 +87,16 @@ async function resolveItems(items) {
     }
     return { ...it, product: p, unitId: it.unitId ?? p.baseUnitId, factor };
   });
+  // الوحدة متقبلش كسور (حبة) ← الكمية لازم رقم صحيح
+  await assertUnitQty(
+    out.map((it) => ({
+      productId: it.product.id,
+      unitId: it.unitId,
+      qty: it.qty,
+      factor: it.factor,
+    })),
+  );
+  return out;
 }
 
 // ============================================================
@@ -417,9 +428,16 @@ const countItemsData = (items) =>
     countedQty: i.countedQty,
   }));
 
+// الجرد بالوحدة الأساسية: لو متقبلش كسور (حبة) ← الكمية رقم صحيح
+const assertCountQty = (items) =>
+  assertUnitQty(
+    items.map((i) => ({ productId: i.productId, qty: i.countedQty })),
+  );
+
 // مسودة جرد جديدة
 export async function createCount(data, user) {
   await assertCountWarehouse(data.warehouseId, user);
+  await assertCountQty(data.items);
   return runTx(async (tx) => {
     const number = await nextNumber(tx, "count");
     return tx.inventoryCount.create({
@@ -445,6 +463,7 @@ export async function updateCount({ id, ...data }, user) {
   if (!count) throw new AppError("CountNotFound");
   if (count.status !== "draft") throw new AppError("CountAlreadyPosted");
   await assertCountWarehouse(count.warehouseId, user);
+  await assertCountQty(data.items);
   return prisma.inventoryCount.update({
     where: { id },
     data: {

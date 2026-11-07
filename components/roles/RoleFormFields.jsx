@@ -2,6 +2,7 @@
 import { Input, Form, Switch } from "antd";
 import { CrownFilled } from "@ant-design/icons";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
+import { C } from "@/lib/theme";
 
 // حقول فورم الدور (مشتركة بين الإضافة والتعديل)
 export default function RoleFormFields({ tForm, tAlerts }) {
@@ -33,7 +34,7 @@ export default function RoleFormFields({ tForm, tAlerts }) {
           name="isSuper"
           label={
             <span>
-              <CrownFilled style={{ color: "#d4a017", marginInlineEnd: 6 }} />
+              <CrownFilled style={{ color: C.warning, marginInlineEnd: 6 }} />
               {tForm("IsSuperRole")}
             </span>
           }

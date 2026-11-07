@@ -1,17 +1,14 @@
 "use client";
 
 import { imageUrl } from "@/lib/image";
+import { qtyText } from "@/lib/unit-qty";
 import { formatDateTime, formatDay } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
-import { PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
+import { BASE_FONT, PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
 import "@/components/printing/invoice/invoice.css";
 import { formatDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
 
-const BASE_FONT = {
-  thermal: { small: 7.5, normal: 8.5, large: 10 },
-  A4: { small: 9, normal: 10, large: 11.5 },
-};
 const LOGO_HEIGHT = { small: 12, medium: 18, large: 26 };
 
 const TAX_MODE_TEXT = {
@@ -31,7 +28,7 @@ export default function PurchaseDocument({ settings, company, purchase }) {
   const lang = settings.language;
   const dir = lang === "en" ? "ltr" : "rtl";
   const width = PRINT_AREA[settings.paperSize] ?? 72;
-  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 8.5;
+  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
   const isReturn = purchase.type === "return";
 
   const L = (ar, en) =>
@@ -226,7 +223,7 @@ export default function PurchaseDocument({ settings, company, purchase }) {
                   {N(arName, enName)}
                   {l.note && <div className="inv__note">{l.note}</div>}
                 </td>
-                <td>{l.qty}</td>
+                <td>{qtyText(l.qty)}</td>
                 {showUnitCol && <td>{N(unitAr, unitEn)}</td>}
                 <td>{money(l.price)}</td>
                 {showDiscount && <td>{money(l.itemDiscount)}</td>}

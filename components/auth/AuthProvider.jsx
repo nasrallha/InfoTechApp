@@ -22,3 +22,16 @@ export function useCan() {
   const user = useContext(AuthContext);
   return (permission) => can(user, permission);
 }
+
+// وحدة النشاط مفعّلة للشركة؟ (شكل فقط، والسيرفر بيتحقق بنفسه)
+//   const serialsOn = useModule("serials");
+export function useModule(key) {
+  const user = useContext(AuthContext);
+  return Boolean(user?.modules?.includes(key));
+}
+
+// إعدادات الوحدات للواجهة (مثلاً { serialRequired })
+export function useModuleSettings() {
+  const user = useContext(AuthContext);
+  return user?.moduleSettings ?? {};
+}

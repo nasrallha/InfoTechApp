@@ -51,3 +51,19 @@ export async function deletePromotionAction(id) {
     refresh: true,
   });
 }
+
+// عروض الولاء للعميل في الفاتورة / الكاشير: كام مرة دفع وكام مرة خد مجاني
+// excludeSaleId: الفاتورة اللي بتتعدل (عدّها ما يدخلش)
+export async function loyaltyStatusAction(input) {
+  return runAction(null, input, async (d, user) => {
+    if (!can(user, "sales.create") && !can(user, "sales.pos"))
+      throw new AppError("Forbidden");
+    const customerId = Number(d?.customerId);
+    if (!Number.isInteger(customerId) || customerId <= 0) return {};
+    const excludeSaleId = Number(d?.excludeSaleId) || undefined;
+    const { getActivePromotions, loyaltyStatus } =
+      await import("@/services/promotion.service");
+    const promos = await getActivePromotions(user.branch.id);
+    return loyaltyStatus(customerId, promos, { excludeSaleId });
+  });
+}

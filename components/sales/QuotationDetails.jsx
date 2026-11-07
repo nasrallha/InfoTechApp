@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { qtyText } from "@/lib/unit-qty";
 import { Button, Card, Col, Popconfirm, Row, Space, Table, Tag } from "antd";
 import {
   DeleteOutlined,
@@ -22,6 +23,7 @@ import InvoiceA4 from "@/components/printing/invoice/InvoiceA4";
 import TotalsSummary from "@/components/purchases/TotalsSummary";
 import SaleDocument from "./SaleDocument";
 import { LineNoteText } from "@/components/purchases/LineNote";
+import { C } from "@/lib/theme";
 import "@/components/purchases/purchases.css";
 
 // ============================================================
@@ -93,7 +95,7 @@ export default function QuotationDetails({
       key: "qty",
       width: 80,
       align: "center",
-      render: (_, l) => Number(l.qty),
+      render: (_, l) => qtyText(l.qty),
     },
     {
       title: t("Price"),
@@ -188,7 +190,7 @@ export default function QuotationDetails({
             <Link href={`/invoices/sales/new?quotation=${quotation.id}`}>
               <Button
                 icon={<FileDoneOutlined />}
-                style={{ borderColor: "#16a34a", color: "#16a34a" }}
+                style={{ borderColor: C.success, color: C.success }}
               >
                 {t("ConvertToSale")}
               </Button>

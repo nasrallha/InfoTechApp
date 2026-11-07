@@ -1,8 +1,12 @@
 import "server-only";
+import { SUBSCRIPTION_METHOD_TYPE } from "./payment-method.service";
+import { hasModule } from "@/lib/modules";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { round } from "@/lib/invoice-calc";
-import { dayEnd, dayOf, dayStart, today } from "@/lib/dates";
+import { dayToDbDate } from "@/lib/dates";
+import { bizDayOf, bizMonthOf, bizRange } from "@/lib/business-day";
+import { getDayStartHour } from "@/lib/business-day-server";
 import { formatDocNo, parseDocNo, saleDocNo } from "@/lib/doc-number";
 
 // ============================================================
@@ -22,14 +26,11 @@ export function reportBranch(user, branchId) {
   return { branchId: user.branch.id };
 }
 
-const dateRange = ({ from, to }) => ({
-  date: {
-    ...(from ? { gte: dayStart(from) } : {}),
-    ...(to ? { lte: dayEnd(to) } : {}),
-  },
-});
-
-const monthOf = (date) => dayOf(date).slice(0, 7);
+// الفترة بأيام العمل (h = بداية يوم العمل، 0 = منتصف الليل)
+// الضريبة بس بالتاريخ الحقيقي (h = 0)
+const dateRange = (f, h = 0) => ({ date: bizRange(f, h) });
+const dayOf = (date, h = 0) => bizDayOf(date, h);
+const monthOf = (date, h = 0) => bizMonthOf(date, h);
 
 // أيام الفترة (للرسم البياني): يوم بيوم لو أقل من 62 يوم، وإلا شهر بشهر
 function buckets(from, to) {
@@ -96,16 +97,28 @@ export async function getReportOptions(user, { parties = [] } = {}) {
         })
       : null,
   ]);
-  return { branches, users, methods, customers, suppliers };
+  // المجموعات الرئيسية (فلتر تقرير المبيعات)
+  const categories = parties.includes("category")
+    ? await prisma.category.findMany({
+        where: { parentId: null },
+        orderBy: { arName: "asc" },
+        select: { id: true, arName: true, enName: true },
+      })
+    : null;
+  return { branches, users, methods, customers, suppliers, categories };
 }
 
 // ------------------------------------------------------------
 // تقرير المبيعات (الفواتير والمرتجعات)
 // ------------------------------------------------------------
 export async function salesReport(f, user) {
+  const h = await getDayStartHour();
   const num = f.q ? parseDocNo(f.q) : null;
+  // المجموعة الرئيسية: الفواتير اللي فيها أصنافها، والمبالغ بتاعة سطورها بس
+  const catIds = await categoryWithChildren(f.categoryId);
+  const catLines = catIds ? { product: { categoryId: { in: catIds } } } : null;
   const where = {
-    ...dateRange(f),
+    ...dateRange(f, h),
     ...reportBranch(user, f.branchId),
     ...(f.userId ? { createdById: f.userId } : {}),
     ...(f.customerId ? { customerId: f.customerId } : {}),
@@ -114,6 +127,7 @@ export async function salesReport(f, user) {
       ? { payments: { some: { paymentMethodId: f.paymentMethodId } } }
       : {}),
     ...(num ? { number: num } : {}),
+    ...(catLines ? { items: { some: catLines } } : {}),
   };
   const showProfit = can(user, "reports.profit");
   const docs = await prisma.sale.findMany({
@@ -139,8 +153,51 @@ export async function salesReport(f, user) {
       branch: branchSelect,
       createdBy: userSelect,
       payments: { select: { amount: true, paymentMethod: methodSelect } },
+      ...(catLines
+        ? {
+            items: {
+              where: catLines,
+              select: {
+                productId: true,
+                qty: true,
+                netAmount: true,
+                taxAmount: true,
+                totalAmount: true,
+                costAmount: true,
+                itemDiscount: true,
+                invoiceDiscount: true,
+              },
+            },
+          }
+        : {}),
     },
   });
+  // فلتر المجموعة: مبالغ الفاتورة = سطور المجموعة بس (+ نصيبها من رسوم التبغ)،
+  // والدفع بنفس النسبة
+  const catFees = catLines ? await categoryTobaccoFees(docs) : null;
+  if (catLines)
+    for (const d of docs) {
+      const fee = catFees?.get(d.id) ?? { net: 0, tax: 0, total: 0 };
+      const s = (k) => d.items.reduce((x, i) => x + n(i[k]), 0);
+      const total = s("totalAmount") + fee.total;
+      const ratio = n(d.totalAmount) ? total / n(d.totalAmount) : 0;
+      d.netAmount = s("netAmount") + fee.net;
+      d.taxAmount = s("taxAmount") + fee.tax;
+      d.costAmount = s("costAmount");
+      d.itemsDiscount = s("itemDiscount");
+      d.invoiceDiscount = s("invoiceDiscount");
+      d.paidAmount = n(d.paidAmount) * ratio;
+      d.remainingAmount = n(d.remainingAmount) * ratio;
+      d.payments = d.payments.map((p) => ({ ...p, amount: n(p.amount) * ratio }));
+      d.totalAmount = total;
+    }
+  // رسوم التبغ اللي دخلت مع أصناف المجموعة (للعرض في قسم الرسوم)
+  const catTobacco = catFees
+    ? docs.reduce(
+        (x, d) => x + (d.type === "return" ? -1 : 1) * (catFees.get(d.id)?.total ?? 0),
+        0,
+      )
+    : 0;
 
   const t = {
     sales: 0,
@@ -161,6 +218,8 @@ export async function salesReport(f, user) {
     keys.map((k) => [k, { key: k, sales: 0, returns: 0, profit: 0 }]),
   );
 
+  // فواتير الاشتراك (المغسلة): عددها والمدفوع من الرصيد
+  const sub = { count: 0, amount: 0 };
   const rows = docs.map((d) => {
     const sign = d.type === "return" ? -1 : 1;
     const net = n(d.netAmount);
@@ -178,7 +237,16 @@ export async function salesReport(f, user) {
     t.discount += sign * (n(d.itemsDiscount) + n(d.invoiceDiscount));
     t.cost += sign * cost;
     t.credit += sign * n(d.remainingAmount);
+    // المغسلة: المدفوع من رصيد الاشتراك ← للعلم بس (مش فلوس اتقبضت في الفاتورة)
+    const fromWallet = d.payments
+      .filter((p) => p.paymentMethod.type === SUBSCRIPTION_METHOD_TYPE)
+      .reduce((x, p) => x + n(p.amount), 0);
+    if (fromWallet > 0) {
+      sub.count += sign;
+      sub.amount += sign * fromWallet;
+    }
     for (const p of d.payments) {
+      if (p.paymentMethod.type === SUBSCRIPTION_METHOD_TYPE) continue;
       const m = methods.get(p.paymentMethod.id) ?? {
         ...p.paymentMethod,
         received: 0,
@@ -196,7 +264,7 @@ export async function salesReport(f, user) {
     c.count += sign > 0 ? 1 : 0;
     c.total += sign * n(d.totalAmount);
     cashiers.set(d.createdBy.id, c);
-    const key = byMonth ? monthOf(d.date) : dayOf(d.date);
+    const key = byMonth ? monthOf(d.date, h) : dayOf(d.date, h);
     const b = chart.get(key);
     if (b) {
       if (sign > 0) b.sales += n(d.totalAmount);
@@ -245,6 +313,15 @@ export async function salesReport(f, user) {
       net: r2(m.received - m.refunded),
     })),
     cashiers: [...cashiers.values()].map((c) => ({ ...c, total: r2(c.total) })),
+    // للعلم: الفواتير اللي اتدفعت (كلها أو جزء) من رصيد الاشتراك
+    subscription: sub.count ? { count: sub.count, amount: r2(sub.amount) } : null,
+    // المطعم: الرسوم في الفواتير دي (الخدمة / التوصيل / التبغ) - شامل الضريبة
+    // فلتر المجموعة: رسوم التبغ الخاصة بأصنافها بس
+    fees: catLines
+      ? catFees
+        ? { tobacco: r2(catTobacco) }
+        : null
+      : await restaurantFeeTotals(where),
     chart: [...chart.values()].map((b) => ({
       ...b,
       sales: r2(b.sales),
@@ -316,9 +393,10 @@ export async function topProducts(saleWhere, limit, withProfit = true) {
 // تقرير المشتريات (الفواتير والمرتجعات)
 // ------------------------------------------------------------
 export async function purchasesReport(f, user) {
+  const h = await getDayStartHour();
   const num = f.q ? parseDocNo(f.q) : null;
   const where = {
-    ...dateRange(f),
+    ...dateRange(f, h),
     ...reportBranch(user, f.branchId),
     ...(f.userId ? { createdById: f.userId } : {}),
     ...(f.supplierId ? { supplierId: f.supplierId } : {}),
@@ -400,7 +478,7 @@ export async function purchasesReport(f, user) {
     s.count += sign > 0 ? 1 : 0;
     s.total += sign * n(d.totalAmount);
     suppliers.set(sKey, s);
-    const b = chart.get(byMonth ? monthOf(d.date) : dayOf(d.date));
+    const b = chart.get(byMonth ? monthOf(d.date, h) : dayOf(d.date, h));
     if (b) {
       if (sign > 0) b.purchases += n(d.totalAmount);
       else b.returns += n(d.totalAmount);
@@ -579,8 +657,9 @@ export async function vatReport(f, user) {
 // صافي الربح = إجمالي الربح - خصم مسموح به + خصم مكتسب - المصروفات + إيرادات متنوعة
 // ------------------------------------------------------------
 export async function profitReport(f, user) {
+  const h = await getDayStartHour();
   const branch = reportBranch(user, f.branchId);
-  const range = dateRange(f);
+  const range = dateRange(f, h);
   const saleWhere = { ...range, ...branch };
   const [sales, vouchers] = await Promise.all([
     prisma.sale.findMany({
@@ -611,7 +690,8 @@ export async function profitReport(f, user) {
   const chart = new Map(
     keys.map((k) => [k, { key: k, revenue: 0, cost: 0, gross: 0, net: 0 }]),
   );
-  const bucketOf = (date) => chart.get(byMonth ? monthOf(date) : dayOf(date));
+  const bucketOf = (date) =>
+    chart.get(byMonth ? monthOf(date, h) : dayOf(date, h));
 
   let salesNet = 0;
   let returnsNet = 0;
@@ -708,11 +788,58 @@ export async function profitReport(f, user) {
 // لكل طريقة دفع: المبيعات - المرتجع + سندات القبض - المشتريات + مرتجع المشتريات
 //                - سندات الصرف، وللنقدي: + الإضافة - السحب من الدرج
 // ------------------------------------------------------------
+// ============================================================
+// المغسلة في اليومية (للعلم): أعداد الطلبات
+// المسجّلة في الفترة، والمسلّمة فيها، والملغية، والباقية لحد دلوقتي
+// ============================================================
+async function laundryDaily(f, range, branch, byUser) {
+  const days = {
+    ...(f.from ? { gte: dayToDbDate(f.from) } : {}),
+    ...(f.to ? { lte: dayToDbDate(f.to) } : {}),
+  };
+  const [registered, delivered, cancelled, remaining] = await Promise.all([
+    prisma.laundryOrder.aggregate({
+      where: { ...branch, ...byUser, bizDay: days, status: { not: "cancelled" } },
+      _count: { _all: true },
+      _sum: { totalQty: true },
+    }),
+    prisma.laundryOrder.aggregate({
+      where: { ...branch, status: "delivered", deliveredAt: range.date },
+      _count: { _all: true },
+      _sum: { totalQty: true },
+    }),
+    prisma.laundryOrder.count({
+      where: { ...branch, ...byUser, bizDay: days, status: "cancelled" },
+    }),
+    prisma.laundryOrder.aggregate({
+      where: { ...branch, status: { in: ["received", "processing", "ready"] } },
+      _count: { _all: true },
+      _sum: { totalQty: true },
+    }),
+  ]);
+  return {
+    orders: {
+      registered: registered._count._all,
+      registeredQty: registered._sum.totalQty ?? 0,
+      delivered: delivered._count._all,
+      deliveredQty: delivered._sum.totalQty ?? 0,
+      cancelled,
+      remaining: remaining._count._all,
+      remainingQty: remaining._sum.totalQty ?? 0,
+    },
+  };
+}
+
 export async function dailyReport(f, user) {
+  const h = await getDayStartHour();
   const branch = reportBranch(user, f.branchId);
-  const range = dateRange(f);
+  const range = dateRange(f, h);
   const byUser = f.userId ? { createdById: f.userId } : {};
-  const nonCredit = { paymentMethod: { type: { not: "credit" } } };
+  // اليومية = حركة الفلوس من غير الآجل
+  // "رصيد الاشتراك" (المغسلة): سطر للعلم بس (infoOnly) برا المجموع والصافي،
+  // لأن فلوس الاشتراك دخلت وقت الشحن بسند قبض، والفاتورة بالرصيد مش فلوس جديدة
+  const NOT_MONEY = ["credit"];
+  const nonCredit = { paymentMethod: { type: { notIn: NOT_MONEY } } };
 
   const [salePays, purchasePays, vouchers, movements, shifts, methods] =
     await Promise.all([
@@ -771,16 +898,22 @@ export async function dailyReport(f, user) {
         },
       }),
       prisma.shift.findMany({
+        // ورديات أيام العمل دي (حسب يوم فتحها) اللي اتقفلت
         where: {
           status: "closed",
-          closedAt: range.date,
+          businessDay: {
+            ...(f.from ? { gte: dayToDbDate(f.from) } : {}),
+            ...(f.to ? { lte: dayToDbDate(f.to) } : {}),
+          },
           ...branch,
           ...(f.userId ? { userId: f.userId } : {}),
         },
-        orderBy: { closedAt: "asc" },
+        orderBy: [{ businessDay: "asc" }, { closedAt: "asc" }],
         select: {
           id: true,
           number: true,
+          businessDay: true,
+          dayNo: true,
           user: userSelect,
           openedAt: true,
           closedAt: true,
@@ -796,7 +929,7 @@ export async function dailyReport(f, user) {
         },
       }),
       prisma.paymentMethod.findMany({
-        where: { type: { not: "credit" } },
+        where: { type: { notIn: NOT_MONEY } },
         orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
         select: { id: true, arName: true, enName: true, type: true },
       }),
@@ -856,6 +989,9 @@ export async function dailyReport(f, user) {
           typeof v === "number" && k !== "id" ? r2(v) : v,
         ]),
       );
+      // رصيد الاشتراك: للعلم (مالوش صافي)
+      if (r.type === SUBSCRIPTION_METHOD_TYPE)
+        return { ...fixed, infoOnly: true, net: 0 };
       return {
         ...fixed,
         net: r2(
@@ -884,7 +1020,9 @@ export async function dailyReport(f, user) {
         ].some((k) => r[k] !== 0) || r.type === "cash",
     );
 
-  const sum = (k) => r2(list.reduce((s, r) => s + r[k], 0));
+  // المجموع من غير سطر الاشتراك (للعلم)
+  const sum = (k) =>
+    r2(list.filter((r) => !r.infoOnly).reduce((s, r) => s + r[k], 0));
   return {
     methods: list,
     totals: {
@@ -906,5 +1044,269 @@ export async function dailyReport(f, user) {
     })),
     movements: movements.map((m) => ({ ...m, amount: n(m.amount) })),
     shifts,
+    // المطعم: الرسوم في فواتير الفترة (الخدمة / التوصيل / التبغ) - للعلم
+    fees: await restaurantFeeTotals({ ...range, ...branch, ...byUser }),
+    // المغسلة (وحدة laundry): للعلم بس، برا الصافي
+    laundry: (await hasModule("laundry"))
+      ? await laundryDaily(f, range, branch, byUser)
+      : null,
+  };
+}
+
+// ============================================================
+// المطعم: الرسوم (الخدمة / التوصيل / التبغ) + تقرير التبغ
+// الرسوم سطور في الفاتورة بأصناف الرسوم (الإعدادات: restaurant*ProductId)
+// ============================================================
+async function restaurantFeeProducts() {
+  const s = await prisma.systemSettings.findUnique({
+    where: { id: 1 },
+    select: {
+      restaurantServiceProductId: true,
+      restaurantDeliveryProductId: true,
+      restaurantTobaccoProductId: true,
+    },
+  });
+  return {
+    service: s?.restaurantServiceProductId ?? null,
+    delivery: s?.restaurantDeliveryProductId ?? null,
+    tobacco: s?.restaurantTobaccoProductId ?? null,
+  };
+}
+
+// فلتر المجموعة في تقرير المبيعات: نصيب أصناف المجموعة من رسوم التبغ لكل فاتورة
+// docs: الفواتير وجواها items = سطور المجموعة بس (productId / qty / totalAmount)
+// الرسوم بتتوزع على كل أصناف التبغ في الفاتورة (بالكمية لو مبلغ لكل وحدة، وبالقيمة لو نسبة)
+// والمجموعة تاخد نصيب أصنافها بس ← Map(saleId → { net, tax, total })
+// null = وحدة المطعم مقفولة أو مفيش صنف رسوم تبغ
+async function categoryTobaccoFees(docs) {
+  if (!docs.length || !(await hasModule("restaurant"))) return null;
+  const [{ tobacco: feeId }, tobaccoItems, s] = await Promise.all([
+    restaurantFeeProducts(),
+    prisma.restaurantItem.findMany({
+      where: { isTobacco: true },
+      select: { productId: true },
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: 1 },
+      select: { restaurantTobaccoType: true },
+    }),
+  ]);
+  if (!feeId) return null;
+  const tobacco = new Set(tobaccoItems.map((i) => i.productId));
+  const out = new Map();
+  // الفواتير اللي فيها أصناف تبغ من المجموعة بس
+  const ids = docs
+    .filter((d) => d.items.some((i) => tobacco.has(i.productId)))
+    .map((d) => d.id);
+  if (!ids.length) return out;
+  const lines = await prisma.saleItem.findMany({
+    where: { saleId: { in: ids }, productId: { in: [...tobacco, feeId] } },
+    select: {
+      saleId: true,
+      productId: true,
+      qty: true,
+      netAmount: true,
+      taxAmount: true,
+      totalAmount: true,
+    },
+  });
+  const byQty = s?.restaurantTobaccoType === "amount";
+  const w = (l) => (byQty ? n(l.qty) : n(l.totalAmount));
+  const per = new Map();
+  for (const l of lines) {
+    const x = per.get(l.saleId) ?? { fee: { net: 0, tax: 0, total: 0 }, all: 0, count: 0 };
+    if (l.productId === feeId) {
+      x.fee.net += n(l.netAmount);
+      x.fee.tax += n(l.taxAmount);
+      x.fee.total += n(l.totalAmount);
+    } else {
+      x.all += w(l);
+      x.count++;
+    }
+    per.set(l.saleId, x);
+  }
+  for (const d of docs) {
+    const x = per.get(d.id);
+    if (!x?.fee.total) continue;
+    const mine = d.items.filter((i) => tobacco.has(i.productId));
+    const share = x.all
+      ? mine.reduce((a, i) => a + w(i), 0) / x.all
+      : mine.length / (x.count || 1);
+    out.set(d.id, {
+      net: x.fee.net * share,
+      tax: x.fee.tax * share,
+      total: x.fee.total * share,
+    });
+  }
+  return out;
+}
+
+// إجمالي كل رسوم في الفواتير (شامل الضريبة، والمرتجع بالسالب)
+export async function restaurantFeeTotals(saleWhere) {
+  if (!(await hasModule("restaurant"))) return null;
+  const ids = await restaurantFeeProducts();
+  const list = Object.values(ids).filter(Boolean);
+  const out = { service: 0, delivery: 0, tobacco: 0 };
+  if (!list.length) return out;
+  const lines = await prisma.saleItem.findMany({
+    where: { productId: { in: list }, sale: saleWhere },
+    select: { productId: true, totalAmount: true, sale: { select: { type: true } } },
+  });
+  for (const l of lines) {
+    const kind = Object.keys(ids).find((k) => ids[k] === l.productId);
+    if (kind) out[kind] += (l.sale.type === "return" ? -1 : 1) * n(l.totalAmount);
+  }
+  return { service: r2(out.service), delivery: r2(out.delivery), tobacco: r2(out.tobacco) };
+}
+
+// القسم الرئيسي + كل الأقسام اللي تحته (فلتر «المجموعة الرئيسية»)
+export async function categoryWithChildren(categoryId) {
+  if (!categoryId) return null;
+  const all = await prisma.category.findMany({ select: { id: true, parentId: true } });
+  const ids = new Set([categoryId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of all)
+      if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) {
+        ids.add(c.id);
+        grew = true;
+      }
+  }
+  return [...ids];
+}
+
+// تقرير التبغ (وحدة restaurant): أصناف التبغ المباعة ورسوم التبغ
+// - الأصناف: الكمية والإجمالي لكل صنف تبغ (صافي بعد المرتجع)
+// - الفواتير: كل فاتورة فيها تبغ بكمية التبغ وقيمته ورسومه
+// - رسوم كل صنف: رسوم الفاتورة متوزعة على أصناف التبغ فيها
+//   (بالكمية لو الرسوم مبلغ لكل وحدة، وبالقيمة لو نسبة)
+export async function tobaccoReport(f, user) {
+  const h = await getDayStartHour();
+  const saleWhere = {
+    ...dateRange(f, h),
+    ...reportBranch(user, f.branchId),
+    ...(f.userId ? { createdById: f.userId } : {}),
+  };
+  const [{ tobacco: feeId }, tobaccoItems, feeSettings] = await Promise.all([
+    restaurantFeeProducts(),
+    prisma.restaurantItem.findMany({
+      where: { isTobacco: true },
+      select: { productId: true },
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: 1 },
+      select: { restaurantTobaccoType: true },
+    }),
+  ]);
+  const byQty = feeSettings?.restaurantTobaccoType === "amount";
+  const itemIds = tobaccoItems.map((i) => i.productId);
+  const ids = [...itemIds, ...(feeId ? [feeId] : [])];
+  if (!ids.length)
+    return { products: [], invoices: [], totals: { qty: 0, sales: 0, fees: 0, total: 0, invoices: 0 } };
+  const lines = await prisma.saleItem.findMany({
+    where: { productId: { in: ids }, sale: saleWhere },
+    orderBy: { id: "asc" },
+    take: MAX_ROWS * 4,
+    select: {
+      productId: true,
+      arName: true,
+      enName: true,
+      code: true,
+      qty: true,
+      totalAmount: true,
+      sale: {
+        select: {
+          id: true,
+          type: true,
+          number: true,
+          date: true,
+          customerArName: true,
+          customerEnName: true,
+          branch: branchSelect,
+        },
+      },
+    },
+  });
+  const products = new Map();
+  const invoices = new Map();
+  for (const l of lines) {
+    const sign = l.sale.type === "return" ? -1 : 1;
+    const inv = invoices.get(l.sale.id) ?? {
+      id: l.sale.id,
+      type: l.sale.type,
+      docNo: saleDocNo(l.sale.type, l.sale.number),
+      date: l.sale.date,
+      customerArName: l.sale.customerArName,
+      customerEnName: l.sale.customerEnName,
+      branch: l.sale.branch,
+      qty: 0,
+      sales: 0,
+      fees: 0,
+      // أصناف التبغ في الفاتورة (لتوزيع الرسوم)
+      items: new Map(),
+    };
+    if (l.productId === feeId) inv.fees += sign * n(l.totalAmount);
+    else {
+      inv.qty += sign * n(l.qty);
+      inv.sales += sign * n(l.totalAmount);
+      const p = products.get(l.productId) ?? {
+        productId: l.productId,
+        code: l.code,
+        arName: l.arName,
+        enName: l.enName,
+        qty: 0,
+        sales: 0,
+        fees: 0,
+      };
+      p.qty += sign * n(l.qty);
+      p.sales += sign * n(l.totalAmount);
+      products.set(l.productId, p);
+      const it = inv.items.get(l.productId) ?? { qty: 0, sales: 0 };
+      it.qty += n(l.qty);
+      it.sales += n(l.totalAmount);
+      inv.items.set(l.productId, it);
+    }
+    invoices.set(l.sale.id, inv);
+  }
+  // توزيع رسوم كل فاتورة على أصنافها (الوزن: الكمية أو القيمة، ولو صفر يتوزع بالتساوي)
+  for (const inv of invoices.values()) {
+    if (!inv.fees || !inv.items.size) continue;
+    const parts = [...inv.items.entries()];
+    const w = (x) => (byQty ? x.qty : x.sales);
+    const all = parts.reduce((s, [, x]) => s + w(x), 0);
+    for (const [pid, x] of parts) {
+      const share = all ? w(x) / all : 1 / parts.length;
+      products.get(pid).fees += inv.fees * share;
+    }
+  }
+  const invList = [...invoices.values()].map((i) => ({
+    ...i,
+    items: undefined,
+    qty: round(i.qty, 3),
+    sales: r2(i.sales),
+    fees: r2(i.fees),
+    total: r2(i.sales + i.fees),
+  }));
+  const prodList = [...products.values()]
+    .map((p) => ({
+      ...p,
+      qty: round(p.qty, 3),
+      sales: r2(p.sales),
+      fees: r2(p.fees),
+      total: r2(p.sales + p.fees),
+    }))
+    .sort((a, b) => b.sales - a.sales);
+  const sum = (k) => r2(invList.reduce((s, i) => s + i[k], 0));
+  return {
+    products: prodList,
+    invoices: invList,
+    totals: {
+      invoices: invList.filter((i) => i.type !== "return").length,
+      qty: round(invList.reduce((s, i) => s + i.qty, 0), 3),
+      sales: sum("sales"),
+      fees: sum("fees"),
+      total: sum("total"),
+    },
   };
 }

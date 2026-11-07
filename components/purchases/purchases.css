@@ -15,7 +15,7 @@
   max-height: 340px;
   overflow: auto;
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 4px;
@@ -32,7 +32,7 @@
 }
 
 .pur-picker__item.is-active {
-  background: #e6f4f1;
+  background: var(--c-primary-soft);
 }
 
 .pur-picker__name {
@@ -42,7 +42,7 @@
 .pur-picker__code,
 .pur-line__code {
   font-size: 12px;
-  color: #888;
+  color: var(--c-muted);
 }
 
 .pur-picker__units {
@@ -60,16 +60,16 @@
 /* ---------- بيانات المورد ---------- */
 .pur-supplier {
   font-size: 13px;
-  color: #555;
+  color: var(--c-text2);
 }
 
 .pur-supplier--novat {
-  color: #d46b08;
+  color: var(--c-warning-text);
 }
 
 /* ---------- المدفوعات ---------- */
 .pur-payments__hint {
-  color: #666;
+  color: var(--c-muted);
 }
 
 .pur-payments__row {
@@ -85,7 +85,7 @@
   flex-wrap: wrap;
   gap: 24px;
   padding: 10px 12px;
-  background: #fafafa;
+  background: var(--c-bg-subtle);
   border-radius: 8px;
 }
 
@@ -113,17 +113,17 @@
   display: flex;
   justify-content: space-between;
   padding: 5px 0;
-  border-bottom: 1px dashed #eee;
+  border-bottom: 1px dashed var(--c-border);
 }
 
 .pur-totals__muted {
-  color: #888;
+  color: var(--c-muted);
 }
 
 .pur-totals__grand {
   font-size: 18px;
   font-weight: 700;
-  color: #006266;
+  color: var(--c-primary);
   border-bottom: none !important;
   padding-top: 10px !important;
 }
@@ -138,7 +138,7 @@
 .pur-info > div > span:first-child {
   display: block;
   font-size: 12px;
-  color: #888;
+  color: var(--c-muted);
 }
 
 .pur-info > div > :last-child {
@@ -147,7 +147,7 @@
 
 /* ---------- المرتجع ---------- */
 .pur-row--done td {
-  color: #aaa;
+  color: var(--c-subtle);
 }
 
 /* ---------- شريط إضافة الأصناف (بحث/ماسح + تصفح) ---------- */
@@ -163,13 +163,13 @@
 
 /* الخصم بلون أحمر في الإجماليات */
 .pur-totals__discount {
-  color: #cf1322;
+  color: var(--c-danger-text);
   font-weight: 600;
 }
 
 /* عنوان الإجماليات وعنوان الخصم: أيقونة الخصم حمراء */
 .pur-invoice-discount > span:first-child {
-  color: #cf1322;
+  color: var(--c-danger-text);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -183,8 +183,8 @@
   gap: 6px;
   width: 100%;
   padding: 4px;
-  background: #fff1f0;
-  border: 1px solid #ffccc7;
+  background: var(--c-danger-soft);
+  border: 1px solid var(--c-danger-border);
   border-radius: 10px;
 }
 
@@ -217,14 +217,14 @@
 /* السعر بعد الخصم (عرض أو خصم يدوي) تحت السعر */
 .sale-price-after {
   font-size: 12px;
-  color: #c41d7f;
+  color: var(--c-magenta);
 }
 
 /* ملاحظة / وصف سطر الصنف */
 .line-note {
   margin-top: 4px;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--c-muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

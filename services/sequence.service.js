@@ -16,6 +16,9 @@ export const SEQUENCE_KEYS = {
   receipt: "receipt",
   payment: "payment",
   settlement: "settlement",
+  claim: "warranty_claim",
+  contract: "maintenance_contract",
+  adjustment: "adjustment",
 };
 
 export async function peekNextNumber(type) {

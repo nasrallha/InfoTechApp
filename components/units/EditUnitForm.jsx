@@ -22,6 +22,7 @@ const EditUnitForm = ({ unit, onSuccess, setLoading }) => {
         arName: unit.arName,
         enName: unit.enName,
         isActive: unit.isActive,
+        allowDecimals: unit.allowDecimals ?? true,
       });
     }
   }, [unit, form]);
@@ -33,6 +34,7 @@ const EditUnitForm = ({ unit, onSuccess, setLoading }) => {
       arName: values.arName,
       enName: values.enName,
       isActive: values.isActive,
+      allowDecimals: values.allowDecimals,
     });
     setLoading?.(false);
 

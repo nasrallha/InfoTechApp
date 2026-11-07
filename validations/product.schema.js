@@ -5,6 +5,7 @@ import {
   idsField,
   moneyField,
   imageField,
+  optionalText,
 } from "./common.schema";
 import { EXEMPTION_CODES, productTax } from "@/lib/zatca-tax";
 
@@ -48,8 +49,9 @@ const productFields = {
   arName: nameField(150),
   enName: nameField(150),
 
-  categoryId: idField,
-  baseUnitId: idField,
+  // الخدمة: القسم اختياري (افتراضي "خدمات") والوحدة "خدمة" تلقائي
+  categoryId: idField.nullish(),
+  baseUnitId: idField.nullish(),
 
   cost: moneyField,
   price: moneyField,
@@ -78,14 +80,65 @@ const productFields = {
     )
     .default(0),
   isActive: z.boolean().default(true),
+  // خدمة بدون مخزون
+  isService: z.boolean().default(false),
 
   image: imageField,
 
   units: z.array(productUnitSchema).default([]),
+
+  // الأرقام التسلسلية والضمان (وحدة serials)
+  serialCount: z.number().int().min(0).max(2).default(0),
+  serialLabel1: optionalText(40),
+  serialLabel2: optionalText(40),
+  warrantyMonths: z
+    .number()
+    .int("ValidationError")
+    .min(0, "MustBePositive")
+    .max(600, "ValueOutOfRange")
+    .default(0),
+  warrantyType: z.enum(["agent", "store"]).nullish(),
+
+  // المتابعة الدورية (وحدة followUps): 0 = مالوش، غير كده كل كام يوم (مقترح)
+  followUpDays: z
+    .number()
+    .int("ValidationError")
+    .min(0, "MustBePositive")
+    .max(3650, "ValueOutOfRange")
+    .default(0),
+
+  // التغيير الدوري للسيارات (وحدة vehicles): كل كام كم / كل كام شهر (0 = مالوش)
+  changeKm: z
+    .number()
+    .int("ValidationError")
+    .min(0, "MustBePositive")
+    .max(1_000_000, "ValueOutOfRange")
+    .default(0),
+  changeMonths: z
+    .number()
+    .int("ValidationError")
+    .min(0, "MustBePositive")
+    .max(120, "ValueOutOfRange")
+    .default(0),
+
+  // مدة الخدمة بالدقايق (وحدة bookings): الحجز بيحسب منها ميعاد الانتهاء
+  durationMin: z
+    .number()
+    .int("ValidationError")
+    .min(0, "MustBePositive")
+    .max(24 * 60, "ValueOutOfRange")
+    .default(0),
 };
 
 // قواعد على الوحدات كلها مع بعض (لا يمكن كتابتها على حقل واحد)
 function checkUnits(product, ctx) {
+  // الصنف العادي: القسم والوحدة الأساسية إلزاميين
+  if (!product.isService) {
+    for (const f of ["categoryId", "baseUnitId"])
+      if (!product[f])
+        ctx.addIssue({ code: "custom", path: [f], message: "RequiredField" });
+  }
+  if (product.isService) return; // الخدمة مالهاش وحدات إضافية
   const seenUnits = new Set();
   const seenBarcodes = new Set([product.code]);
 
@@ -145,11 +198,22 @@ function checkTax(product, ctx) {
 }
 
 // القيم النهائية للضريبة (النسبة > 0 = S بدون سبب)
-const withTax = (p) => ({ ...p, ...productTax(p) });
+// + أسماء الأرقام التسلسلية وجهة الضمان حسب العدد والمدة
+const withTax = (p) => ({
+  ...p,
+  ...productTax(p),
+  serialLabel1: p.serialCount >= 1 ? (p.serialLabel1 ?? null) : null,
+  serialLabel2: p.serialCount === 2 ? (p.serialLabel2 ?? null) : null,
+  warrantyType: p.warrantyMonths > 0 ? (p.warrantyType ?? "store") : null,
+});
 
 // بيانات إضافة منتج
+// الإضافة: الكود اختياري (فاضي = الرقم اللي بعد أكبر كود رقمي)
 export const createProductSchema = z
-  .object(productFields)
+  .object({
+    ...productFields,
+    code: z.string().trim().max(50, "TextTooLong").default(""),
+  })
   .superRefine(checkUnits)
   .superRefine(checkTax)
   .transform(withTax);

@@ -30,7 +30,12 @@ export default function ReportSheet({ report, labels, fixedWidth = true }) {
     <div
       className="rep"
       dir={dir}
-      style={fixedWidth ? { width: "210mm", padding: "10mm" } : undefined}
+      // landscape: تقرير عريض بعرض A4 بالعرض
+      style={
+        fixedWidth
+          ? { width: report.landscape ? "297mm" : "210mm", padding: "10mm" }
+          : undefined
+      }
     >
       <header className="rep__header">
         <div className="rep__company">

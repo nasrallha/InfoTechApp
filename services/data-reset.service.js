@@ -1,4 +1,5 @@
 import "server-only";
+import { IN_STOCK, SOLD, warrantyEnd } from "./serial.service";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { RESET_ITEMS, RESET_KEYS, expandSelection } from "@/lib/data-reset";
@@ -57,7 +58,9 @@ export async function getResetCounts() {
     prisma.voucher.count(),
     prisma.shift.count(),
     prisma.stockTransfer.count(),
-    prisma.inventoryCount.count(),
+    prisma.inventoryCount
+      .count()
+      .then(async (c) => c + (await prisma.stockAdjustment.count())),
     prisma.stockMovement.count({ where: { type: "opening" } }),
     prisma.product.count(),
     prisma.category.count(),
@@ -219,6 +222,8 @@ export async function resetData({ keys, resetNumbers }, user) {
           where: { returnedQty: { not: 0 } },
           data: { returnedQty: 0 },
         });
+        // الأرقام التسلسلية اللي رجعت بالمرتجعات: ترجع مباعة بفاتورتها
+        await resoldSerialsAfterReturnsReset(tx);
       }
 
       // ---------- 4) فواتير البيع (المرتجعات اتمسحت قبلها) ----------
@@ -241,6 +246,8 @@ export async function resetData({ keys, resetNumbers }, user) {
           });
           await tx.sale.deleteMany({ where: { id: { in: sale } } });
         }
+        // الأرقام التسلسلية مالهاش معنى من غير فواتيرها
+        await tx.productSerial.deleteMany({});
       }
 
       // فواتير إنتاج اتمسحت قبل ما تتبعت: السلسلة ترجع لآخر فاتورة فاضلة
@@ -251,6 +258,11 @@ export async function resetData({ keys, resetNumbers }, user) {
 
       // ---------- 6) مرتجعات المشتريات ثم فواتير الشراء ----------
       if (has("purchaseReturns")) {
+        // القطع اللي رجعت للمورد ترجع "في المحل"
+        await tx.productSerial.updateMany({
+          where: { status: "returned" },
+          data: { status: IN_STOCK, purchaseReturnItemId: null },
+        });
         const ret = await ids(tx.purchase, { type: "return" });
         if (ret.length) {
           await tx.voucherAllocation.deleteMany({
@@ -267,6 +279,10 @@ export async function resetData({ keys, resetNumbers }, user) {
         });
       }
       if (has("purchases")) {
+        // الأرقام المسجلة مع الشراء ومالهاش أي حركة بيع
+        await tx.productSerial.deleteMany({
+          where: { purchaseItemId: { not: null }, links: { none: {} } },
+        });
         const pur = await ids(tx.purchase, { type: "purchase" });
         if (pur.length) {
           await tx.voucherAllocation.deleteMany({
@@ -287,6 +303,24 @@ export async function resetData({ keys, resetNumbers }, user) {
       if (has("counts")) {
         await tx.stockMovement.deleteMany({ where: { refType: "count" } });
         await tx.inventoryCount.deleteMany({});
+        // التوالف والزيادات (البنود Cascade)
+        // القطع التالفة ترجع للمحل، واللي اتسجلت بزيادة بس تتمسح
+        await tx.productSerial.updateMany({
+          where: { status: "damaged", damageItemId: { not: null } },
+          data: { status: "in_stock", damageItemId: null },
+        });
+        await tx.productSerial.deleteMany({
+          where: {
+            surplusItemId: { not: null },
+            purchaseItemId: null,
+            status: "in_stock",
+            links: { none: {} },
+          },
+        });
+        await tx.stockMovement.deleteMany({
+          where: { refType: "adjustment" },
+        });
+        await tx.stockAdjustment.deleteMany({});
       }
       if (has("openingStock")) {
         await tx.stockMovement.deleteMany({ where: { type: "opening" } });
@@ -294,10 +328,30 @@ export async function resetData({ keys, resetNumbers }, user) {
         await tx.productUnit.updateMany({ data: { startStock: 0 } });
       }
 
+      // طلبات الضمان والصيانة: مربوطة بالعملاء والأصناف والموردين والفواتير
+      if (
+        has("sales") ||
+        has("customers") ||
+        has("products") ||
+        has("suppliers")
+      )
+        await tx.warrantyClaim.deleteMany({}); // القطع والسجل Cascade
+      // عقود الصيانة الدورية: مربوطة بالعملاء (الزيارات Cascade)
+      if (has("sales") || has("customers"))
+        await tx.maintenanceContract.deleteMany({});
+      // المتابعات الدورية: مربوطة بالعملاء وفواتير البيع (السجل Cascade)
+      if (has("sales") || has("customers")) await tx.followUp.deleteMany({});
+      // الحجوزات: مربوطة بالعملاء والخدمات والفواتير (الخدمات Cascade)
+      if (has("sales") || has("customers") || has("products"))
+        await tx.booking.deleteMany({});
+
       // ---------- 8) البيانات الأساسية ----------
       if (has("promotions")) await tx.promotion.deleteMany({}); // الروابط Cascade، الفواتير SetNull
       if (has("priceLists")) await tx.priceList.deleteMany({}); // الأسعار Cascade، الفروع SetNull
-      if (has("products")) await tx.product.deleteMany({}); // الوحدات والأرصدة والحركات Cascade
+      if (has("products")) {
+        await tx.productSerial.deleteMany({});
+        await tx.product.deleteMany({}); // الوحدات والأرصدة والحركات Cascade
+      }
       if (has("categories")) {
         await tx.category.deleteMany({ where: { parentId: { not: null } } });
         await tx.category.deleteMany({});
@@ -347,4 +401,45 @@ export async function resetData({ keys, resetNumbers }, user) {
   );
 
   return { deleted: [...selected], before: before.counts };
+}
+
+// بعد مسح مرتجعات المبيعات: القطع اللي كانت راجعة "في المحل" وآخر حركة ليها
+// بقت فاتورة بيع ← ترجع مباعة بالسطر ده
+async function resoldSerialsAfterReturnsReset(tx) {
+  const rows = await tx.productSerial.findMany({
+    where: { status: IN_STOCK },
+    select: {
+      id: true,
+      links: {
+        orderBy: { id: "desc" },
+        take: 1,
+        select: {
+          saleItem: {
+            select: {
+              id: true,
+              warrantyMonths: true,
+              warrantyType: true,
+              sale: { select: { type: true, customerId: true, date: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  for (const r of rows) {
+    const it = r.links[0]?.saleItem;
+    if (!it || it.sale.type !== "sale") continue;
+    await tx.productSerial.update({
+      where: { id: r.id },
+      data: {
+        status: SOLD,
+        saleItemId: it.id,
+        customerId: it.sale.customerId ?? null,
+        soldAt: it.sale.date,
+        warrantyMonths: it.warrantyMonths ?? null,
+        warrantyType: it.warrantyType ?? null,
+        warrantyEndsAt: warrantyEnd(it.sale.date, it.warrantyMonths ?? 0),
+      },
+    });
+  }
 }

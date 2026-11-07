@@ -2,12 +2,28 @@
    الفاتورة المطبوعة (A4 / 80mm / 58mm) - نفس الشكل في المعاينة والطباعة
    ============================================================ */
 
+/* ============================================================
+   الخط ودرجات السُمك (لكل الفواتير والمستندات المطبوعة)
+   - IBM Plex Sans Arabic: متسطّب جوه البرنامج (بيشتغل من غير نت)، وفيه
+     أوزان حقيقية 400/500/600/700 (Tahoma كان فيه عادي وعريض بس، فالمتصفح
+     كان بيعمل "عريض مزيّف" بيطلع تقيل ومش واضح في الطابعة الحرارية)
+   - التدرّج: العناوين 700 ← تسميات البيانات 600 ← سطور الأصناف 400/500
+   ============================================================ */
+.inv {
+  --print-font: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
+  --w-head: 700; /* العناوين (اسم المؤسسة، عنوان الفاتورة، رأس الجدول، الإجمالي) */
+  --w-label: 600; /* تسميات البيانات (رقم الفاتورة، التاريخ ...) */
+  --w-body: 400; /* سطور الأصناف والقيم */
+}
+
 .inv {
   box-sizing: border-box;
   background: #fff;
   color: #000;
-  font-family: Tahoma, Arial, sans-serif;
-  line-height: 1.35;
+  font-family: var(--print-font);
+  font-weight: var(--w-body);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
 }
 
 .inv bdi {
@@ -16,6 +32,7 @@
 
 .inv__sub {
   font-size: 0.85em;
+  font-weight: 400;
   color: #333;
 }
 
@@ -34,16 +51,16 @@
 }
 
 .inv__company-name {
-  font-weight: 800;
-  font-size: 1.25em;
+  font-weight: var(--w-head);
+  font-size: 1.3em;
 }
 
 .inv__title {
   margin: 2mm 0;
   padding: 1.2mm 0;
   text-align: center;
-  font-weight: 800;
-  font-size: 1.1em;
+  font-weight: var(--w-head);
+  font-size: 1.15em;
   border-top: 1px dashed #000;
   border-bottom: 1px dashed #000;
 }
@@ -58,6 +75,7 @@
 .inv__meta > div > span:first-child,
 .inv__totals > div > span:first-child {
   color: #222;
+  font-weight: var(--w-label);
 }
 
 /* ---------- الأصناف ---------- */
@@ -67,8 +85,10 @@
   margin: 2mm 0;
 }
 
+/* رأس الجدول عريض، وسطور الأصناف عادية: الفرق واضح بين العنوان والصنف */
 .inv__items th {
-  font-weight: 800;
+  font-weight: var(--w-head);
+  font-size: 0.95em;
   border-top: 1px solid #000;
   border-bottom: 1px solid #000;
   padding: 1mm 0.5mm;
@@ -87,6 +107,12 @@
   width: 45%;
 }
 
+/* اسم الصنف: أكبر شوية من باقي الأعمدة عشان يتقري بسهولة */
+.inv__items td.inv__col-name {
+  font-size: 1.05em;
+  font-weight: 500;
+}
+
 /* ---------- الإجماليات ---------- */
 .inv__totals {
   border-top: 1px solid #000;
@@ -96,8 +122,8 @@
 .inv__grand {
   margin-top: 1mm;
   padding: 1.2mm 0;
-  font-weight: 800;
-  font-size: 1.2em;
+  font-weight: var(--w-head);
+  font-size: 1.25em;
   border-top: 1px dashed #000;
   border-bottom: 1px dashed #000;
 }
@@ -117,7 +143,7 @@
 }
 
 .inv__bank-title {
-  font-weight: 800;
+  font-weight: var(--w-head);
   text-align: center;
   margin-bottom: 0.8mm;
 }
@@ -258,8 +284,36 @@
   color: #000 !important;
 }
 
+/* الحرارية بتطبع الخط الرفيع متقطع: كل الأوزان درجة أتقل
+   (السطور 500 بدل 400 والتسميات 700) مع الحفاظ على الفرق بين العنوان والصنف */
+.inv--thermal {
+  --w-label: 700;
+  --w-body: 500;
+  text-rendering: geometricPrecision;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.inv--thermal .inv__sub {
+  font-weight: 500;
+}
+
+/* من غير فواصل منقطة بين الأصناف (بتطلع متقطعة ومزعجة) */
 .inv--thermal .inv__items td {
-  border-bottom: 1px dashed #000;
+  border-bottom: none;
+}
+
+/* الخطوط الفاصلة (العنوان والإجمالي) متصلة بدل المنقطة */
+.inv--thermal .inv__title,
+.inv--thermal .inv__grand {
+  border-top-style: solid;
+  border-bottom-style: solid;
+}
+.inv--thermal .inv__words {
+  border-bottom-style: solid;
+}
+.inv--thermal .inv__bank,
+.inv--thermal .inv__title-note {
+  border-style: solid;
 }
 
 /* النصوص الطويلة (إيميل، عنوان) تلف جوه عرض الورقة بدل ما تطلع بره وتتقص */
@@ -321,3 +375,87 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* فاتورة المطعم: رقم الطلب أوضح شوية من باقي البيانات */
+.sd-order-no bdi {
+  font-size: 1.35em;
+  font-weight: 800;
+}
+
+/* فاتورة المطعم: الرسوم تحت الأصناف (خط فاصل خفيف تحتها) */
+.inv__fees {
+  margin-bottom: 0;
+  padding-bottom: 2px;
+  border-bottom: 1px dashed currentColor;
+}
+
+/* ============================================================
+   فاتورة الكاشير مضغوطة: مسافات أقل في كل حتة عشان الورقة ماتطولش
+   (الرأس، عنوان الفاتورة، البيانات، سطور الأصناف، الإجماليات، الذيل)
+   ============================================================ */
+.inv--thermal {
+  line-height: 1.22;
+}
+.inv--thermal .inv__header {
+  gap: 0.3mm;
+}
+.inv--thermal .inv__company-name {
+  line-height: 1.2;
+}
+.inv--thermal .inv__title {
+  margin: 1mm 0 0.8mm;
+  padding: 0.5mm 0;
+  font-size: 1.05em;
+}
+.inv--thermal .inv__meta > div {
+  gap: 1.5mm;
+}
+.inv--thermal .inv__items {
+  margin: 0.8mm 0;
+}
+.inv--thermal .inv__items th {
+  padding: 0.5mm 0.3mm;
+}
+.inv--thermal .inv__items td {
+  padding: 0.35mm 0.3mm;
+}
+.inv--thermal .inv__items td.inv__col-name {
+  font-size: 1em;
+}
+.inv--thermal .inv__note {
+  line-height: 1.15;
+}
+.inv--thermal .inv__totals {
+  padding-top: 0.6mm;
+}
+/* الإجمالي شامل الضريبة: في سطر واحد (التسمية أصغر والرقم أكبر) */
+.inv--thermal .inv__grand {
+  margin-top: 0.5mm;
+  padding: 0.6mm 0;
+  font-size: 1.05em;
+  align-items: baseline;
+}
+.inv--thermal .inv__grand > span:first-child {
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+.inv--thermal .inv__grand > bdi {
+  font-size: 1.15em;
+  white-space: nowrap;
+}
+.inv--thermal .inv__words {
+  margin-top: 0.6mm;
+  padding: 0.4mm 0;
+}
+.inv--thermal .inv__fees {
+  padding-bottom: 0.4mm;
+}
+.inv--thermal .inv__footer {
+  margin-top: 1.2mm;
+  gap: 0.6mm;
+}
+.inv--thermal .inv__bank {
+  margin-top: 1mm;
+  padding: 0.8mm 1.2mm;
+}
+/* الـ QR بحجمه الكامل (كود الزكاة كثيف: الأصغر مابيتقراش) */

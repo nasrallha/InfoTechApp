@@ -23,6 +23,7 @@ export default function VouchersList({ type, data, q, canCreate }) {
   const locale = useLocale();
   const t = useTranslations("Accounts");
   const tTable = useTranslations("Table");
+  const tButtons = useTranslations("Buttons");
   const { amount: money } = useCurrency();
   const base = VOUCHER_PATH[type];
   const isSettlement = type === "settlement";
@@ -118,7 +119,7 @@ export default function VouchersList({ type, data, q, canCreate }) {
       align: "center",
       render: (_, r) => (
         <Link href={`/accounts/vouchers/${r.id}`}>
-          <Button size="small" icon={<EyeOutlined />} />
+          <Button aria-label={tButtons("View")} title={tButtons("View")} size="small" icon={<EyeOutlined />} />
         </Link>
       ),
     },

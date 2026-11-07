@@ -31,6 +31,7 @@ import {
   BACKUP_KEEP,
   BACKUP_TIMES,
 } from "@/lib/backup-schedule";
+import { C } from "@/lib/theme";
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
@@ -64,7 +65,6 @@ export default function BackupScheduleCard({ schedule, canEdit, onSaved }) {
     <Card
       size="small"
       className="mb-4"
-      style={{ maxWidth: 860 }}
       title={
         <span>
           <FieldTimeOutlined /> {t("AutoTitle")}
@@ -89,7 +89,7 @@ export default function BackupScheduleCard({ schedule, canEdit, onSaved }) {
           )}
           {schedule.lastAutoBackupAt && (
             <div>
-              <CheckCircleOutlined style={{ color: "#52c41a" }} />{" "}
+              <CheckCircleOutlined style={{ color: C.success }} />{" "}
               {t("LastAutoOk")}:{" "}
               <b>{formatDateTime(schedule.lastAutoBackupAt)}</b>
               {schedule.lastAutoBackupFile && (

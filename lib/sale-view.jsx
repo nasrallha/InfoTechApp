@@ -52,6 +52,7 @@ export async function SaleViewContent({ type, params, searchParams }) {
       productionLive={productionLive}
       autoPrint={parsePrintParam(print)}
       zatcaActive={zatca.active}
+      zatcaEnabled={user.isOwner || !user.planBlocked?.includes("zatca.view")}
       canZatcaSend={can(user, "zatca.send")}
       canZatcaExport={can(user, "zatca.export")}
     />

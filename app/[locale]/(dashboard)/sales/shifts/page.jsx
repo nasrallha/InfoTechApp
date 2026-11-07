@@ -1,9 +1,10 @@
-// Server Component: ورديات الكاشير (?status=open&page=2)
+// Server Component: ورديات الكاشير (?status=open&page=2&day=2026-10-30&no=2)
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
-import { parsePage } from "@/lib/purchase-pages";
+import { parseId, parsePage } from "@/lib/purchase-pages";
+import { isDay } from "@/lib/dates";
 import { listShifts } from "@/services/shift.service";
 import { ShiftsList } from "@/components/sales/ShiftsView";
 import NoAccess from "@/components/common/NoAccess";
@@ -15,10 +16,27 @@ async function Content({ searchParams }) {
     return <NoAccess />;
   }
   await connection();
-  const { status, page } = await searchParams;
+  const { status, page, day, no } = await searchParams;
   const st = ["open", "closed"].includes(status) ? status : undefined;
-  const data = await listShifts({ user, status: st, page: parsePage(page) });
-  return <ShiftsList data={data} status={st} canPos={can(user, "sales.pos")} />;
+  // البحث: يوم العمل + ترتيب الوردية فيه (?day=2026-10-30&no=2)
+  const d = isDay(day) ? day : undefined;
+  const dayNo = d ? parseId(no) : undefined;
+  const data = await listShifts({
+    user,
+    status: st,
+    day: d,
+    dayNo,
+    page: parsePage(page),
+  });
+  return (
+    <ShiftsList
+      data={data}
+      status={st}
+      day={d}
+      dayNo={dayNo}
+      canPos={can(user, "sales.pos")}
+    />
+  );
 }
 
 export default function Page({ searchParams }) {

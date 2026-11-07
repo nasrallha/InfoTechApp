@@ -16,7 +16,7 @@
 }
 
 .rep__muted {
-  color: #555;
+  color: var(--c-text2);
   font-size: 0.9em;
 }
 
@@ -26,7 +26,7 @@
   align-items: flex-start;
   gap: 6mm;
   padding-bottom: 3mm;
-  border-bottom: 2px solid #1f4e78;
+  border-bottom: 2px solid var(--c-navy);
 }
 
 .rep__company {
@@ -44,7 +44,7 @@
 .rep__company-name {
   font-weight: 800;
   font-size: 1.3em;
-  color: #1f4e78;
+  color: var(--c-navy);
 }
 
 .rep__title-box {
@@ -54,7 +54,7 @@
 .rep__title {
   font-weight: 800;
   font-size: 1.35em;
-  color: #1f4e78;
+  color: var(--c-navy);
   margin-bottom: 1mm;
 }
 
@@ -64,8 +64,8 @@
   gap: 1.5mm 4mm;
   margin: 3mm 0;
   padding: 2.5mm 3mm;
-  background: #f3f6fa;
-  border: 1px solid #d8e1ec;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border-strong);
   border-radius: 2mm;
 }
 
@@ -78,7 +78,7 @@
 
 .rep__info span,
 .rep__summary span {
-  color: #444;
+  color: var(--c-text2);
 }
 
 .rep__summary {
@@ -89,14 +89,14 @@
 }
 
 .rep__summary > div {
-  border: 1px solid #d8e1ec;
+  border: 1px solid var(--c-border-strong);
   border-radius: 1.5mm;
   padding: 1.5mm 2.5mm;
 }
 
 .rep__summary--strong {
-  background: #1f4e78;
-  border-color: #1f4e78 !important;
+  background: var(--c-navy);
+  border-color: var(--c-navy) !important;
 }
 
 .rep__summary--strong span,
@@ -115,23 +115,23 @@
 }
 
 .rep__table th {
-  background: #1f4e78;
+  background: var(--c-navy);
   color: #fff;
   font-weight: 700;
   padding: 1.6mm 1.5mm;
-  border: 1px solid #1f4e78;
+  border: 1px solid var(--c-navy);
   text-align: start;
   white-space: nowrap;
 }
 
 .rep__table td {
   padding: 1.3mm 1.5mm;
-  border: 1px solid #dfe5ec;
+  border: 1px solid var(--c-border-strong);
   vertical-align: top;
 }
 
 .rep__table tbody tr:nth-child(even) td {
-  background: #f6f9fc;
+  background: var(--c-bg-subtle);
 }
 
 .rep__table tr {
@@ -141,8 +141,8 @@
 
 .rep__table tfoot td {
   font-weight: 800;
-  background: #e7eef7;
-  border-top: 2px solid #1f4e78;
+  background: var(--c-bg);
+  border-top: 2px solid var(--c-navy);
 }
 
 .rep__num {
@@ -154,7 +154,7 @@
   margin: 4mm 0 1mm;
   font-weight: 800;
   font-size: 1.1em;
-  color: #1f4e78;
+  color: var(--c-navy);
 }
 
 .rep__signatures {
@@ -171,7 +171,7 @@
 
 .rep__sign-line {
   margin-top: 12mm;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--c-text);
 }
 
 /* ============================================================
@@ -182,7 +182,7 @@
 }
 
 .report-kpi__title {
-  color: #666;
+  color: var(--c-muted);
   font-size: 13px;
 }
 
@@ -194,7 +194,7 @@
 }
 
 .report-kpi__hint {
-  color: #888;
+  color: var(--c-muted);
   font-size: 12px;
 }
 
@@ -215,4 +215,33 @@
   .report-kpi__value {
     font-size: 17px;
   }
+}
+
+/* تقرير اليومية - المغسلة (للعلم): كروت أرقام صغيرة */
+.laundry-daily-stat {
+  height: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  border-inline-start-width: 4px;
+  background: var(--c-surface);
+}
+.laundry-daily-stat__label {
+  font-size: 13px;
+  color: var(--c-muted);
+}
+.laundry-daily-stat__value {
+  font-size: 22px;
+  font-weight: 800;
+}
+.laundry-daily-stat__sub {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+/* سطر للعلم (رصيد الاشتراك في اليومية): باهت وبرا المجموع */
+.report-row--info > td {
+  color: var(--c-muted);
+  font-style: italic;
+  background: var(--c-bg-subtle) !important;
 }

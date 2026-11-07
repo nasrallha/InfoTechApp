@@ -3,6 +3,7 @@
 import { Alert, Button, Collapse, Result } from "antd";
 import { DatabaseOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // شاشة واضحة لما قاعدة البيانات لا تعمل: إيه المشكلة وإيه الحل
@@ -17,7 +18,7 @@ export default function DbErrorScreen({ kind = "unreachable", details }) {
     <div className="db-error">
       <Result
         status="error"
-        icon={<DatabaseOutlined style={{ color: "#cf1322" }} />}
+        icon={<DatabaseOutlined style={{ color: C.dangerText }} />}
         title={t(`${kind}.title`)}
         subTitle={t(`${kind}.text`)}
         extra={

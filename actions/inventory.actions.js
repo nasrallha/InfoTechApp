@@ -18,7 +18,16 @@ import {
   countSheetSchema,
   stockBalancesSchema,
   itemCardSchema,
+  createAdjustmentSchema,
+  updateAdjustmentSchema,
+  stockMovementReportSchema,
 } from "@/validations/inventory.schema";
+import {
+  cancelAdjustment,
+  createAdjustment,
+  updateAdjustment,
+} from "@/services/stock-adjustment.service";
+import { inStockSerials } from "@/services/serial.service";
 import {
   searchPurchaseProducts,
   browsePurchaseProducts,
@@ -26,6 +35,7 @@ import {
 import {
   getItemCard,
   getStockBalances,
+  getStockMovementReport,
   getVisibleWarehouses,
 } from "@/services/stock.service";
 import {
@@ -63,6 +73,20 @@ export async function getStockBalancesAction(input) {
   );
 }
 
+// حركة المخزون الشاملة: رصيد افتتاحي + كل أنواع الحركة + المتبقي
+export async function getStockMovementReportAction(input) {
+  return runAction(
+    stockMovementReportSchema,
+    input,
+    async ({ warehouseId, ...filters }, user) =>
+      getStockMovementReport({
+        ...filters,
+        warehouseIds: await scopedWarehouseIds(user, warehouseId),
+      }),
+    { permission: "stock.view" },
+  );
+}
+
 export async function getItemCardAction(input) {
   return runAction(
     itemCardSchema,
@@ -80,7 +104,11 @@ export async function getItemCardAction(input) {
 // اختيار الأصناف في التحويل والجرد (نفس بحث المشتريات)
 // ------------------------------------------------------------
 const assertPicker = (user) => {
-  if (!can(user, "transfers.create") && !can(user, "inventoryCounts.create")) {
+  if (
+    !can(user, "transfers.create") &&
+    !can(user, "inventoryCounts.create") &&
+    !can(user, "stockAdjustments.create")
+  ) {
     throw new AppError("Forbidden");
   }
 };
@@ -170,5 +198,45 @@ export async function postCountAction(id) {
 export async function deleteCountAction(id) {
   return runAction(idField, id, (d, user) => deleteCount(d, user), {
     permission: "inventoryCounts.delete",
+  });
+}
+
+// ------------------------------------------------------------
+// التوالف والزيادات
+// ------------------------------------------------------------
+export async function createAdjustmentAction(input) {
+  return runAction(
+    createAdjustmentSchema,
+    input,
+    (d, user) => createAdjustment(d, user),
+    { permission: "stockAdjustments.create" },
+  );
+}
+
+export async function updateAdjustmentAction(input) {
+  return runAction(
+    updateAdjustmentSchema,
+    input,
+    (d, user) => updateAdjustment(d, user),
+    { permission: "stockAdjustments.update", refresh: true },
+  );
+}
+
+// القطع اللي في المحل لصنف (اختيار أرقام التالف)
+export async function inStockSerialsAction(productId) {
+  return runAction(idField, productId, (id, user) => {
+    if (
+      !can(user, "stockAdjustments.create") &&
+      !can(user, "stockAdjustments.update")
+    )
+      throw new AppError("Forbidden");
+    return inStockSerials(id);
+  });
+}
+
+export async function cancelAdjustmentAction(id) {
+  return runAction(idField, id, (d, user) => cancelAdjustment(d, user), {
+    permission: "stockAdjustments.cancel",
+    refresh: true,
   });
 }

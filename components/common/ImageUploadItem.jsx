@@ -1,6 +1,6 @@
 "use client";
 
-import { UploadOutlined } from "@ant-design/icons";
+import { CameraOutlined, UploadOutlined } from "@ant-design/icons";
 import { Button, Form, Upload } from "antd";
 import { message } from "@/components/common/feedback";
 import { useTranslations } from "next-intl";
@@ -14,7 +14,8 @@ const normFile = (e) => (Array.isArray(e) ? e : e?.fileList);
 //   - ملف جديد: فيه originFileObj (الملف الحقيقي الذي نرسله للسيرفر)
 //   - صورة موجودة سابقاً: فيها url فقط
 //   - قائمة فاضية: لا توجد صورة
-export default function ImageUploadItem({ name = "image", label }) {
+// card: مربع صورة صغير (النوافذ المضغوطة زي صنف المنيو)
+export default function ImageUploadItem({ name = "image", label, card = false }) {
   const tButtons = useTranslations("Buttons");
   const tAlerts = useTranslations("Alerts");
 
@@ -42,12 +43,20 @@ export default function ImageUploadItem({ name = "image", label }) {
       getValueFromEvent={normFile}
     >
       <Upload
-        listType="picture"
+        listType={card ? "picture-card" : "picture"}
         maxCount={1}
         beforeUpload={beforeUpload}
         accept=".png,.jpg,.jpeg,.webp"
+        className={card ? "image-upload-card" : undefined}
       >
-        <Button icon={<UploadOutlined />}>{tButtons("Upload")}</Button>
+        {card ? (
+          <div className="image-upload-card__btn">
+            <CameraOutlined />
+            <span>{tButtons("Upload")}</span>
+          </div>
+        ) : (
+          <Button icon={<UploadOutlined />}>{tButtons("Upload")}</Button>
+        )}
       </Upload>
     </Form.Item>
   );

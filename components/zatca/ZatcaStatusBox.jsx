@@ -25,6 +25,7 @@ import {
   showZatcaError,
   showZatcaResult,
 } from "./zatcaUi";
+import { C } from "@/lib/theme";
 import "./zatca.css";
 
 // ============================================================
@@ -145,7 +146,7 @@ export default function ZatcaStatusBox({ sale, canSend, canExport, renderA4 }) {
               </Button>
               <Button
                 size="small"
-                icon={<FilePdfOutlined style={{ color: "#c0392b" }} />}
+                icon={<FilePdfOutlined style={{ color: C.dangerText }} />}
                 loading={busy === "pdf"}
                 onClick={downloadPdfA3}
               >

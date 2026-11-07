@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
 import { calcInvoice, round } from "@/lib/invoice-calc";
 import { dayOf, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
@@ -107,6 +108,15 @@ async function prepareQuotation(data, user, existing = null) {
       taxMode: product.priceIncludesTax ? "inclusive" : "exclusive",
     };
   });
+  // الوحدة متقبلش كسور (حبة) ← الكمية لازم رقم صحيح
+  await assertUnitQty(
+    items.map((it) => ({
+      productId: it.product.id,
+      unitId: it.unitId,
+      qty: it.qty,
+      factor: it.factor,
+    })),
+  );
 
   // العروض الشغالة يوم العرض (السيرفر يحسبها بنفسه)
   const promos = await getActivePromotions(

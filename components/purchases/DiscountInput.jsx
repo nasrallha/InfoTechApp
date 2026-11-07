@@ -5,9 +5,10 @@ import { TagOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
+import { C } from "@/lib/theme";
 
 // لون الخصم في كل الشاشات
-export const DISCOUNT_COLOR = "#cf1322";
+export const DISCOUNT_COLOR = C.dangerText;
 
 // ============================================================
 // خصم: صندوق بخلفية حمراء فاتحة فيه

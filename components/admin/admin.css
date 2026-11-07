@@ -124,7 +124,7 @@
   text-align: left;
 }
 .folder-tree .anticon-folder {
-  color: #d4a017;
+  color: var(--c-warning);
 }
 
 /* زرار تصفح مجلد الحفظ: واضح ومميز */
@@ -134,14 +134,14 @@
   height: 46px;
   font-size: 15px;
   font-weight: 600;
-  color: #0958d9;
-  background: #e6f4ff;
-  border: 1px solid #91caff;
+  color: var(--c-info-text);
+  background: var(--c-info-soft);
+  border: 1px solid var(--c-info-border);
 }
 .backup-browse-btn.ant-btn:not(:disabled):hover {
-  color: #0958d9;
-  background: #d6ebff;
-  border-color: #4096ff;
+  color: var(--c-info-text);
+  background: var(--c-info-border);
+  border-color: var(--c-info);
 }
 .backup-browse-btn .anticon {
   font-size: 18px;

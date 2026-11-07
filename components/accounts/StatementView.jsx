@@ -22,6 +22,7 @@ import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCan } from "@/components/auth/AuthProvider";
 import DayPicker from "@/components/common/DayPicker";
 import ExportButtons from "@/components/reports/ExportButtons";
+import { C } from "@/lib/theme";
 
 const KIND_COLOR = {
   invoice: "blue",
@@ -322,7 +323,7 @@ export default function StatementView({
                   styles={{
                     content: {
                       fontWeight: 800,
-                      color: statement.closing > 0 ? "#c0392b" : "#1e8449",
+                      color: statement.closing > 0 ? C.dangerText : C.successText,
                     },
                   }}
                 />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { qtyText } from "@/lib/unit-qty";
 import { qrDataUrl } from "@/lib/qr";
 import { imageUrl } from "@/lib/image";
 import { zatcaQrValue } from "@/lib/zatca";
@@ -13,16 +14,18 @@ export const PAPER_WIDTH = { A4: 210, "80mm": 80, "58mm": 58 };
 // المستند بيتعمل على العرض ده وبيتوسّط في الورقة، فمفيش كلام بيتقص من الجنب
 export const PRINT_AREA = { A4: 210, "80mm": 72, "58mm": 48 };
 
-// حجم الخط الأساسي (pt) حسب الورق والحجم المختار
-const BASE_FONT = {
-  thermal: { small: 7.5, normal: 8.5, large: 10 },
+// حجم الخط الأساسي (pt) حسب الورق والحجم المختار - لكل المستندات المطبوعة
+// الكاشير أكبر شوية: 72mm بيستحمل 9.5pt، والخط الصغير بيطلع متقطع في الحرارية
+export const BASE_FONT = {
+  // الكاشير: أصغر نص درجة عشان الفاتورة ماتطولش (العادي 9pt)
+  thermal: { small: 8, normal: 9, large: 10.5 },
   A4: { small: 9, normal: 10, large: 11.5 },
 };
 
 // ارتفاع الشعار بالمللي
 const LOGO_HEIGHT = { small: 12, medium: 18, large: 26 };
 // الكاشير: الشعار أكبر (الطابعة الحرارية بتضيّع التفاصيل الصغيرة)
-const LOGO_THERMAL = { small: 16, medium: 24, large: 32 };
+const LOGO_THERMAL = { small: 12, medium: 18, large: 24 };
 
 // ============================================================
 // الفاتورة كما تُطبع (نفس المكون للمعاينة والطباعة الفعلية)
@@ -38,7 +41,7 @@ export default function InvoiceView({ settings, company, branch, invoice }) {
   const lang = settings.language; // ar / en / both
   const dir = lang === "en" ? "ltr" : "rtl";
   const width = PRINT_AREA[settings.paperSize] ?? 72;
-  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 8.5;
+  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
 
   // نص حسب اللغة: عربي / إنجليزي / الاثنين
   const L = (ar, en) =>
@@ -272,7 +275,7 @@ export default function InvoiceView({ settings, company, branch, invoice }) {
                     </div>
                   )}
                 </td>
-                <td>{l.qty}</td>
+                <td>{qtyText(l.qty)}</td>
                 {isA4 && settings.showUnit && <td>{N(l.unitAr, l.unitEn)}</td>}
                 <td>{money(l.price)}</td>
                 {showDiscount && <td>{money(l.discount)}</td>}

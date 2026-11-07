@@ -40,6 +40,7 @@ import {
   paymentStatus,
   PAYMENT_STATUS_COLOR,
 } from "@/lib/doc-number";
+import { listSep } from "@/lib/list-sep";
 
 // حالة الإرجاع لفاتورة شراء: لا يوجد / جزئي / كامل
 export function returnStatus(items) {
@@ -66,6 +67,7 @@ export default function PurchaseDetails({
   const router = useRouter();
   const tAlerts = useTranslations("Alerts");
   const locale = useLocale();
+  const tSerial = useTranslations("Serials");
   const t = useTranslations("Purchases");
   const tTax = useTranslations("TaxModes");
   const { amount: money } = useCurrency();
@@ -120,6 +122,19 @@ export default function PurchaseDetails({
             <bdi>{l.code}</bdi>
           </div>
           <LineNoteText note={l.note} />
+          {/* الأرقام التسلسلية: المسجلة مع الشراء / الراجعة للمورد */}
+          {(isReturn ? l.returnedSerials : l.serials)?.length > 0 && (
+            <div className="pur-line__code">
+              {tSerial("ModalTitle")}:{" "}
+              <bdi>
+                {(isReturn ? l.returnedSerials : l.serials)
+                  .map((x) =>
+                    x.serial2 ? `${x.serial} / ${x.serial2}` : x.serial,
+                  )
+                  .join(listSep(locale))}
+              </bdi>
+            </div>
+          )}
         </div>
       ),
     },

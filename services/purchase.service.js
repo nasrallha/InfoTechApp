@@ -3,6 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
 import { AppError } from "@/lib/errors";
+import { assertUnitQty } from "./unit.service";
+import {
+  asModel,
+  collapseModels,
+  modelFields,
+  modelHeadsWhere,
+  variantsEnabled,
+} from "./model-list";
+import { isWholeQty } from "@/lib/unit-qty";
 import { can } from "@/lib/permissions";
 import {
   calcInvoice,
@@ -28,6 +37,17 @@ import {
 import { getSystemSettings } from "./system-settings.service";
 import { getBaseCurrency } from "./currency.service";
 import { assertNoCodesInNumbers } from "./scan-guard.service";
+import {
+  attachPurchaseReturnSerials,
+  attachPurchaseSerials,
+  dropUnusedPurchaseSerials,
+  preparePurchaseReturnSerials,
+  preparePurchaseSerials,
+  purchaseSerialIds,
+  restorePurchaseReturnSerials,
+  serialContext,
+  stockSerialsByPurchaseItem,
+} from "./serial.service";
 
 // ============================================================
 // المشتريات: فاتورة الشراء ومرتجع الشراء
@@ -240,6 +260,7 @@ async function preparePurchase(data, user, existing = null) {
       enName: true,
       taxRate: true,
       baseUnitId: true,
+      serialCount: true,
       productUnits: {
         select: { id: true, unitId: true, conversionFactor: true },
       },
@@ -267,6 +288,20 @@ async function preparePurchase(data, user, existing = null) {
     }
     return { ...it, product, factor, taxRate: n(product.taxRate) };
   });
+  // الوحدة متقبلش كسور (حبة) ← الكمية لازم رقم صحيح
+  await assertUnitQty(
+    items.map((it) => ({
+      productId: it.product.id,
+      unitId: it.unitId,
+      qty: it.qty,
+      factor: it.factor,
+    })),
+  );
+
+  // ---------- الأرقام التسلسلية (اختياري في الشراء) ----------
+  const serialLines = preparePurchaseSerials(items, await serialContext()).map(
+    (x, i) => ({ ...x, productId: items[i].product.id }),
+  );
 
   // ---------- الحساب ----------
   const { lines, totals } = calcInvoice({
@@ -329,7 +364,7 @@ async function preparePurchase(data, user, existing = null) {
     totalAmount: l.total,
   }));
 
-  return { header, itemRows, payments, productIds };
+  return { header, itemRows, payments, productIds, serialLines };
 }
 
 // ------------------------------------------------------------
@@ -391,15 +426,13 @@ export function createPurchase(data, user) {
 }
 
 async function createPurchaseNow(data, user) {
-  const { header, itemRows, payments, productIds } = await preparePurchase(
-    data,
-    user,
-  );
+  const { header, itemRows, payments, productIds, serialLines } =
+    await preparePurchase(data, user);
 
   try {
     return await runTx(async (tx) => {
       const number = await nextNumber(tx, PURCHASE);
-      const created = await tx.purchase.create({
+      const { items: createdItems, ...created } = await tx.purchase.create({
         data: {
           ...header,
           type: PURCHASE,
@@ -410,8 +443,18 @@ async function createPurchaseNow(data, user) {
           items: { create: itemRows },
           payments: { create: payments },
         },
-        select: { id: true, number: true },
+        select: {
+          id: true,
+          number: true,
+          items: { orderBy: { id: "asc" }, select: { id: true } },
+        },
       });
+      // الأرقام التسلسلية المسجلة (القطع "في المحل")
+      await attachPurchaseSerials(
+        tx,
+        createdItems.map((x) => x.id),
+        serialLines,
+      );
       // البضاعة تدخل المستودع
       await applyMovements(
         tx,
@@ -453,11 +496,11 @@ export async function updatePurchase({ id, ...data }, user) {
   if (!existing) throw new AppError("PurchaseNotFound");
   const oldProductIds = existing.items.map((i) => i.productId);
 
-  const { header, itemRows, payments, productIds } = await preparePurchase(
-    data,
-    user,
-    { ...existing, productIds: oldProductIds },
-  );
+  const { header, itemRows, payments, productIds, serialLines } =
+    await preparePurchase(data, user, {
+      ...existing,
+      productIds: oldProductIds,
+    });
   const allowNegative = await isNegativeStockAllowed();
 
   try {
@@ -473,15 +516,28 @@ export async function updatePurchase({ id, ...data }, user) {
         throw new AppError("InvoiceHasSettlements");
       }
 
-      const updated = await tx.purchase.update({
+      // أرقام الفاتورة قبل ما السطور تتبدل
+      const oldSerials = await purchaseSerialIds(tx, id);
+      const { items: newItems, ...updated } = await tx.purchase.update({
         where: { id },
         data: {
           ...header,
           items: { deleteMany: {}, create: itemRows },
           payments: { deleteMany: {}, create: payments },
         },
-        select: { id: true, number: true },
+        select: {
+          id: true,
+          number: true,
+          items: { orderBy: { id: "asc" }, select: { id: true } },
+        },
       });
+      const kept = await attachPurchaseSerials(
+        tx,
+        newItems.map((x) => x.id),
+        serialLines,
+        oldSerials,
+      );
+      await dropUnusedPurchaseSerials(tx, oldSerials, kept);
       // المخزون: نلغي حركات الفاتورة القديمة ونسجل الجديدة
       // (لو الكمية القديمة اتباعت والبيع بالسالب مقفول ← يُرفض التعديل)
       await reverseMovements(tx, "purchase", id, { allowNegative });
@@ -531,8 +587,11 @@ export async function deletePurchase(id, user) {
 
     // المخزون: البضاعة تخرج من المستودع (لو اتباعت والسالب مقفول ← يُرفض)
     await reverseMovements(tx, "purchase", id, { allowNegative });
+    // الأرقام التسلسلية اللي مالهاش حركة بيع بتتمسح معاها
+    const serialIds = await purchaseSerialIds(tx, id);
     // الأصناف والمدفوعات تُحذف معها (Cascade)
     await tx.purchase.delete({ where: { id } });
+    await dropUnusedPurchaseSerials(tx, serialIds);
     await refreshLastCost(
       tx,
       purchase.items.map((i) => i.productId),
@@ -555,6 +614,8 @@ export async function deletePurchaseReturn(id, user) {
       },
     });
     if (!ret) throw new AppError("PurchaseNotFound");
+    // القطع اللي رجعت للمورد ترجع "في المحل"
+    await restorePurchaseReturnSerials(tx, ret.id);
 
     for (const it of ret.items) {
       if (!it.returnOfItemId) continue;
@@ -588,6 +649,9 @@ export async function getPurchaseForEdit(id, user) {
     items: purchase.items.map((i) => ({
       ...i,
       productTaxRate: byId.get(i.productId)?.taxRate ?? i.taxRate,
+      serialCount: byId.get(i.productId)?.serialCount ?? 0,
+      serialLabel1: byId.get(i.productId)?.serialLabel1 ?? null,
+      serialLabel2: byId.get(i.productId)?.serialLabel2 ?? null,
       units: byId.get(i.productId)?.units ?? [
         { unit: i.unit, factor: i.factor, cost: 0, barcode: null },
       ],
@@ -694,6 +758,28 @@ async function createPurchaseReturnNow(data, user) {
       return { o, ...amounts };
     });
     const totals = totalsOf(lines, decimals);
+    // الوحدة متقبلش كسور ← كمية المرتجع رقم صحيح
+    // (سطر قديم اتباع بكسر قبل قفل الكسور: بيرجع عادي)
+    await assertUnitQty(
+      lines.map((l) => ({
+        productId: l.o.productId,
+        unitId: l.o.unitId,
+        qty: l.qty,
+        factor: n(l.o.factor),
+        skip: !isWholeQty(n(l.o.qty)),
+      })),
+      tx,
+    );
+
+    // الأرقام التسلسلية للقطع الراجعة للمورد (اختياري)
+    const returnSerials = await preparePurchaseReturnSerials(
+      tx,
+      data.items.map((it, i) => ({
+        o: lines[i].o,
+        baseQty: it.qty * n(lines[i].o.factor),
+        serialIds: it.serialIds,
+      })),
+    );
 
     const { rows: payments, paid } = await preparePayments(
       tx,
@@ -705,7 +791,7 @@ async function createPurchaseReturnNow(data, user) {
     // 4) الحفظ
     const number = await nextNumber(tx, PURCHASE_RETURN);
     const date = dayToDateTime(day);
-    const created = await tx.purchase.create({
+    const { items: returnItems, ...created } = await tx.purchase.create({
       data: {
         type: PURCHASE_RETURN,
         number,
@@ -757,8 +843,17 @@ async function createPurchaseReturnNow(data, user) {
         },
         payments: { create: payments },
       },
-      select: { id: true, number: true },
+      select: {
+        id: true,
+        number: true,
+        items: { orderBy: { id: "asc" }, select: { id: true } },
+      },
     });
+    await attachPurchaseReturnSerials(
+      tx,
+      returnItems.map((x) => x.id),
+      returnSerials,
+    );
 
     // 5) المخزون: البضاعة المرتجعة تخرج من المستودع
     //    (لو رصيدها اتباع والبيع بالسالب مقفول ← يُرفض المرتجع)
@@ -827,7 +922,9 @@ async function returnedSums(db, itemIds) {
 // القراءة
 // ============================================================
 
-const unitSelect = { select: { id: true, arName: true, enName: true } };
+const unitSelect = {
+  select: { id: true, arName: true, enName: true, allowDecimals: true },
+};
 
 // Decimal ← رقم في كل الحقول المالية
 function toPurchaseDTO(p) {
@@ -1015,6 +1112,15 @@ export async function getPurchase(id, type, user) {
           taxAmount: true,
           totalAmount: true,
           returnedQty: true,
+          // الأرقام التسلسلية المسجلة مع الشراء / الراجعة للمورد
+          serials: {
+            orderBy: { id: "asc" },
+            select: { id: true, serial: true, serial2: true, isUsed: true },
+          },
+          returnedSerials: {
+            orderBy: { id: "asc" },
+            select: { id: true, serial: true, serial2: true, isUsed: true },
+          },
         },
       },
       payments: {
@@ -1065,15 +1171,18 @@ export async function getPurchaseForReturn(id, user) {
   const purchase = await getPurchase(id, PURCHASE, user);
   if (!purchase) return null;
 
-  const previous = await returnedSums(
-    prisma,
-    purchase.items.map((i) => i.id),
-  );
+  const ids = purchase.items.map((i) => i.id);
+  const [previous, stockSerials] = await Promise.all([
+    returnedSums(prisma, ids),
+    stockSerialsByPurchaseItem(ids),
+  ]);
 
   return {
     ...purchase,
     items: purchase.items.map((i) => ({
       ...i,
+      // القطع اللي لسه في المحل (تتختار في المرتجع)
+      stockSerials: stockSerials.get(i.id) ?? [],
       available: qtyMinus(i.qty, i.returnedQty),
       returned: previous.get(i.id) ?? {
         qty: 0,
@@ -1108,6 +1217,14 @@ const pickerSelect = {
   enName: true,
   cost: true,
   taxRate: true,
+  // الأرقام التسلسلية (وحدة serials)
+  serialCount: true,
+  serialLabel1: true,
+  serialLabel2: true,
+  // الخدمة (مالهاش مخزون): التوالف والزيادات بترفضها
+  isService: true,
+  // المقاسات والألوان (وحدة variants)
+  ...modelFields,
   category: { select: { id: true, arName: true, enName: true } },
   baseUnit: unitSelect,
   productUnits: {
@@ -1140,8 +1257,16 @@ function toPickerProduct(p, q = "") {
     enName: p.enName,
     taxRate: n(p.taxRate),
     category: p.category,
+    serialCount: p.serialCount ?? 0,
+    serialLabel1: p.serialLabel1 ?? null,
+    serialLabel2: p.serialLabel2 ?? null,
+    isService: Boolean(p.isService),
     units,
     exactUnitId: exact?.unit.id ?? null,
+    modelId: p.modelId ?? null,
+    size: p.size ?? null,
+    color: p.color ?? null,
+    colorHex: p.colorHex ?? null,
   };
 }
 
@@ -1155,8 +1280,19 @@ const productSearchWhere = (q) => ({
   ],
 });
 
+// أصناف بأرقامها بنفس شكل شاشة الاختيار (تعديل مستند محفوظ)
+export async function pickerProductsByIds(ids) {
+  if (!ids.length) return [];
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...new Set(ids)] } },
+    select: pickerSelect,
+  });
+  return products.map((p) => toPickerProduct(p));
+}
+
 // بحث سريع أثناء الكتابة أو بالماسح (أول 20)
-export async function searchPurchaseProducts(query) {
+// models: الموديل مرة واحدة ← شبكة المقاسات بالكميات (فاتورة الشراء بس)
+export async function searchPurchaseProducts(query, { models = false } = {}) {
   const q = query.trim();
   if (!q) return [];
 
@@ -1167,17 +1303,18 @@ export async function searchPurchaseProducts(query) {
     select: pickerSelect,
   });
 
-  return products.map((p) => toPickerProduct(p, q));
+  const rows = products.map((p) => toPickerProduct(p, q));
+  return models && (await variantsEnabled())
+    ? collapseModels(products, rows)
+    : rows;
 }
 
 // تصفح الأصناف (نافذة الاختيار): بحث + قسم + صفحات
 // بدون بحث: كل الأصناف النشطة بالترتيب الأبجدي
-export async function browsePurchaseProducts({
-  q = "",
-  categoryId,
-  page = 1,
-  pageSize = 20,
-}) {
+export async function browsePurchaseProducts(
+  { q = "", categoryId, page = 1, pageSize = 20 },
+  { models = false } = {},
+) {
   const query = q.trim();
   const conditions = [];
   if (query) conditions.push(productSearchWhere(query));
@@ -1187,6 +1324,8 @@ export async function browsePurchaseProducts({
       OR: [{ categoryId }, { category: { parentId: categoryId } }],
     });
   }
+  const variantsOn = models && (await variantsEnabled());
+  if (variantsOn) conditions.push(await modelHeadsWhere());
   const where = {
     isActive: true,
     ...(conditions.length ? { AND: conditions } : {}),
@@ -1207,8 +1346,28 @@ export async function browsePurchaseProducts({
     total,
     page,
     pageSize,
-    rows: products.map((p) => toPickerProduct(p)),
+    rows: products.map((p) => {
+      const row = toPickerProduct(p);
+      return variantsOn && p.modelId ? asModel(row, p.model) : row;
+    }),
   };
+}
+
+// فاتورة الشراء: كل مقاسات الموديل (شبكة الكميات)
+export async function purchaseModelVariants(modelId) {
+  const [model, rows] = await Promise.all([
+    prisma.productModel.findUnique({
+      where: { id: modelId },
+      select: { id: true, arName: true, enName: true },
+    }),
+    prisma.product.findMany({
+      where: { modelId, isActive: true },
+      orderBy: { id: "asc" },
+      select: pickerSelect,
+    }),
+  ]);
+  if (!model) throw new AppError("NotFound");
+  return { model, variants: rows.map((p) => toPickerProduct(p)) };
 }
 
 // الأقسام النشطة (فلتر نافذة الأصناف)

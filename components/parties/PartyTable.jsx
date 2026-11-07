@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Table, Space, Button, Tag, Popconfirm, Flex } from "antd";
+import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { message } from "@/components/common/feedback";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
 import { useLocale, useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
 import FormModal from "@/components/common/FormModal";
@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from "@/components/common/tableFilters";
 import PartyForm from "./PartyForm";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 const formatMoney = (v) =>
@@ -166,7 +167,7 @@ const PartyTable = ({ parties = [], config, onSelectionChange }) => {
                 color="danger"
                 variant="outlined"
                 size="small"
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
                 loading={deleting}
               >
                 {tButtons("Delete")} ({selectedRows.length})
@@ -182,9 +183,9 @@ const PartyTable = ({ parties = [], config, onSelectionChange }) => {
         <Space size="middle">
           {canEdit && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => {
                 setSelected(record);
                 setEditModalOpen(true);
@@ -203,10 +204,10 @@ const PartyTable = ({ parties = [], config, onSelectionChange }) => {
               cancelText={tButtons("No")}
             >
               <Tag
-                color="#EA2027"
+                color={C.danger}
                 variant="filled"
                 style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
               >
                 {tButtons("Delete")}
               </Tag>

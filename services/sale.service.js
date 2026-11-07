@@ -1,8 +1,12 @@
 import "server-only";
+import { linkRestaurantSale } from "./restaurant-link.service";
+import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
 import { AppError } from "@/lib/errors";
+import { assertUnitQty } from "./unit.service";
+import { isWholeQty } from "@/lib/unit-qty";
 import { can } from "@/lib/permissions";
 import {
   calcInvoice,
@@ -11,7 +15,7 @@ import {
   round,
   totalsOf,
 } from "@/lib/invoice-calc";
-import { dayOf, dayToDateTime, today } from "@/lib/dates";
+import { dayOf, dayToDateTime, dayToDbDate, today } from "@/lib/dates";
 import { parseDocNo, saleDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
@@ -25,10 +29,38 @@ import {
 } from "./sale-catalog.service";
 import { getBaseCurrency } from "./currency.service";
 import { assertNoCodesInNumbers } from "./scan-guard.service";
-import { getActivePromotions } from "./promotion.service";
+import { getActivePromotions, loyaltyStatus } from "./promotion.service";
 import { applyPromotions } from "@/lib/promotions";
 import { EXPORT_TAX, buyerMissing, exportBuyerMissing } from "@/lib/zatca-tax";
 import { isZatcaActive } from "./zatca.service";
+import {
+  attachReturnSerials,
+  attachSaleSerials,
+  prepareReturnSerials,
+  prepareSaleSerials,
+  releaseSaleSerials,
+  restoreReturnSerials,
+  serialContext,
+  soldSerialsByItem,
+} from "./serial.service";
+import { claimPrices, linkClaimSale } from "./warranty-claim.service";
+import { prepareSaleJobs } from "./technician.service";
+import { nextChange, vehicleForSale } from "./vehicle.service";
+import { linkBookingSale } from "./booking.service";
+import {
+  applyLaundryReturn,
+  laundryReturnPlan,
+  linkLaundrySale,
+} from "./laundry-link.service";
+import {
+  applySaleFollowUps,
+  deleteSaleFollowUps,
+  prepareRenewals,
+  prepareSaleFollowUps,
+  resumeAfterReturnDelete,
+  stopForReturn,
+  syncSaleFollowUps,
+} from "./follow-up.service";
 import {
   assertNotProductionLive,
   assertNotSigned,
@@ -153,7 +185,7 @@ async function resolveShift(user, required) {
 // تجهيز فاتورة بيع (إضافة وتعديل): التحقق من كل شيء وحساب المبالغ
 // existing: الفاتورة الحالية في التعديل
 // ============================================================
-async function prepareSale(data, user, existing = null) {
+async function prepareSale(data, user, existing = null, { preview = false } = {}) {
   // باركود اتكتب مكان الكمية/السعر (رقم من 7 أرقام أو أكتر) ← مفيش حفظ
   assertNoCodesInNumbers(data.items);
   const [currency, ctx] = await Promise.all([
@@ -229,6 +261,10 @@ async function prepareSale(data, user, existing = null) {
     }
   }
 
+  // ---------- السيارة (وحدة vehicles - الورش) ----------
+  const vehicle = await vehicleForSale(data.vehicleId ?? null);
+  const odometer = vehicle ? (data.odometer ?? null) : null;
+
   // ---------- التاريخ ----------
   const now = today();
   let date;
@@ -261,12 +297,35 @@ async function prepareSale(data, user, existing = null) {
       throw new AppError("QuotationConverted");
     }
   }
+  // فاتورة طلب صيانة (قطع ومصنعية): أسعار الطلب مسموحة زي عرض السعر
+  const claim =
+    data.claimId && !existing ? await claimPrices(data.claimId, user) : null;
+  const claimedPrice = (productId, unitId, price) =>
+    claim?.items.some(
+      (q) =>
+        q.productId === productId &&
+        q.unitId === unitId &&
+        Math.abs(n(q.price) - price) < EPS,
+    );
   const quotedPrice = (productId, unitId, price) =>
     quotation?.items.some(
       (q) =>
         q.productId === productId &&
         q.unitId === unitId &&
         Math.abs(n(q.price) - price) < EPS,
+    );
+  // فاتورة طلبات المغسلة: السعر من قائمة أسعار المغسلة وقت الاستلام
+  // (laundryPrices بيحطها السيرفر من الطلبات، والشاشة ما تقدرش تبعتها:
+  //  createSaleSchema بيشيل أي حقل مش معروف)
+  const laundryPriced = (productId, price) =>
+    data.laundryPrices?.some(
+      (p) => p.productId === productId && Math.abs(p.price - price) < EPS,
+    );
+  // المطعم: السعر محسوب في السيرفر (الحجم + الإضافات + سعر التطبيق + الرسوم)
+  // (restaurantPrices بيحطها السيرفر بس، زي laundryPrices)
+  const restaurantPriced = (productId, price) =>
+    data.restaurantPrices?.some(
+      (p) => p.productId === productId && Math.abs(p.price - price) < EPS,
     );
 
   // ---------- الأصناف ----------
@@ -307,6 +366,9 @@ async function prepareSale(data, user, existing = null) {
       Math.abs(price - unit.price) < EPS ||
       canChangePrice ||
       quotedPrice(product.id, unit.unit.id, price) ||
+      claimedPrice(product.id, unit.unit.id, price) ||
+      laundryPriced(product.id, price) ||
+      restaurantPriced(product.id, price) ||
       Math.abs((oldPrice.get(`${product.id}:${unit.unit.id}`) ?? -1) - price) <
         EPS;
     if (!allowedPrice) {
@@ -331,18 +393,58 @@ async function prepareSale(data, user, existing = null) {
           : "exclusive",
     };
   });
+  // الوحدة متقبلش كسور (حبة) ← الكمية لازم رقم صحيح
+  await assertUnitQty(
+    items.map((it) => ({
+      productId: it.product.id,
+      unitId: it.unitId,
+      qty: it.qty,
+      factor: it.factor,
+    })),
+  );
+
+  // ---------- الأرقام التسلسلية والضمان (وحدة serials) ----------
+  const serialLines = prepareSaleSerials(items, await serialContext());
+  // ---------- الفني والموعد لسطور الخدمات (وحدة technicians) ----------
+  const jobLines = await prepareSaleJobs(items);
+  // ---------- المتابعة الدورية (وحدة followUps) ----------
+  const followUpLines = await prepareSaleFollowUps(
+    data.items,
+    customer?.id ?? null,
+  );
+  // التجديد بفاتورة الصيانة: الفاتورة الجديدة بس
+  const renewIds = existing
+    ? []
+    : await prepareRenewals(data.renewFollowUpIds, customer?.id ?? null);
+  // تسجيل في سجل المتابعة بس (الميعاد زي ما هو)
+  const logIds = existing
+    ? []
+    : (await prepareRenewals(data.logFollowUpIds, customer?.id ?? null)).filter(
+        (id) => !renewIds.includes(id),
+      );
 
   // ---------- العروض الشغالة يوم الفاتورة (السيرفر يحسبها بنفسه) ----------
   const promos = await getActivePromotions(
     existing?.branchId ?? user.branch.id,
     dayOf(date),
   );
+  // عروض الولاء: مرات العميل قبل الفاتورة دي (من غير الفاتورة اللي بتتعدل)
+  const loyalty = customer
+    ? await loyaltyStatus(customer.id, promos, { excludeSaleId: existing?.id })
+    : null;
   const applied = applyPromotions({
-    items: items.map((it) => ({ ...it, categoryId: it.product.categoryId })),
+    items: items.map((it) => ({
+      ...it,
+      categoryId: it.product.categoryId,
+      isService: Boolean(it.product.isService),
+      // المطعم: سطور الرسوم مالهاش نصيب في خصم الفاتورة (السيرفر بس بيحددها)
+      noInvoiceDiscount: Boolean(data.noDiscountProductIds?.includes(it.product.id)),
+    })),
     promos,
     discountType: data.discountType,
     discountValue: data.discountValue,
     decimals,
+    loyalty,
   });
 
   // ---------- الخصم اليدوي بصلاحية (خصم العروض لا يحتاج صلاحية) ----------
@@ -367,6 +469,8 @@ async function prepareSale(data, user, existing = null) {
     // بنقارن سعر الوحدة اللي اتباعت (بعد الخصم ومن غير ضريبة) بتكلفة نفس الوحدة
     const below = lines.filter((l) => {
       const cost = lineUnitCost(l);
+      // المرة المجانية في عرض الولاء: مسموحة (العرض نفسه متحدد من الإدارة)
+      if (l.loyaltyQty) return false;
       return l.qty > 0 && cost > 0 && l.net / l.qty < cost - EPS;
     });
     if (below.length) {
@@ -387,7 +491,8 @@ async function prepareSale(data, user, existing = null) {
     cashPaid,
   } = await preparePayments(prisma, data.payments, totals.total, decimals);
   const remaining = round(totals.total - paid, decimals);
-  if (remaining > EPS) {
+  // المعاينة (previewSaleTotals): لسه مفيش دفع، فالآجل ما يتفحصش
+  if (remaining > EPS && !preview) {
     if (!customer) throw new AppError("CustomerRequiredForCredit");
     if (!can(user, "sales.credit")) throw new AppError("CreditNotAllowed");
   }
@@ -397,10 +502,17 @@ async function prepareSale(data, user, existing = null) {
     : cashPaid;
   const change = round(Math.max(0, tendered - cashPaid), decimals);
 
-  const itemRows = lines.map((l) => {
+  const itemRows = lines.map((l, i) => {
     const baseQty = round(l.qty * l.factor, 4);
     const costAmount = round(l.qty * lineUnitCost(l), 4);
     return {
+      ...jobLines[i],
+      // الغيار الجاي (زيت...) لو الفاتورة على سيارة
+      ...(vehicle
+        ? nextChange(l.product, { odometer, date }, data.items[i].change)
+        : { nextKm: null, nextDate: null }),
+      warrantyMonths: serialLines[i].warrantyMonths,
+      warrantyType: serialLines[i].warrantyType,
       productId: l.product.id,
       code: l.product.code,
       arName: l.product.arName,
@@ -438,6 +550,7 @@ async function prepareSale(data, user, existing = null) {
           : round(n(l.product.cost), 4),
       costAmount,
       promotionId: l.promotionId ?? null,
+      loyaltyQty: l.loyaltyQty ?? null,
     };
   });
 
@@ -447,6 +560,10 @@ async function prepareSale(data, user, existing = null) {
     customerArName: customer?.arName ?? null,
     customerEnName: customer?.enName ?? null,
     customerTaxNo: customer?.taxNo ?? null,
+    vehicleId: vehicle?.id ?? null,
+    vehiclePlate: vehicle?.plateNo ?? null,
+    vehicleType: vehicle?.vehicleType ?? null,
+    odometer,
     isExport,
     date,
     discountType: applied.discountType,
@@ -469,13 +586,36 @@ async function prepareSale(data, user, existing = null) {
     notes: data.notes,
   };
 
-  return { header, itemRows, payments, quotation };
+  return {
+    header,
+    itemRows,
+    payments,
+    quotation,
+    claim,
+    followUpLines,
+    renewIds,
+    logIds,
+    serialLines: serialLines.map((x, i) => ({
+      ...x,
+      productId: itemRows[i].productId,
+    })),
+  };
 }
 
 // ============================================================
 // فاتورة بيع جديدة
 // ============================================================
 // بصمة الحفظ: نفس requestId مرتين ← نفس المستند (lib/idempotency)
+// إجمالي الفاتورة قبل الحفظ (بنفس حساب الحفظ: العروض والخصم والضريبة)
+// للمغسلة: خصم مكافأة الاشتراك ومبلغ الرصيد لازم يطابقوا الفاتورة بالظبط
+export async function previewSaleTotals(data, user) {
+  const { header } = await prepareSale(data, user, null, { preview: true });
+  return {
+    total: n(header.totalAmount),
+    invoiceDiscount: n(header.invoiceDiscount),
+  };
+}
+
 export function createSale(data, user) {
   return saveOnce(
     "sale",
@@ -487,19 +627,30 @@ export function createSale(data, user) {
 }
 
 async function createSaleNow(data, user) {
+  // حد عدد الفواتير (الباقة)
+  await assertPlanLimit("invoicesMonth", user);
   const source = data.source ?? "invoice";
   if (source === "pos" && !can(user, "sales.pos"))
     throw new AppError("Forbidden");
   const shiftId = await resolveShift(user, source === "pos");
-  const { header, itemRows, payments, quotation } = await prepareSale(
-    data,
-    user,
-  );
-  const allowNegative = await isNegativeStockAllowed();
+  const {
+    header,
+    itemRows,
+    payments,
+    quotation,
+    claim,
+    serialLines,
+    followUpLines,
+    renewIds,
+    logIds,
+  } = await prepareSale(data, user);
+  // المطعم: البيع مايقفش على الرصيد (الأكل بيتعمل وقت الطلب، والمخزون بالوصفات بعدين)
+  const allowNegative =
+    Boolean(data.restaurantPrices?.length) || (await isNegativeStockAllowed());
 
   return runTx(async (tx) => {
     const number = await nextNumber(tx, SALE);
-    const created = await tx.sale.create({
+    const { items: createdItems, ...created } = await tx.sale.create({
       data: {
         ...header,
         type: SALE,
@@ -512,8 +663,21 @@ async function createSaleNow(data, user) {
         items: { create: itemRows },
         payments: { create: payments },
       },
-      select: { id: true, number: true, totalAmount: true, changeAmount: true },
+      select: {
+        id: true,
+        number: true,
+        totalAmount: true,
+        changeAmount: true,
+        items: { orderBy: { id: "asc" }, select: { id: true } },
+      },
     });
+    // الأرقام التسلسلية: القطع تبقى مباعة
+    await attachSaleSerials(
+      tx,
+      createdItems.map((x) => x.id),
+      serialLines,
+      { customerId: header.customerId, date: header.date },
+    );
     // البضاعة تخرج من مستودع الفرع
     await applyMovements(
       tx,
@@ -527,6 +691,35 @@ async function createSaleNow(data, user) {
       }),
       { allowNegative },
     );
+    // المتابعة الدورية: الجديدة من السطور + تجديد المختار
+    await applySaleFollowUps(tx, {
+      saleId: created.id,
+      itemIds: createdItems.map((x) => x.id),
+      lines: followUpLines,
+      renewIds,
+      logIds,
+      customerId: header.customerId,
+      branchId: user.branch.id,
+      date: header.date,
+      user,
+    });
+    // طلب الصيانة ← فاتورته
+    if (claim) await linkClaimSale(tx, claim.id, created.id, user);
+    // الحجز ← تم (ومربوط بالفاتورة)
+    if (data.bookingId)
+      await linkBookingSale(tx, data.bookingId, created.id, user);
+    // طلبات المغسلة ← مربوطة بالفاتورة (والجاهز يبقى مسلَّم) + الصرف من الاشتراك
+    if (data.laundryOrderIds?.length)
+      await linkLaundrySale(
+        tx,
+        data.laundryOrderIds,
+        created.id,
+        user,
+        data.laundryWalletUses ?? [],
+      );
+    // طلب المطعم ← رقمه اليومي (الجديد) أو الطاولة المفتوحة تتقفل بالفاتورة
+    if (data.restaurantOrder)
+      await linkRestaurantSale(tx, data.restaurantOrder, created.id, user);
     // عرض السعر ← تم تحويله لهذه الفاتورة
     if (quotation) {
       const { count } = await tx.quotation.updateMany({
@@ -581,23 +774,45 @@ export async function updateSale({ id, ...data }, user) {
   });
   if (!existing) throw new AppError("SaleNotFound");
 
-  const { header, itemRows, payments } = await prepareSale(
-    { ...data, quotationId: existing.quotation?.id ?? data.quotationId },
-    user,
-    { ...existing, productIds: existing.items.map((i) => i.productId) },
-  );
+  const { header, itemRows, payments, serialLines, followUpLines } =
+    await prepareSale(
+      { ...data, quotationId: existing.quotation?.id ?? data.quotationId },
+      user,
+      { ...existing, productIds: existing.items.map((i) => i.productId) },
+    );
   const allowNegative = await isNegativeStockAllowed();
 
   return runTx(async (tx) => {
     await assertEditable(tx, existing);
-    const updated = await tx.sale.update({
+    // القطع القديمة ترجع زي ما كانت قبل الفاتورة، وبعدين نسجل الجديدة
+    await releaseSaleSerials(tx, id);
+    const { items: newItems, ...updated } = await tx.sale.update({
       where: { id },
       data: {
         ...header,
         items: { deleteMany: {}, create: itemRows },
         payments: { deleteMany: {}, create: payments },
       },
-      select: { id: true, number: true },
+      select: {
+        id: true,
+        number: true,
+        items: { orderBy: { id: "asc" }, select: { id: true } },
+      },
+    });
+    await attachSaleSerials(
+      tx,
+      newItems.map((x) => x.id),
+      serialLines,
+      { customerId: header.customerId, date: header.date },
+    );
+    // المتابعات اللي اتعملت بالفاتورة: تتحدث / تتعمل / تتشال
+    await syncSaleFollowUps(tx, {
+      saleId: id,
+      itemIds: newItems.map((x) => x.id),
+      lines: followUpLines,
+      customerId: header.customerId,
+      date: header.date,
+      user,
     });
     await reverseMovements(tx, "sale", id, { allowNegative: true });
     await applyMovements(
@@ -629,6 +844,8 @@ export async function deleteSale(id, user) {
     });
     if (!sale) throw new AppError("SaleNotFound");
     await assertEditable(tx, sale);
+    await releaseSaleSerials(tx, id);
+    await deleteSaleFollowUps(tx, id);
     await reverseMovements(tx, "sale", id, { allowNegative: true });
     await tx.quotation.updateMany({
       where: { saleId: id },
@@ -723,10 +940,59 @@ async function createSaleReturnNow(data, user) {
       return { o, ...amounts };
     });
     const totals = totalsOf(lines, decimals);
+    // الوحدة متقبلش كسور ← كمية المرتجع رقم صحيح
+    // (سطر قديم اتباع بكسر قبل قفل الكسور: بيرجع عادي)
+    await assertUnitQty(
+      lines.map((l) => ({
+        productId: l.o.productId,
+        unitId: l.o.unitId,
+        qty: l.qty,
+        factor: n(l.o.factor),
+        skip: !isWholeQty(n(l.o.qty)),
+      })),
+      tx,
+    );
 
+    // الأرقام التسلسلية للقطع المرتجعة (لازم تكون مباعة بالسطر الأصلي)
+    const returnSerials = await prepareReturnSerials(
+      tx,
+      data.items.map((it, i) => ({
+        o: lines[i].o,
+        baseQty: it.qty * n(lines[i].o.factor),
+        returnedBaseBefore:
+          (previous.get(lines[i].o.id)?.qty ?? 0) * n(lines[i].o.factor),
+        serialIds: it.serialIds,
+      })),
+    );
+
+    // المغسلة (laundryRefund = { methodId, subMethodId } من شاشة الاستلام):
+    // نصيب الاشتراك يرجع للرصيد، والباقي بطريقة الاسترداد المختارة
+    const laundryRefund = data.laundryRefund
+      ? await laundryReturnPlan(tx, original.id, totals.total, decimals)
+      : null;
+    const refundRows = laundryRefund
+      ? [
+          ...(laundryRefund.value > 0
+            ? [
+                {
+                  paymentMethodId: data.laundryRefund.subMethodId,
+                  amount: laundryRefund.value,
+                },
+              ]
+            : []),
+          ...(round(totals.total - laundryRefund.value, decimals) > EPS
+            ? [
+                {
+                  paymentMethodId: data.laundryRefund.methodId,
+                  amount: round(totals.total - laundryRefund.value, decimals),
+                },
+              ]
+            : []),
+        ]
+      : data.payments;
     const { rows: payments, paid } = await preparePayments(
       tx,
-      data.payments,
+      refundRows,
       totals.total,
       decimals,
     );
@@ -778,9 +1044,13 @@ async function createSaleReturnNow(data, user) {
         cost: l.o.cost,
         costAmount: round(baseQty * n(l.o.cost), 4),
         returnOfItemId: l.o.id,
+        warrantyMonths: l.o.warrantyMonths ?? null,
+        warrantyType: l.o.warrantyType ?? null,
+        // الفني (عشان المرتجع يتخصم من عمولته)
+        technicianId: l.o.technicianId ?? null,
       };
     });
-    const created = await tx.sale.create({
+    const { items: returnItems, ...created } = await tx.sale.create({
       data: {
         type: SALE_RETURN,
         number,
@@ -814,7 +1084,31 @@ async function createSaleReturnNow(data, user) {
         items: { create: itemRows },
         payments: { create: payments },
       },
-      select: { id: true, number: true },
+      select: {
+        id: true,
+        number: true,
+        items: { orderBy: { id: "asc" }, select: { id: true } },
+      },
+    });
+    // المغسلة: الرصيد يرجع للاشتراكات
+    if (laundryRefund?.uses.length)
+      await applyLaundryReturn(tx, created.id, laundryRefund.uses);
+    // القطع ترجع "في المحل"
+    await attachReturnSerials(
+      tx,
+      returnItems.map((x) => x.id),
+      returnSerials,
+    );
+    // مرتجع كامل لسطر عليه متابعة ← المتابعة تقف
+    await stopForReturn(tx, {
+      returnId: created.id,
+      lines: lines.map((l) => ({
+        itemId: l.o.id,
+        fullyReturned:
+          (previous.get(l.o.id)?.qty ?? 0) + l.qty >= n(l.o.qty) - EPS,
+      })),
+      date,
+      user,
     });
     // 3) البضاعة ترجع للمستودع
     await applyMovements(
@@ -856,6 +1150,9 @@ export async function deleteSaleReturn(id, user) {
       });
       if (shift?.status !== "open") throw new AppError("SaleShiftClosed");
     }
+    // القطع المرتجعة ترجع مباعة (لو متباعتش تاني)
+    await restoreReturnSerials(tx, ret.id);
+    await resumeAfterReturnDelete(tx, ret.id);
     for (const it of ret.items) {
       if (!it.returnOfItemId) continue;
       await tx.saleItem.update({
@@ -977,6 +1274,11 @@ const saleDetailSelect = {
   customerArName: true,
   customerEnName: true,
   customerTaxNo: true,
+  // السيارة (وحدة vehicles)
+  vehicleId: true,
+  vehiclePlate: true,
+  vehicleType: true,
+  odometer: true,
   isExport: true,
   discountType: true,
   discountValue: true,
@@ -1024,6 +1326,23 @@ const saleDetailSelect = {
       idNumber: true,
     },
   },
+  // المغسلة (وحدة laundry): الطلبات + المخصوم من الاشتراك (للطباعة)
+  laundryOrders: { select: { id: true, dailyNo: true, bizDay: true } },
+  laundryWalletUses: { select: { credit: true } },
+  // المطعم: رقم الطلب ونوعه (صالة / سفري / توصيل / تطبيق) والطاولة (للطباعة)
+  restaurantOrder: {
+    select: {
+      dailyNo: true,
+      orderType: true,
+      tableNo: true,
+      channelOrderNo: true,
+      customerName: true,
+      phone: true,
+      address: true,
+      channel: { select: { arName: true, enName: true } },
+      driver: { select: { name: true } },
+    },
+  },
   returnOf: { select: { id: true, number: true, date: true } },
   returns: {
     orderBy: { id: "asc" },
@@ -1061,6 +1380,23 @@ const saleDetailSelect = {
       factor: true,
       qty: true,
       baseQty: true,
+      // وحدة التعبئة (السيراميك: الكرتونة 1.44 م²) ← الطباعة بالوحدتين
+      product: {
+        select: {
+          baseUnit: {
+            select: { arName: true, enName: true, allowDecimals: true },
+          },
+          productUnits: {
+            where: { conversionFactor: { gt: 1 } },
+            orderBy: { conversionFactor: "asc" },
+            take: 1,
+            select: {
+              conversionFactor: true,
+              unit: { select: { arName: true, enName: true } },
+            },
+          },
+        },
+      },
       price: true,
       priceIncludesTax: true,
       discountType: true,
@@ -1074,6 +1410,45 @@ const saleDetailSelect = {
       cost: true,
       costAmount: true,
       returnedQty: true,
+      // الضمان والأرقام التسلسلية (وحدة serials)
+      warrantyMonths: true,
+      warrantyType: true,
+      // الفني والموعد (وحدة technicians)
+      technicianId: true,
+      technician: { select: { id: true, arName: true, enName: true } },
+      jobAt: true,
+      jobAddress: true,
+      jobStatus: true,
+      jobDoneAt: true,
+      jobNote: true,
+      // الغيار الجاي (زيت...) للسيارة
+      nextKm: true,
+      nextDate: true,
+      // المتابعة الدورية اللي اتعملت بالسطر (للتعديل والعرض)
+      followUps: {
+        orderBy: { id: "asc" },
+        take: 1,
+        select: {
+          id: true,
+          intervalDays: true,
+          place: true,
+          address: true,
+          locationUrl: true,
+          phone: true,
+          notes: true,
+          status: true,
+          nextDate: true,
+        },
+      },
+      serials: {
+        orderBy: { id: "asc" },
+        select: {
+          serialId: true,
+          serialText: true,
+          serial2Text: true,
+          serial: { select: { isUsed: true } },
+        },
+      },
     },
   },
   payments: {
@@ -1089,10 +1464,77 @@ const saleDetailSelect = {
 };
 
 export async function getSale(id, type, user) {
-  return prisma.sale.findFirst({
+  const sale = await prisma.sale.findFirst({
     where: { id, ...(type ? { type } : {}), ...branchScope(user) },
     select: saleDetailSelect,
   });
+  if (!sale) return null;
+  return withPacks({ ...sale, laundry: await laundryPrintInfo(sale) });
+}
+
+// المغسلة: الفاتورة اتدفعت من الاشتراك ← المخصوم + رصيد العميل الحالي
+// (الفاتورة العادية: null)
+async function laundryPrintInfo(sale) {
+  if (!sale.laundryOrders?.length && !sale.laundryWalletUses?.length)
+    return null;
+  const used = sale.laundryWalletUses.reduce((s, u) => s + n(u.credit), 0);
+  let balance = null;
+  // used سالب = مرتجع رجع للاشتراك
+  if (used !== 0 && sale.customer?.id) {
+    const rows = await prisma.laundryWallet.findMany({
+      where: {
+        customerId: sale.customer.id,
+        status: "active",
+        remaining: { gt: 0 },
+        OR: [{ expiresAt: null }, { expiresAt: { gte: dayToDbDate(today()) } }],
+      },
+      select: { remaining: true },
+    });
+    balance = round(rows.reduce((s, r) => s + n(r.remaining), 0), 2);
+  }
+  return { walletUsed: round(used, 2), walletBalance: balance };
+}
+
+// تعبئة الصنف على كل سطر باسم pack (product بيتساب لشاشة التعديل)
+// pack: { baseUnit: { allowDecimals }, productUnits: [{ conversionFactor, unit }] }
+export const withPacks = (sale) => ({
+  ...sale,
+  items: sale.items.map(({ product, ...i }) => ({ ...i, pack: product })),
+});
+
+// ------------------------------------------------------------
+// الكاشير: فاتورة سابقة برقمها (SI-15 أو 15) للعرض وإعادة الطباعة
+// في فرع الكاشير بس
+// ------------------------------------------------------------
+export async function posRecentSales({ q = "" }, user) {
+  const number = parseDocNo(q);
+  if (!number) return [];
+  const rows = await prisma.sale.findMany({
+    where: { type: SALE, branchId: user.branch.id, number },
+    orderBy: { id: "desc" },
+    take: 5,
+    select: {
+      id: true,
+      number: true,
+      date: true,
+      createdAt: true,
+      customerArName: true,
+      customerEnName: true,
+      customer: { select: { arName: true, enName: true, phone: true } },
+      totalAmount: true,
+    },
+  });
+  return rows.map((r) => ({ ...r, totalAmount: Number(r.totalAmount) }));
+}
+
+// الكاشير: الفاتورة كاملة للعرض والطباعة (فرع الكاشير بس)
+export async function posSaleForPrint(id, user) {
+  const sale = await prisma.sale.findFirst({
+    where: { id, type: SALE, branchId: user.branch.id },
+    select: saleDetailSelect,
+  });
+  if (!sale) throw new AppError("SaleNotFound");
+  return withPacks(sale);
 }
 
 // البحث عن فاتورة البيع للمرتجع برقمها (SI-15 أو 15)
@@ -1117,14 +1559,17 @@ export async function findSalesForReturn({ value }, user) {
 export async function getSaleForReturn(id, user) {
   const sale = await getSale(id, SALE, user);
   if (!sale) return null;
-  const previous = await returnedSums(
-    prisma,
-    sale.items.map((i) => i.id),
-  );
+  const ids = sale.items.map((i) => i.id);
+  const [previous, soldSerials] = await Promise.all([
+    returnedSums(prisma, ids),
+    soldSerialsByItem(ids),
+  ]);
   return {
     ...sale,
     items: sale.items.map((i) => ({
       ...i,
+      // القطع اللي لسه مباعة بالسطر (تتختار في المرتجع)
+      soldSerials: soldSerials.get(i.id) ?? [],
       available: qtyMinus(i.qty, i.returnedQty),
       returned: previous.get(i.id) ?? {
         qty: 0,

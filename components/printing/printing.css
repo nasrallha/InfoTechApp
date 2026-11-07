@@ -168,7 +168,7 @@
 }
 
 .paper-picker__item:hover:not(:disabled) {
-  border-color: #00888c;
+  border-color: var(--c-primary-hover);
 }
 
 .paper-picker__item:disabled {
@@ -177,9 +177,9 @@
 }
 
 .paper-picker__item--active {
-  border-color: #006266;
-  background: #ecfdfd;
-  box-shadow: 0 6px 16px -10px rgba(0, 98, 102, 0.7);
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+  box-shadow: 0 6px 16px -10px color-mix(in srgb, var(--c-primary) 70%, transparent);
 }
 
 .paper-picker__icon {
@@ -204,8 +204,8 @@
   height: 56px;
 }
 .paper-picker__item--active .paper-picker__icon {
-  background: #006266;
-  border-color: #006266;
+  background: var(--c-primary);
+  border-color: var(--c-primary);
   color: #fff;
 }
 

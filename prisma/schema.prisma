@@ -31,6 +31,9 @@ model Role {
   isSuper Boolean @default(false)
   // دور مالك البرنامج (مخفي: مش بيظهر في شاشة الأدوار ولا في الاختيار)
   isOwner Boolean @default(false)
+  // دور ثابت من لوحة التحكم (قالب): مقفول، العميل يختاره للمستخدمين بس
+  // (القيمة = رقم القالب في اللوحة، null = دور عادي)
+  templateKey String? @unique @db.VarChar(40)
 
   users       User[]
   permissions RolePermission[]
@@ -77,6 +80,11 @@ model Branch {
   sales      Sale[]
   quotations Quotation[]
   shifts     Shift[]
+  // طلبات الضمان والصيانة المستلمة في الفرع
+  warrantyClaims WarrantyClaim[]
+  maintenanceContracts MaintenanceContract[]
+  followUps            FollowUp[]
+  bookings             Booking[]
   vouchers      Voucher[]
   cashMovements CashMovement[]
 
@@ -86,6 +94,17 @@ model Branch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المغسلة (وحدة laundry): طلبات الاستلام
+  laundryOrders LaundryOrder[]
+  // المطعم: طابعات الفرع (الكاشير والتحضير)
+  restaurantPrinters RestaurantPrinter[]
+  restaurantTables   RestaurantTable[]
+  // وسيط الطباعة: كود الربط + الأجهزة المربوطة + مهام الطباعة
+  printAgentKey      String?            @unique @db.VarChar(20)
+  printAgents        PrintAgent[]
+  printJobs          PrintJob[]
+  // المغسلة (وحدة laundry): الاشتراكات
+  laundryWallets LaundryWallet[]
   @@index([warehouseId])
   @@index([priceListId])
   @@map("branches")
@@ -120,11 +139,18 @@ model User {
   loginAttempts LoginAttempt[]
   purchases Purchase[] // فواتير المشتريات التي سجلها
   transfersCreated  StockTransfer[]  @relation("TransferCreatedBy")
+  adjustmentsCreated StockAdjustment[] @relation("AdjustmentCreatedBy")
   transfersReceived StockTransfer[]  @relation("TransferReceivedBy")
   countsCreated     InventoryCount[] @relation("CountCreatedBy")
   countsPosted      InventoryCount[] @relation("CountPostedBy")
   sales             Sale[]
   quotations        Quotation[]
+  warrantyClaims    WarrantyClaim[]
+  claimLogs         WarrantyClaimLog[]
+  maintenanceContracts MaintenanceContract[]
+  followUpsCreated     FollowUp[]    @relation("FollowUpCreatedBy")
+  bookingsCreated      Booking[]     @relation("BookingCreatedBy")
+  followUpLogs         FollowUpLog[] @relation("FollowUpLogUser")
   shifts            Shift[]          @relation("ShiftCashier")
   shiftsClosed      Shift[]          @relation("ShiftClosedBy")
   vouchers          Voucher[]
@@ -135,6 +161,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المغسلة (وحدة laundry): طلبات الاستلام
+  laundryOrdersCreated   LaundryOrder[] @relation("LaundryOrderCreatedBy")
+  laundryOrdersDelivered LaundryOrder[] @relation("LaundryOrderDeliveredBy")
+  // المغسلة (وحدة laundry): الاشتراكات
+  laundryWalletsCreated LaundryWallet[] @relation("LaundryWalletCreatedBy")
   @@index([roleId])
   @@index([branchId])
   @@map("users")
@@ -279,6 +310,10 @@ model Category {
   children Category[] @relation("CategoryTree")
 
   products Product[]
+  // المطعم: طابعات التحضير اللي بتطبع القسم ده
+  restaurantPrinters RestaurantPrinterCategory[]
+  // عمولة مقدم الخدمة على القسم ده
+  technicianRates TechnicianRate[]
 
   promotions PromotionCategory[]
 
@@ -298,6 +333,8 @@ model Unit {
   arName   String  @unique @db.VarChar(100)
   enName   String  @unique @db.VarChar(100)
   isActive Boolean @default(true)
+  // تقبل كسور (كيلو 0.250) ولا لأ (حبة): البيع والشراء والمخزون بيتأكدوا منها
+  allowDecimals Boolean @default(true)
 
   products     Product[] // المنتجات التي هذه الوحدة هي وحدتها الأساسية
   productUnits ProductUnit[] // استخدام الوحدة كوحدة إضافية لمنتج
@@ -305,7 +342,9 @@ model Unit {
   saleItems      SaleItem[]
   quotationItems QuotationItem[]
   transferItems StockTransferItem[]
+  adjustmentItems StockAdjustmentItem[]
   prices        ProductPrice[]
+  claimItems    WarrantyClaimItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,6 +384,30 @@ model Product {
 
   isActive Boolean @default(true)
 
+  // خدمة (مصنعية، تركيب...): بتتباع عادي ومالهاش مخزون ولا حركات
+  isService Boolean @default(false)
+
+  // المتابعة الدورية (وحدة followUps): 0 = الصنف مالوش متابعة
+  // غير كده = المدة المقترحة بالأيام (بتتغير لكل عميل في الفاتورة)
+  followUpDays Int @default(0)
+
+  // التغيير الدوري للسيارات (وحدة vehicles): زيت، فلتر...
+  // الغيار الجاي = العداد + changeKm، أو تاريخ الفاتورة + changeMonths (أيهما أقرب)
+  changeKm     Int @default(0)
+  changeMonths Int @default(0)
+
+  // مدة الخدمة بالدقايق (الحجوزات): 0 = من غير مدة
+  durationMin Int @default(0)
+
+  // الأرقام التسلسلية (وحدة serials): 0 لا يتتبع | 1 رقم واحد | 2 رقمين
+  // الاسم اختياري (IMEI 1 / الوحدة الداخلية...)، فاضي = "الرقم التسلسلي"
+  serialCount  Int     @default(0)
+  serialLabel1 String? @db.VarChar(40)
+  serialLabel2 String? @db.VarChar(40)
+  // الضمان الافتراضي في الفاتورة: بالشهور (0 = بدون) + الجهة: agent الوكيل | store المحل
+  warrantyMonths Int     @default(0)
+  warrantyType   String? @db.VarChar(10)
+
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
@@ -365,17 +428,77 @@ model Product {
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
   transferItems  StockTransferItem[]
+  adjustmentItems StockAdjustmentItem[]
   countItems     InventoryCountItem[]
   prices         ProductPrice[]
 
   promotions PromotionProduct[]
 
+  // الأرقام التسلسلية لقطع الصنف
+  serials ProductSerial[]
+  // طلبات الضمان على الصنف + قطع الغيار والمصنعية في الطلبات
+  warrantyClaims WarrantyClaim[]
+  claimItems     WarrantyClaimItem[]
+  maintenanceContracts MaintenanceContract[]
+  followUps            FollowUp[]
+  // عمولة مقدم الخدمة على الصنف ده بالذات
+  technicianRates      TechnicianRate[]
+  bookingItems         BookingItem[]
+  // المغسلة (وحدة laundry): الصنف قطعة مغسلة وأسعار خدماتها
+  laundryItem          LaundryItem?
+  // المطعم (وحدة restaurant): الصنف في المنيو (أحجامه وإضافاته)
+  restaurantItem       RestaurantItem?
+  // المطعم: طابعة تحضير خاصة بالصنف (غير طابعة قسمه)
+  restaurantPrinters   RestaurantPrinterProduct[]
+
+  // المقاسات والألوان (وحدة variants): الصنف مقاس (ولون) من موديل
+  // الاسم فيه المقاس («حذاء X - 42») عشان يظهر في البحث والفواتير والطباعة
+  modelId Int?
+  model   ProductModel? @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  size    String?       @db.VarChar(30)
+  color   String?       @db.VarChar(30)
+  // لون الدايرة (#RRGGBB) في الكاشير وشاشة المقاسات
+  colorHex String?      @db.VarChar(9)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المغسلة (وحدة laundry): طلبات الاستلام
+  laundryOrderItems LaundryOrderItem[]
   @@index([categoryId])
   @@index([baseUnitId])
+  @@index([modelId])
   @@map("products")
+}
+
+// ============================================================
+// الموديل (وحدة variants): اسم مشترك لمقاسات الصنف (وألوانه)
+// code = كود الصنف الأصلي (أكواد المقاسات: الكود-المقاس)
+// ============================================================
+model ProductModel {
+  id     Int    @id @default(autoincrement())
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+  code   String @db.VarChar(50)
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_models")
+}
+
+// ألوان المقاسات اللي التاجر ضافها بنفسه (اللوحة الجاهزة في lib/variant-colors.js)
+model VariantColor {
+  id     Int    @id @default(autoincrement())
+  arName String @unique @db.VarChar(30)
+  hex    String @db.VarChar(9)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("variant_colors")
 }
 
 // ============================================================
@@ -453,10 +576,21 @@ model Customer {
   sales      Sale[]
   quotations Quotation[]
   vouchers   Voucher[]
+  // الأجهزة المشتراة (الأرقام التسلسلية)
+  serials    ProductSerial[]
+  warrantyClaims WarrantyClaim[]
+  maintenanceContracts MaintenanceContract[]
+  followUps            FollowUp[]
+  vehicles             Vehicle[]
+  bookings             Booking[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المغسلة (وحدة laundry): طلبات الاستلام
+  laundryOrders LaundryOrder[]
+  // المغسلة (وحدة laundry): الاشتراكات
+  laundryWallets LaundryWallet[]
   @@unique([idScheme, idNumber])
   @@map("customers")
 }
@@ -495,6 +629,8 @@ model Supplier {
   updatedAt DateTime @updatedAt
 
   purchases Purchase[] // فواتير المشتريات (لا يُحذف مورد عليه فواتير)
+  // طلبات الضمان المبعوتة له
+  warrantyClaims WarrantyClaim[]
 
   @@map("suppliers")
 }
@@ -680,6 +816,10 @@ model PaymentMethod {
   sortOrder Int     @default(0) // ترتيب الظهور في الفاتورة
   isActive  Boolean @default(true)
 
+  // طريقة ثابتة من لوحة التحكم (قوالب طرق الدفع): "P<رقم القالب>"
+  // في وضع الشركات: الشركة تقدر توقفها وتشغّلها بس
+  templateKey String? @unique @db.VarChar(40)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -710,6 +850,30 @@ model SystemSettings {
   // المخزون: السماح بالبيع (أو الإخراج) بأكثر من الرصيد
   // الرصيد يصبح سالباً، وأي بضاعة تدخل بعدها تُخصم منه تلقائياً
   allowNegativeStock Boolean @default(false)
+
+  // الأرقام التسلسلية (وحدة serials): إلزام إدخالها لكل قطعة متتبعة عند البيع
+  serialRequired Boolean @default(true)
+
+  // الفواتير: نفس الصنف يتكرر في أكتر من سطر (كل سطر بوصفه) بدل ما الكمية تزيد
+  // مثال: صنف "أعمال" ← أعمال نجارة / أعمال حدادة / أعمال سباكة
+  allowDuplicateLines Boolean @default(false)
+  // اسم مقدم الخدمة حسب النشاط (وحدة technicians):
+  // technician فني | staff عاملة | barber حلاق | therapist معالج
+  staffTitle String @default("technician") @db.VarChar(12)
+
+  // الحجوزات (وحدة bookings): الحجز أونلاين من لينك + مواعيد العمل
+  bookingOnline    Boolean @default(false)
+  bookingOpen      String  @default("10:00") @db.VarChar(5)
+  bookingClose     String  @default("22:00") @db.VarChar(5)
+  bookingSlotMin   Int     @default(30)
+  bookingDaysAhead Int     @default(30)
+  bookingHome      Boolean @default(false)
+  bookingNote      String? @db.VarChar(500)
+
+  // بداية يوم العمل (ساعة بتوقيت السعودية): 0 = منتصف الليل (اليوم العادي)
+  // مثال 5: اللي بعد نص الليل لحد 4:59 الفجر يتحسب على اليوم اللي قبله
+  // (الورديات + تقارير المبيعات والمشتريات والأرباح واليومية + الرئيسية)
+  dayStartHour Int @default(0)
 
   // النسخ الاحتياطي: مجلد الحفظ على السيرفر (فاضي = مجلد backups جوه المشروع)
   backupDir String? @db.VarChar(500)
@@ -742,6 +906,43 @@ model SystemSettings {
   // لغة البرنامج الافتراضية (ar / en) + هل يستخدم لغة المتصفح لو المستخدم مااختارش
   defaultLocale   String  @default("en") @db.VarChar(2)
   localeDetection Boolean @default(true)
+
+
+  // المغسلة (وحدة laundry): مدة الاشتراك بالشهور (0 = لحد ما الرصيد يخلص)
+  // ومكافأة الاشتراك تنزل خصم في الفاتورة
+  laundryWalletMonths  Int     @default(0)
+  laundryBonusDiscount Boolean @default(true)
+
+  // المطعم (وحدة restaurant) - 0 = مقفولة، وكل رسوم سطر في الفاتورة عليه ضريبة:
+  // رسوم الخدمة: النسبة الافتراضية (بتتغير في الفاتورة)، والمحلي بس ولا كل الطلبات
+  // رسوم التوصيل: المبلغ الافتراضي | رسوم التبغ: نسبة على صافي أصناف التبغ
+  // *ProductId: صنف الخدمة اللي السطر بيتسجل بيه (بيتعمل لوحده من الإعدادات)
+  // الخدمة والتبغ: Type percent نسبة | amount مبلغ شامل الضريبة (التبغ: على كل وحدة)
+  restaurantServiceType       String  @default("percent") @db.VarChar(10)
+  restaurantServicePercent    Decimal @default(0) @db.Decimal(18, 4)
+  restaurantServiceDineInOnly Boolean @default(true)
+  restaurantDeliveryFee       Decimal @default(0) @db.Decimal(18, 4)
+  restaurantTobaccoType       String  @default("percent") @db.VarChar(10)
+  restaurantTobaccoPercent    Decimal @default(0) @db.Decimal(18, 4)
+  restaurantServiceProductId  Int?
+  restaurantDeliveryProductId Int?
+  restaurantTobaccoProductId  Int?
+  // الطلب الأونلاين (لينك /order/<كود الشركة>): مواعيد الاستقبال (توقيت السعودية)
+  // prepMin: أقرب ميعاد وصول = دلوقتي + وقت التحضير | slotMin: فترة المواعيد
+  restaurantOnline      Boolean @default(false)
+  restaurantOnlineOpen  String  @default("10:00") @db.VarChar(5)
+  restaurantOnlineClose String  @default("23:00") @db.VarChar(5)
+  restaurantPrepMin     Int     @default(20)
+  restaurantSlotMin     Int     @default(15)
+  restaurantCurbside    Boolean @default(true)
+  restaurantOnlineNote  String? @db.VarChar(500)
+  // مدة جلسة الطاولة (دقايق) + حجز الطاولة من الأونلاين
+  restaurantTableMinutes Int     @default(90)
+  restaurantOnlineDineIn Boolean @default(true)
+  // كاشير المطعم: نوع الطلب الافتراضي (local / dinein / takeaway / delivery / app)
+  // + الطاولة الافتراضية لطلبات الطاولات لو الكاشير ماختارش
+  restaurantDefaultOrderType String  @default("takeaway") @db.VarChar(10)
+  restaurantDefaultTableId   Int?
 
   updatedAt DateTime @updatedAt
 
@@ -892,6 +1093,11 @@ model PurchaseItem {
   returnOfItem   PurchaseItem?  @relation("PurchaseItemReturns", fields: [returnOfItemId], references: [id], onDelete: Restrict)
   returnItems    PurchaseItem[] @relation("PurchaseItemReturns")
 
+  // الأرقام التسلسلية اللي اتسجلت مع الشراء (اختياري)
+  serials         ProductSerial[] @relation("SerialPurchase")
+  // القطع اللي رجعت للمورد بسطر المرتجع ده
+  returnedSerials ProductSerial[] @relation("SerialPurchaseReturn")
+
   @@index([purchaseId])
   @@index([productId])
   @@index([unitId])
@@ -937,6 +1143,7 @@ model Warehouse {
   balances     StockBalance[]
   movements    StockMovement[]
   transfersOut StockTransfer[]  @relation("TransferFrom")
+  adjustments  StockAdjustment[]
   transfersIn  StockTransfer[]  @relation("TransferTo")
   counts       InventoryCount[]
   sales        Sale[]
@@ -1064,6 +1271,71 @@ model StockTransferItem {
   @@index([productId])
   @@index([unitId])
   @@map("stock_transfer_items")
+}
+
+// ============================================================
+// التوالف والزيادات: تالف (damage) بينزل من المخزون، زيادة (surplus) بتتضاف
+// السبب لكل سطر، والتكلفة = تكلفة الصنف وقت المستند
+// الإلغاء بيرجّع الحركات (المستند بيفضل للسجل)
+// ============================================================
+model StockAdjustment {
+  id     Int    @id @default(autoincrement())
+  number Int    @unique // AJ-1
+  type   String @db.VarChar(10) // damage | surplus
+  status String @default("posted") @db.VarChar(10) // posted | cancelled
+
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  date        DateTime
+  notes       String?   @db.VarChar(500)
+  cancelledAt DateTime?
+
+  createdById Int
+  createdBy   User @relation("AdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  items StockAdjustmentItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([warehouseId])
+  @@index([createdById])
+  @@index([type, status])
+  @@index([date])
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentItem {
+  id Int @id @default(autoincrement())
+
+  adjustmentId Int
+  adjustment   StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  code   String @db.VarChar(50)
+  arName String @db.VarChar(150)
+  enName String @db.VarChar(150)
+
+  unitId Int
+  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  factor Decimal @default(1) @db.Decimal(18, 4)
+
+  qty     Decimal @db.Decimal(18, 3) // بالوحدة المختارة
+  baseQty Decimal @db.Decimal(18, 4) // بالوحدة الأساسية
+  cost    Decimal @default(0) @db.Decimal(18, 4) // تكلفة الوحدة الأساسية
+  reason  String? @db.VarChar(255)
+
+  // الأرقام التسلسلية: اللي دخلت بالزيادة / اللي اتلفت
+  surplusSerials ProductSerial[] @relation("SerialSurplus")
+  damagedSerials ProductSerial[] @relation("SerialDamage")
+
+  @@index([adjustmentId])
+  @@index([productId])
+  @@index([unitId])
+  @@map("stock_adjustment_items")
 }
 
 // ============================================================
@@ -1197,6 +1469,13 @@ model Sale {
   // فاتورة تصدير (خارج المملكة): ضريبة صفرية VATEX-SA-32 + فاتورة ضريبية للهيئة
   isExport Boolean @default(false)
 
+  // السيارة (وحدة vehicles) + نسخة من بياناتها وقت البيع + قراءة العداد
+  vehicleId    Int?
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehiclePlate String?  @db.VarChar(30)
+  vehicleType  String?  @db.VarChar(100)
+  odometer     Int?
+
   date DateTime
 
   // خصم الفاتورة: percent = نسبة / amount = مبلغ
@@ -1231,6 +1510,8 @@ model Sale {
 
   // الفاتورة المحوّلة من عرض سعر
   quotation Quotation?
+  // فاتورة طلب صيانة
+  warrantyClaim WarrantyClaim?
 
   createdById Int
   createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
@@ -1242,6 +1523,11 @@ model Sale {
   promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 
   items    SaleItem[]
+  // المتابعة الدورية: اللي اتعملت بالفاتورة دي + تجديداتها
+  followUpsCreated FollowUp[]    @relation("FollowUpOrigin")
+  // الحجز اللي اتعملت منه الفاتورة
+  bookings         Booking[]
+  followUpLogs     FollowUpLog[] @relation("FollowUpLogSale")
   payments SalePayment[]
 
   // الفاتورة الإلكترونية (لو الفرع مربوط بالزكاة)
@@ -1250,6 +1536,12 @@ model Sale {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المغسلة (وحدة laundry): طلبات الاستلام
+  laundryOrders LaundryOrder[]
+  // المطعم: طلب الكاشير اللي الفاتورة دي بتاعته (رقمه اليومي ونوعه)
+  restaurantOrder RestaurantOrder?
+  // المغسلة (وحدة laundry): الاشتراكات
+  laundryWalletUses LaundryWalletUse[]
   @@unique([type, number])
   @@index([date])
   @@index([branchId])
@@ -1259,6 +1551,7 @@ model Sale {
   @@index([returnOfId])
   @@index([createdById])
   @@index([promotionId])
+  @@index([vehicleId])
   @@map("sales")
 }
 
@@ -1314,16 +1607,44 @@ model SaleItem {
   // عرض على الصنف (الخصم اتحسب منه تلقائياً)
   promotionId Int?
   promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  // عرض الولاء (كل كام مرة ← مرة مجانية): عدد الوحدات اللي اتاخدت بالعرض في السطر ده
+  loyaltyQty  Decimal?   @db.Decimal(18, 4)
 
   returnOfItemId Int?
   returnOfItem   SaleItem?  @relation("SaleItemReturns", fields: [returnOfItemId], references: [id], onDelete: Restrict)
   returnItems    SaleItem[] @relation("SaleItemReturns")
+
+  // الضمان على السطر (من الصنف ويتعدل في الفاتورة): بالشهور + الجهة agent | store
+  warrantyMonths Int?
+  warrantyType   String? @db.VarChar(10)
+  // الأرقام التسلسلية للقطع (البيع والمرتجع)
+  serials        SaleItemSerial[]
+  // المتابعة الدورية للجهاز اللي اتباع بالسطر ده
+  followUps      FollowUp[]
+  // القطع المباعة حاليًا بالسطر ده
+  soldSerials    ProductSerial[]  @relation("SerialCurrentSale")
+
+  // الفني والموعد (وحدة technicians): سطر خدمة (تركيب/صيانة) بيتنفذ عند العميل
+  // jobStatus: pending مستني | done اتنفذ | cancelled اتلغى
+  technicianId Int?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  jobAt        DateTime?
+  jobAddress   String?     @db.VarChar(500)
+  jobStatus    String?     @db.VarChar(12)
+  jobDoneAt    DateTime?
+  jobNote      String?     @db.VarChar(500)
+
+  // التغيير الدوري للسيارة (زيت...): الغيار الجاي بالعداد و/أو بالتاريخ
+  nextKm   Int?
+  nextDate DateTime? @db.Date
 
   @@index([saleId])
   @@index([productId])
   @@index([unitId])
   @@index([returnOfItemId])
   @@index([promotionId])
+  @@index([technicianId])
+  @@index([jobAt])
   @@map("sale_items")
 }
 
@@ -1464,6 +1785,10 @@ model Shift {
   openedAt    DateTime
   openingCash Decimal  @default(0) @db.Decimal(18, 4)
 
+  // ترتيب الوردية في يوم العمل لكل فرع (الوردية 1 / 2 / 3) - بيتحسب وقت الفتح
+  businessDay DateTime @db.Date
+  dayNo       Int
+
   closedAt     DateTime?
   closedById   Int?
   closedBy     User?    @relation("ShiftClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
@@ -1497,6 +1822,8 @@ model Shift {
   @@index([userId])
   @@index([status])
   @@index([closedById])
+  @@unique([branchId, businessDay, dayNo])
+  @@index([businessDay])
   @@map("shifts")
 }
 
@@ -1563,6 +1890,8 @@ model Voucher {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المغسلة (وحدة laundry): الاشتراكات
+  laundryWallet LaundryWallet?
   @@unique([type, number])
   @@index([branchId])
   @@index([shiftId])
@@ -1636,6 +1965,10 @@ model Promotion {
   discountType String  @db.VarChar(12)
   value        Decimal @db.Decimal(18, 4)
   minInvoice   Decimal? @db.Decimal(18, 4) // عرض الفاتورة: أقل إجمالي للفاتورة
+  // عرض الولاء (scope = loyalty): كل loyaltyEvery مرة مدفوعة ← المرة اللي بعدها بخصم value% (100 = مجانًا)
+  // على loyaltyTarget: service كل الخدمات | category أقسام | product أصناف - لكل عميل مسجّل
+  loyaltyEvery  Int?
+  loyaltyTarget String?  @db.VarChar(10)
 
   startDate DateTime @db.Date
   endDate   DateTime @db.Date
@@ -1837,4 +2170,1132 @@ model ZatcaSettings {
   updatedAt DateTime @updatedAt
 
   @@map("zatca_settings")
+}
+
+// ============================================================
+// الاشتراك (نسخة من لوحة التحكم)
+// - لوحة التحكم هي اللي بتكتب هنا (وقت إنشاء القاعدة ومع كل تجديد / إيقاف / تغيير باقة)
+// - البرنامج بيقرا منها بس: حالة الاشتراك والحدود، من غير ما يسأل اللوحة
+// - مفيش أي شاشة بتعدّلها، والتصفير والاسترجاع مبيلمسوهاش
+// ============================================================
+model Subscription {
+  id            Int       @id @default(1)
+  companyCode   String    @db.VarChar(16)
+  companySerial Int?
+  // pending | active | suspended | cancelled
+  status        String    @db.VarChar(20)
+  suspendReason String?   @db.VarChar(255)
+  // الباقة ومميزاتها (null = من غير باقة)
+  planArName    String?   @db.VarChar(80)
+  planEnName    String?   @db.VarChar(80)
+  features      Json?
+  // وحدات النشاط المفعّلة (null أو [] = البرنامج الأساسي بس)
+  modules       Json?
+  // الحدود الفعلية (حدود الشركة لو متحددة، وإلا حدود الباقة) - null = من غير حد
+  maxUsers         Int?
+  maxBranches      Int?
+  maxInvoicesMonth Int?
+  maxProducts      Int?
+  // المدة (بالأيام) + فترة السماح والقراءة فقط بالأيام بعد النهاية
+  startsAt      DateTime  @db.Date
+  endsAt        DateTime  @db.Date
+  graceDays     Int       @default(7)
+  readonlyDays  Int       @default(14)
+  expiringDays  Int       @default(7)
+  // بيانات الشركة المالكة (الدعم الفني): اسم، لوجو، تليفونات، واتساب، إيميل، موقع، عنوان، مواعيد
+  vendor        Json?
+  // اسم مقدم الخدمة (ثابت للنشاط من اللوحة) - null = من الإعدادات العامة
+  staffTitle    String?   @db.VarChar(12)
+  // آخر مرة اللوحة كتبت هنا
+  syncedAt      DateTime
+
+  @@map("subscription")
+}
+
+// سجل الاشتراك (نسخة من سجل اللوحة)
+model SubscriptionLog {
+  id         Int       @id
+  // create | renew | plan | suspend | activate | cancel
+  action     String    @db.VarChar(20)
+  planArName String?   @db.VarChar(80)
+  planEnName String?   @db.VarChar(80)
+  startsAt   DateTime? @db.Date
+  endsAt     DateTime? @db.Date
+  amount     Decimal?  @db.Decimal(12, 2)
+  note       String?   @db.VarChar(500)
+  createdAt  DateTime
+
+  @@map("subscription_log")
+}
+
+// ============================================================
+// الأرقام التسلسلية (وحدة serials)
+// - القطعة بتتسجل عند البيع (أو عند الشراء اختياريًا)
+// - status: in_stock في المحل (اتسجلت في الشراء أو رجعت بمرتجع) | sold مباعة
+// - الرقم مايتكررش لنفس الصنف، والمباع مايتباعش تاني إلا بعد مرتجعه
+// ============================================================
+model ProductSerial {
+  id Int @id @default(autoincrement())
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  serial  String  @db.VarChar(100)
+  // الرقم التاني (IMEI 2 / الوحدة الخارجية)
+  serial2 String? @db.VarChar(100)
+  // returned: رجعت للمورد بمرتجع مشتريات
+  status  String  @default("in_stock") @db.VarChar(12)
+  // جهاز مستعمل
+  isUsed  Boolean @default(false)
+
+  // سطر الشراء (لو اتسجل وقت الشراء)
+  purchaseItemId Int?
+  purchaseItem   PurchaseItem? @relation("SerialPurchase", fields: [purchaseItemId], references: [id], onDelete: SetNull)
+  // سطر مرتجع المشتريات (لو رجعت للمورد)
+  purchaseReturnItemId Int?
+  purchaseReturnItem   PurchaseItem? @relation("SerialPurchaseReturn", fields: [purchaseReturnItemId], references: [id], onDelete: SetNull)
+
+  // التوالف والزيادات: القطعة دخلت بمستند زيادة / اتلفت بمستند تالف
+  surplusItemId Int?
+  surplusItem   StockAdjustmentItem? @relation("SerialSurplus", fields: [surplusItemId], references: [id], onDelete: SetNull)
+  damageItemId  Int?
+  damageItem    StockAdjustmentItem? @relation("SerialDamage", fields: [damageItemId], references: [id], onDelete: SetNull)
+
+  // آخر بيع (فاضي لو في المحل)
+  saleItemId Int?
+  saleItem   SaleItem? @relation("SerialCurrentSale", fields: [saleItemId], references: [id], onDelete: SetNull)
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  soldAt     DateTime?
+
+  // الضمان (من سطر البيع)
+  warrantyMonths Int?
+  warrantyType   String?   @db.VarChar(10)
+  warrantyEndsAt DateTime? @db.Date
+
+  // كل حركات القطعة (بيع ومرتجع)
+  links SaleItemSerial[]
+  // طلبات الضمان على القطعة / القطعة البديلة في طلب استبدال
+  warrantyClaims   WarrantyClaim[] @relation("ClaimSerial")
+  replacingClaims  WarrantyClaim[] @relation("ClaimNewSerial")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, serial])
+  @@index([serial])
+  @@index([serial2])
+  @@index([status])
+  @@index([purchaseItemId])
+  @@index([purchaseReturnItemId])
+  @@index([surplusItemId])
+  @@index([damageItemId])
+  @@index([saleItemId])
+  @@index([customerId])
+  @@index([warrantyEndsAt])
+  @@map("product_serials")
+}
+
+// القطع في سطور البيع والمرتجع (تاريخ القطعة)
+model SaleItemSerial {
+  id Int @id @default(autoincrement())
+
+  saleItemId Int
+  saleItem   SaleItem @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+
+  serialId Int
+  serial   ProductSerial @relation(fields: [serialId], references: [id], onDelete: Cascade)
+
+  // نسخة الرقم وقت الحركة (للطباعة)
+  serialText  String  @db.VarChar(100)
+  serial2Text String? @db.VarChar(100)
+
+  @@unique([saleItemId, serialId])
+  @@index([serialId])
+  @@map("sale_item_serials")
+}
+
+// ============================================================
+// طلبات الضمان والصيانة (وحدة warrantyClaims)
+// kind: warranty ضمان | paid صيانة مدفوعة
+// status: received مستلم → inspecting فحص → at_agent عند الوكيل → back رجع
+//         → ready جاهز للتسليم → delivered تم التسليم | cancelled ملغي
+// result: repaired اتصلّح | replaced اتبدّل | rejected مرفوض
+// الفلوس: مفيش أي مبلغ قبل فاتورة الصيانة (saleId)
+// ============================================================
+model WarrantyClaim {
+  id     Int    @id @default(autoincrement())
+  number Int    @unique // WC-1
+  kind   String @default("warranty") @db.VarChar(10)
+  status String @default("received") @db.VarChar(12)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // العميل (أو اسمه وجواله لو مش مسجل)
+  customerId    Int?
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerName  String?   @db.VarChar(255)
+  customerPhone String?   @db.VarChar(30)
+
+  // الجهاز: صنف عندنا أو اسم مكتوب (جهاز مش متباع من عندنا)
+  productId   Int?
+  product     Product?       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  deviceName  String?        @db.VarChar(255)
+  serialId    Int?
+  serial      ProductSerial? @relation("ClaimSerial", fields: [serialId], references: [id], onDelete: SetNull)
+  serialText  String?        @db.VarChar(100)
+  serial2Text String?        @db.VarChar(100)
+  // الضمان وقت الاستلام
+  inWarranty     Boolean   @default(false)
+  warrantyEndsAt DateTime? @db.Date
+
+  fault       String    @db.VarChar(1000)
+  // الملحقات المستلمة: ["charger", "box", ...] + أخرى
+  accessories Json?
+  accessoriesOther String? @db.VarChar(255)
+  condition   String?   @db.VarChar(500)
+  expectedAt  DateTime? @db.Date
+  estimate    Decimal?  @db.Decimal(18, 4)
+
+  // الوكيل / المورد
+  supplierId Int?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  sentAt     DateTime?
+  agentRef   String?   @db.VarChar(100)
+  backAt     DateTime?
+
+  // النتيجة
+  result      String?        @db.VarChar(12)
+  resultNote  String?        @db.VarChar(500)
+  newSerialId Int?
+  newSerial   ProductSerial? @relation("ClaimNewSerial", fields: [newSerialId], references: [id], onDelete: SetNull)
+
+  // فاتورة الصيانة (القطع والمصنعية)
+  saleId Int?  @unique
+  sale   Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  deliveredAt DateTime?
+  notes       String?   @db.VarChar(1000)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  items WarrantyClaimItem[]
+  logs  WarrantyClaimLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([branchId])
+  @@index([customerId])
+  @@index([productId])
+  @@index([serialId])
+  @@index([supplierId])
+  @@index([createdById])
+  @@index([newSerialId])
+  @@map("warranty_claims")
+}
+
+// قطع الغيار والمصنعية في طلب الصيانة (بتتحول لفاتورة)
+model WarrantyClaimItem {
+  id Int @id @default(autoincrement())
+
+  claimId Int
+  claim   WarrantyClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  unitId    Int
+  unit      Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  qty       Decimal @db.Decimal(18, 3)
+  price     Decimal @db.Decimal(18, 4)
+  note      String? @db.VarChar(500)
+
+  @@index([claimId])
+  @@index([productId])
+  @@index([unitId])
+  @@map("warranty_claim_items")
+}
+
+// سجل الطلب: كل نقلة (مين وإمتى وملاحظة)
+model WarrantyClaimLog {
+  id Int @id @default(autoincrement())
+
+  claimId Int
+  claim   WarrantyClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  status String  @db.VarChar(12)
+  note   String? @db.VarChar(500)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([claimId])
+  @@index([userId])
+  @@map("warranty_claim_logs")
+}
+
+// ============================================================
+// الفنيون (وحدة technicians): مش لازم يكونوا مستخدمين على البرنامج
+// commissionRate: نسبة الفني (%) من صافي سطور الخدمات اللي نفذها
+// ============================================================
+model Technician {
+  id             Int     @id @default(autoincrement())
+  arName         String  @db.VarChar(100)
+  enName         String  @db.VarChar(100)
+  phone          String? @db.VarChar(30)
+  // العمولة: commissionRate على الخدمات، productRate على بيع الأصناف (المستحضرات...)
+  // + استثناءات لقسم أو صنف معين (rates): نسبة أو مبلغ ثابت على الوحدة
+  commissionRate Decimal @default(0) @db.Decimal(5, 2)
+  productRate    Decimal @default(0) @db.Decimal(5, 2)
+  isActive       Boolean @default(true)
+  notes          String? @db.VarChar(500)
+
+  rates     TechnicianRate[]
+  saleItems SaleItem[]
+  bookings  Booking[]
+  contracts MaintenanceContract[]
+  visits    MaintenanceVisit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("technicians")
+}
+
+// استثناء عمولة لمقدم خدمة: على قسم (categoryId) أو صنف/خدمة (productId)
+// rateType: percent نسبة من الصافي | amount مبلغ ثابت على كل وحدة
+// الأولوية: الصنف ← القسم (أو القسم الأب) ← النسبة العامة
+model TechnicianRate {
+  id           Int         @id @default(autoincrement())
+  technicianId Int
+  technician   Technician  @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  categoryId   Int?
+  category     Category?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  productId    Int?
+  product      Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rateType     String      @default("percent") @db.VarChar(10)
+  value        Decimal     @default(0) @db.Decimal(18, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([technicianId])
+  @@index([categoryId])
+  @@index([productId])
+  @@map("technician_rates")
+}
+
+// ============================================================
+// عقود الصيانة الدورية (وحدة maintenanceContracts)
+// - العقد على جهاز عند عميل: زيارة كل intervalMonths من startDate لحد endDate
+// - الزيارات بتتولد مع العقد، وتتنفذ أو تتأجل أو تتلغى
+// status: active ساري | ended منتهي | cancelled ملغي
+// ============================================================
+model MaintenanceContract {
+  id     Int @id @default(autoincrement())
+  number Int @unique // MC-1
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  // الجهاز: صنف عندنا (اختياري) + اسم ورقم مكتوب
+  productId  Int?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  deviceName String   @db.VarChar(255)
+  serialText String?  @db.VarChar(100)
+  address    String?  @db.VarChar(500)
+
+  intervalMonths Int
+  startDate      DateTime @db.Date
+  endDate        DateTime @db.Date
+  // قيمة العقد (للعلم؛ الفلوس بفاتورة)
+  amount         Decimal? @db.Decimal(18, 4)
+
+  technicianId Int?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+
+  status String  @default("active") @db.VarChar(12)
+  notes  String? @db.VarChar(1000)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  visits MaintenanceVisit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([customerId])
+  @@index([productId])
+  @@index([technicianId])
+  @@index([createdById])
+  @@index([status])
+  @@map("maintenance_contracts")
+}
+
+// زيارة صيانة دورية: pending مستنية | done اتنفذت | skipped اتلغت
+model MaintenanceVisit {
+  id Int @id @default(autoincrement())
+
+  contractId Int
+  contract   MaintenanceContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  dueDate DateTime  @db.Date
+  status  String    @default("pending") @db.VarChar(10)
+  doneAt  DateTime?
+  note    String?   @db.VarChar(500)
+
+  technicianId Int?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+
+  @@index([contractId])
+  @@index([dueDate])
+  @@index([status])
+  @@index([technicianId])
+  @@map("maintenance_visits")
+}
+
+
+// ============================================================
+// المتابعة الدورية (وحدة followUps) - الفلاتر والتحلية وأي جهاز ليه صيانة دورية
+// - بتتعمل من فاتورة البيع: صنف عليه متابعة + "متابعة" على السطر (اختياري)
+// - الميعاد الجاي = آخر مرة (فاتورة صيانة / تمت المتابعة) + كل كام يوم
+// - فاتورة الصيانة بتجدد المتابعات اللي تختارها وقت الحفظ
+// ============================================================
+model FollowUp {
+  id Int @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branchId   Int
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  productId  Int?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  deviceName String   @db.VarChar(150)
+
+  // الفاتورة والسطر اللي اتعملت بيهم
+  originSaleId Int?
+  originSale   Sale?     @relation("FollowUpOrigin", fields: [originSaleId], references: [id], onDelete: SetNull)
+  saleItemId   Int?
+  saleItem     SaleItem? @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+
+  intervalDays Int
+  place        String? @db.VarChar(100) // البيت / المحل / المطبخ ...
+  address      String? @db.VarChar(500)
+  locationUrl  String? @db.VarChar(500) // لينك خرائط جوجل
+  phone        String? @db.VarChar(30)
+  notes        String? @db.VarChar(500)
+
+  lastDate DateTime @db.Date // آخر مرة (فاتورة / متابعة)
+  nextDate DateTime @db.Date // الميعاد الجاي (بيتغير بالتأجيل)
+  status   String   @default("active") @db.VarChar(10) // active | stopped
+
+  createdById Int
+  createdBy   User @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  logs FollowUpLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([branchId])
+  @@index([productId])
+  @@index([originSaleId])
+  @@index([saleItemId])
+  @@index([status, nextDate])
+  @@index([createdById])
+  @@map("follow_ups")
+}
+
+// سجل المتابعة: اتعملت / فاتورة صيانة / تمت / تأجيل / إيقاف / استئناف / تعديل
+model FollowUpLog {
+  id Int @id @default(autoincrement())
+
+  followUpId Int
+  followUp   FollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+
+  type String   @db.VarChar(12) // created | invoice | done | postponed | stopped | resumed | edited
+  date DateTime
+  note String?  @db.VarChar(500)
+
+  // فاتورة الصيانة (أو المرتجع اللي وقّف المتابعة)
+  saleId Int?
+  sale   Sale? @relation("FollowUpLogSale", fields: [saleId], references: [id], onDelete: SetNull)
+
+  // قبل التغيير (عشان حذف الفاتورة يرجّع الميعاد زي ما كان)
+  prevLastDate DateTime? @db.Date
+  prevNextDate DateTime? @db.Date
+  nextDate     DateTime? @db.Date
+
+  userId Int
+  user   User @relation("FollowUpLogUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([followUpId])
+  @@index([saleId])
+  @@index([userId])
+  @@map("follow_up_logs")
+}
+
+// ============================================================
+// السيارات (وحدة vehicles - الورش): رقم اللوحة هو اللي بيتبحث بيه
+// plateKey: اللوحة من غير مسافات وبحروف كبيرة (عشان ما تتكررش)
+// العميل اختياري (الزبون العابر: لوحة بس، والجوال اختياري)
+// ============================================================
+model Vehicle {
+  id          Int       @id @default(autoincrement())
+  plateNo     String    @db.VarChar(30)
+  plateKey    String    @unique @db.VarChar(30)
+  vehicleType String?   @db.VarChar(100)
+  customerId  Int?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  phone       String?   @db.VarChar(30)
+  notes       String?   @db.VarChar(500)
+
+  sales Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([vehicleType])
+  @@map("vehicles")
+}
+
+// ============================================================
+// الحجوزات (وحدة bookings - الكوافير / الحلاق / المساج)
+// status: booked محجوز | arrived وصل | done تم | cancelled ملغي | noShow لم يحضر
+// source: staff من البرنامج | online من لينك الحجز
+// العميل اختياري (الاسم والجوال كفاية) - الفاتورة: saleId
+// ============================================================
+model Booking {
+  id           Int         @id @default(autoincrement())
+  number       Int         @unique
+  branchId     Int
+  branch       Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customerId   Int?
+  customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName String      @db.VarChar(150)
+  phone        String      @db.VarChar(30)
+  technicianId Int?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  startAt      DateTime
+  endAt        DateTime
+  status       String      @default("booked") @db.VarChar(12)
+  // خدمة في المنزل
+  atHome       Boolean     @default(false)
+  address      String?     @db.VarChar(500)
+  locationUrl  String?     @db.VarChar(500)
+  notes        String?     @db.VarChar(500)
+  source       String      @default("staff") @db.VarChar(10)
+  saleId       Int?
+  sale         Sale?       @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdById  Int?
+  createdBy    User?       @relation("BookingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  items BookingItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startAt])
+  @@index([branchId])
+  @@index([customerId])
+  @@index([technicianId])
+  @@index([phone])
+  @@index([status])
+  @@index([saleId])
+  @@index([createdById])
+  @@map("bookings")
+}
+
+model BookingItem {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  productId   Int?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  arName      String   @db.VarChar(255)
+  enName      String   @db.VarChar(255)
+  price       Decimal  @default(0) @db.Decimal(18, 4)
+  durationMin Int      @default(0)
+
+  @@index([bookingId])
+  @@index([productId])
+  @@map("booking_items")
+}
+
+// ============================================================
+// المغسلة (وحدة laundry) - الأصناف والخدمات والإضافات
+// - القطعة (ثوب، شماغ...) = صنف خدمة عادي + سطر هنا (صنف مغسلة)
+// - السعر = القطعة × الخدمة: عادي + مستعجل (المستعجل null = مش متاح)
+// - الإضافات (نشا، مرزام، علّاق...) من غير أسعار، في مجموعات
+// ============================================================
+model LaundryService {
+  id        Int     @id @default(autoincrement())
+  arName    String  @unique @db.VarChar(100)
+  enName    String  @unique @db.VarChar(100)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  prices LaundryPrice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // المغسلة (وحدة laundry): طلبات الاستلام
+  orderItems LaundryOrderItem[]
+  @@map("laundry_services")
+}
+
+model LaundryItem {
+  productId Int     @id
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // الترتيب في شاشة الاستلام
+  sortOrder Int     @default(0)
+
+  prices LaundryPrice[]
+
+  createdAt DateTime @default(now())
+
+  @@map("laundry_items")
+}
+
+// السطر موجود = الخدمة متاحة للقطعة دي
+model LaundryPrice {
+  id          Int            @id @default(autoincrement())
+  productId   Int
+  item        LaundryItem    @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  serviceId   Int
+  service     LaundryService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  price       Decimal        @default(0) @db.Decimal(18, 4)
+  urgentPrice Decimal?       @db.Decimal(18, 4)
+
+  @@unique([productId, serviceId])
+  @@index([serviceId])
+  @@map("laundry_prices")
+}
+
+// multiple = يختار أكتر من واحدة (غير كده واحدة بس، زي النشا)
+model LaundryAddonGroup {
+  id        Int     @id @default(autoincrement())
+  arName    String  @unique @db.VarChar(100)
+  enName    String  @unique @db.VarChar(100)
+  multiple  Boolean @default(false)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  addons LaundryAddon[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("laundry_addon_groups")
+}
+
+model LaundryAddon {
+  id        Int               @id @default(autoincrement())
+  groupId   Int
+  group     LaundryAddonGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  arName    String            @db.VarChar(100)
+  enName    String            @db.VarChar(100)
+  sortOrder Int               @default(0)
+  isActive  Boolean           @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([groupId, arName])
+  @@unique([groupId, enName])
+  @@map("laundry_addons")
+}
+
+// ============================================================
+// المغسلة (وحدة laundry) - طلبات الاستلام
+// - dailyNo: رقم يومي (يبدأ من 1 كل يوم عمل) لكل فرع، والـ id هو الرقم الفريد
+//   (اللي في باركود الإيصال)
+// - العميل إجباري (بالجوال) + نسخة من اسمه وجواله وقت الاستلام
+// - status: received مستلَم | processing قيد التنفيذ | ready جاهز
+//   | delivered مسلَّم | cancelled ملغي
+// - saleId: الفاتورة، وفاتورة واحدة ممكن تجمع أكتر من طلب (الفاتورة المجمعة)
+// ============================================================
+model LaundryOrder {
+  id           Int       @id @default(autoincrement())
+  branchId     Int
+  branch       Branch    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  // يوم العمل (الإعدادات العامة ← بداية يوم العمل)
+  bizDay       DateTime  @db.Date
+  dailyNo      Int
+  customerId   Int
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerName String    @db.VarChar(255)
+  phone        String    @db.VarChar(11)
+  status       String    @default("received") @db.VarChar(12)
+  // فيه سطر مستعجل (للترتيب والتمييز في اللوحة)
+  isUrgent     Boolean   @default(false)
+  totalQty     Int       @default(0)
+  totalAmount  Decimal   @default(0) @db.Decimal(18, 4)
+  notes        String?   @db.VarChar(500)
+  saleId       Int?
+  sale         Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  readyAt      DateTime?
+  deliveredAt  DateTime?
+  deliveredById Int?
+  deliveredBy  User?     @relation("LaundryOrderDeliveredBy", fields: [deliveredById], references: [id], onDelete: SetNull)
+  cancelledAt  DateTime?
+  cancelReason String?   @db.VarChar(255)
+  createdById  Int
+  createdBy    User      @relation("LaundryOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  items LaundryOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([branchId, bizDay, dailyNo])
+  @@index([bizDay])
+  @@index([customerId])
+  @@index([phone])
+  @@index([status])
+  @@index([saleId])
+  @@index([deliveredById])
+  @@index([createdById])
+  @@map("laundry_orders")
+}
+
+// السطر: القطعة × الخدمة (عادي / مستعجل) × العدد + الإضافات
+// الأسماء والسعر نسخة وقت الاستلام
+// addons: [{ id, groupId, arName, enName }]
+model LaundryOrderItem {
+  id            Int             @id @default(autoincrement())
+  orderId       Int
+  order         LaundryOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     Int
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  serviceId     Int?
+  service       LaundryService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  arName        String          @db.VarChar(150)
+  enName        String          @db.VarChar(150)
+  serviceArName String          @db.VarChar(100)
+  serviceEnName String          @db.VarChar(100)
+  isUrgent      Boolean         @default(false)
+  qty           Int             @default(1)
+  price         Decimal         @default(0) @db.Decimal(18, 4)
+  total         Decimal         @default(0) @db.Decimal(18, 4)
+  addons        Json?
+  notes         String?         @db.VarChar(255)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([serviceId])
+  @@map("laundry_order_items")
+}
+
+// ============================================================
+// المغسلة (وحدة laundry) - الاشتراكات (رصيد للعميل)
+// - paidAmount اللي دفعه، creditAmount اللي اتشحن له (المكافأة = الفرق)
+// - الفلوس بسند قبض (voucher) على الدرج، والرصيد بيتصرف في فواتير الكاشير
+// - status: active | used (الرصيد خلص) | expired | cancelled
+// ============================================================
+model LaundryWallet {
+  id           Int       @id @default(autoincrement())
+  number       Int       @unique
+  customerId   Int
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branchId     Int
+  branch       Branch    @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  paidAmount   Decimal   @default(0) @db.Decimal(18, 4)
+  creditAmount Decimal   @default(0) @db.Decimal(18, 4)
+  remaining    Decimal   @default(0) @db.Decimal(18, 4)
+  expiresAt    DateTime? @db.Date
+  status       String    @default("active") @db.VarChar(10)
+  voucherId    Int?      @unique
+  voucher      Voucher?  @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  notes        String?   @db.VarChar(255)
+  createdById  Int
+  createdBy    User      @relation("LaundryWalletCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  uses LaundryWalletUse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([customerId, status])
+  @@index([branchId])
+  @@index([createdById])
+  @@map("laundry_wallets")
+}
+
+// الصرف من الاشتراك في فاتورة: credit = اللي اتخصم من الرصيد
+// value = اللي اتدفع بيه في الفاتورة، bonus = خصم المكافأة (credit = value + bonus)
+model LaundryWalletUse {
+  id        Int           @id @default(autoincrement())
+  walletId  Int
+  wallet    LaundryWallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  saleId    Int
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  credit    Decimal       @default(0) @db.Decimal(18, 4)
+  value     Decimal       @default(0) @db.Decimal(18, 4)
+  bonus     Decimal       @default(0) @db.Decimal(18, 4)
+  createdAt DateTime      @default(now())
+
+  @@index([walletId])
+  @@index([saleId])
+  @@map("laundry_wallet_uses")
+}
+
+// ============================================================
+// المطعم / المقهى (وحدة restaurant): المنيو
+// - الصنف = صنف عادي + RestaurantItem (ترتيبه وهل عليه رسوم تبغ)
+// - الأحجام: كل صنف ليه سعر لكل حجم (من غير أحجام = سعره العادي)
+// - الإضافات: مجموعات بحد أدنى/أقصى للاختيار، مربوطة بأصنافها
+// - التطبيقات (SalesChannel): من لوحة التحكم، والصنف ممكن يتكتب له سعر خاص فيها
+// ============================================================
+model RestaurantItem {
+  productId Int      @id
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder Int      @default(0)
+  // رسوم التبغ (الشيشة...): نسبة الإعدادات على صافي السطر
+  isTobacco Boolean  @default(false)
+  // عدد الحبات (السمك...): الكاشير بيكتب الكيلو كام حبة (بيظهر في التحضير)
+  askPieces Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  sizes         RestaurantItemSize[]
+  groups        RestaurantItemGroup[]
+  channelPrices RestaurantChannelPrice[]
+
+  @@map("restaurant_items")
+}
+
+model RestaurantSize {
+  id        Int     @id @default(autoincrement())
+  arName    String  @unique @db.VarChar(100)
+  enName    String  @unique @db.VarChar(100)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  items RestaurantItemSize[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("restaurant_sizes")
+}
+
+// سعر الصنف لكل حجم (السطر موجود = الحجم متاح للصنف)
+model RestaurantItemSize {
+  id        Int            @id @default(autoincrement())
+  productId Int
+  item      RestaurantItem @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  sizeId    Int
+  size      RestaurantSize @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  price     Decimal        @default(0) @db.Decimal(18, 4)
+
+  @@unique([productId, sizeId])
+  @@index([sizeId])
+  @@map("restaurant_item_sizes")
+}
+
+// minSelect: 0 اختياري، 1+ إجباري | maxSelect: 0 بدون حد
+model RestaurantModifierGroup {
+  id        Int     @id @default(autoincrement())
+  arName    String  @unique @db.VarChar(100)
+  enName    String  @unique @db.VarChar(100)
+  minSelect Int     @default(0)
+  maxSelect Int     @default(0)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  modifiers RestaurantModifier[]
+  items     RestaurantItemGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("restaurant_modifier_groups")
+}
+
+model RestaurantModifier {
+  id        Int                     @id @default(autoincrement())
+  groupId   Int
+  group     RestaurantModifierGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  arName    String                  @db.VarChar(100)
+  enName    String                  @db.VarChar(100)
+  // 0 = مجاناً
+  price     Decimal                 @default(0) @db.Decimal(18, 4)
+  sortOrder Int                     @default(0)
+  isActive  Boolean                 @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, arName])
+  @@unique([groupId, enName])
+  @@map("restaurant_modifiers")
+}
+
+model RestaurantItemGroup {
+  productId Int
+  item      RestaurantItem          @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  groupId   Int
+  group     RestaurantModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sortOrder Int                     @default(0)
+
+  @@id([productId, groupId])
+  @@index([groupId])
+  @@map("restaurant_item_groups")
+}
+
+// التطبيقات (هنقرستيشن، جاهز...): من لوحة التحكم (templateKey = "C<رقم التطبيق>")
+// markupType: percent نسبة | amount مبلغ (زيادة على سعر الصنف)
+// commissionPercent: عمولة التطبيق من الصافي (التقارير)
+model SalesChannel {
+  id                Int     @id @default(autoincrement())
+  templateKey       String  @unique @db.VarChar(20)
+  arName            String  @db.VarChar(100)
+  enName            String  @db.VarChar(100)
+  markupType        String  @default("percent") @db.VarChar(10)
+  markupValue       Decimal @default(0) @db.Decimal(18, 4)
+  commissionPercent Decimal @default(0) @db.Decimal(7, 2)
+  sortOrder         Int     @default(0)
+  isActive          Boolean @default(true)
+
+  prices RestaurantChannelPrice[]
+  orders RestaurantOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sales_channels")
+}
+
+// سعر خاص للصنف في التطبيق (sizeId = 0: الصنف من غير حجم)
+// مش موجود = سعر الصنف + زيادة التطبيق
+model RestaurantChannelPrice {
+  id        Int            @id @default(autoincrement())
+  productId Int
+  item      RestaurantItem @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  channelId Int
+  channel   SalesChannel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sizeId    Int            @default(0)
+  price     Decimal        @default(0) @db.Decimal(18, 4)
+
+  @@unique([productId, channelId, sizeId])
+  @@index([channelId])
+  @@map("restaurant_channel_prices")
+}
+
+// السائقين: commissionType percent نسبة من رسوم التوصيل | amount مبلغ على كل طلب
+model RestaurantDriver {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique @db.VarChar(100)
+  phone           String? @db.VarChar(30)
+  commissionType  String  @default("amount") @db.VarChar(10)
+  commissionValue Decimal @default(0) @db.Decimal(18, 4)
+  isActive        Boolean @default(true)
+
+  orders RestaurantOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("restaurant_drivers")
+}
+
+// طلبات الكاشير (المطعم): رقم يومي لكل فرع يبدأ من 1
+// orderType: local محلي (من غير طاولة) | dinein طاولات | takeaway سفري | delivery توصيل | app تطبيق
+// status: open طاولة مفتوحة (السطور في lines لحد الفاتورة) | paid اتفوتر | cancelled ملغي
+model RestaurantOrder {
+  id             Int               @id @default(autoincrement())
+  branchId       Int
+  bizDay         DateTime          @db.Date
+  dailyNo        Int
+  orderType      String            @default("takeaway") @db.VarChar(10)
+  status         String            @default("open") @db.VarChar(10)
+  tableNo        String?           @db.VarChar(20)
+  // الطاولة (من الطاولات المتسجلة) + عدد الأفراد (حجز أونلاين)
+  tableId        Int?
+  table          RestaurantTable?  @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  partySize      Int?
+  channelId      Int?
+  channel        SalesChannel?     @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  // رقم الطلب في التطبيق (هنقرستيشن...)
+  channelOrderNo String?           @db.VarChar(50)
+  driverId       Int?
+  driver         RestaurantDriver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  customerId     Int?
+  customerName   String?           @db.VarChar(150)
+  phone          String?           @db.VarChar(30)
+  address        String?           @db.VarChar(500)
+  deliveryFee    Decimal           @default(0) @db.Decimal(18, 4)
+  // الخدمة: serviceType percent نسبة | amount مبلغ، والقيمة في servicePercent
+  serviceType    String            @default("percent") @db.VarChar(10)
+  servicePercent Decimal           @default(0) @db.Decimal(18, 4)
+  // الطاولة المفتوحة: سطور السلة لحد ما تتفوتر
+  orderLines     Json?
+  total          Decimal           @default(0) @db.Decimal(18, 4)
+  saleId         Int?              @unique
+  sale           Sale?             @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdById    Int?
+  // الطلب الأونلاين: source online + ميعاد الوصول وطريقة الاستلام (store المحل | car السيارة)
+  // status pending = جديد لسه ماتقبلش
+  source         String            @default("pos") @db.VarChar(10)
+  pickupAt       DateTime?
+  pickupMode     String?           @db.VarChar(10)
+  carInfo        String?           @db.VarChar(100)
+  notes          String?           @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, bizDay, dailyNo])
+  @@index([source, status])
+  @@index([status])
+  @@index([channelId])
+  @@index([driverId])
+  @@index([tableId])
+  @@map("restaurant_orders")
+}
+
+// طابعات المطعم (لكل فرع): kind cashier الكاشير | kitchen تحضير
+// connection: network شبكة (host:port) | windows طابعة ويندوز بالاسم | browser المتصفح
+// التحضير: أقسام الطابعة + أصناف خاصة بيها، والباقي على الافتراضية (isDefault)
+model RestaurantPrinter {
+  id          Int     @id @default(autoincrement())
+  branchId    Int
+  branch      Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name        String  @db.VarChar(100)
+  kind        String  @default("kitchen") @db.VarChar(10)
+  connection  String  @default("network") @db.VarChar(10)
+  host        String? @db.VarChar(100)
+  port        Int     @default(9100)
+  windowsName String? @db.VarChar(150)
+  paperSize   String  @default("80mm") @db.VarChar(10)
+  copies      Int     @default(1)
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  // الأولوية (الأصغر يطبع الأول) + قص الورق + صوت التنبيه
+  // fullTicket: الكاشير بيطبع مع الفاتورة تذكرة تحضير كاملة بكل الأصناف
+  priority    Int     @default(0)
+  autoCut     Boolean @default(true)
+  beep        Boolean @default(false)
+  fullTicket  Boolean @default(false)
+  jobs        PrintJob[]
+
+  categories RestaurantPrinterCategory[]
+  products   RestaurantPrinterProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, name])
+  @@map("restaurant_printers")
+}
+
+model RestaurantPrinterCategory {
+  printerId  Int
+  printer    RestaurantPrinter @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  categoryId Int
+  category   Category          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([printerId, categoryId])
+  @@index([categoryId])
+  @@map("restaurant_printer_categories")
+}
+
+model RestaurantPrinterProduct {
+  printerId Int
+  printer   RestaurantPrinter @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([printerId, productId])
+  @@index([productId])
+  @@map("restaurant_printer_products")
+}
+
+// طاولات المطعم (لكل فرع): الاسم/الرقم وعدد الكراسي
+model RestaurantTable {
+  id        Int     @id @default(autoincrement())
+  branchId  Int
+  branch    Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name      String  @db.VarChar(30)
+  seats     Int     @default(4)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  orders RestaurantOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, name])
+  @@map("restaurant_tables")
+}
+
+// وسيط الطباعة: جهاز ويندوز مربوط بفرع (بكود الفرع printAgentKey)
+// winPrinters: طابعات ويندوز المتسطبة على الجهاز (الوسيط بيبعتها)
+model PrintAgent {
+  id           Int       @id @default(autoincrement())
+  branchId     Int
+  branch       Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name         String    @db.VarChar(100)
+  hostName     String?   @db.VarChar(100)
+  tokenHash    String    @unique @db.VarChar(64)
+  agentVersion String?   @db.VarChar(20)
+  winPrinters  Json?
+  lastSeenAt   DateTime?
+  isActive     Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@map("print_agents")
+}
+
+// مهام الطباعة: jobKind print صورة | test تجربة | probe اختبار IP | scan بحث
+// jobStatus: queued مستنية | taken اتسحبت | done تمت | failed فشلت
+model PrintJob {
+  id          Int                @id @default(autoincrement())
+  branchId    Int
+  branch      Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  printerId   Int?
+  printer     RestaurantPrinter? @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  agentId     Int?
+  jobKind     String             @default("print") @db.VarChar(10)
+  title       String?            @db.VarChar(150)
+  connection  String?            @db.VarChar(10)
+  targetHost  String?            @db.VarChar(100)
+  targetPort  Int?
+  windowsName String?            @db.VarChar(150)
+  paperSize   String             @default("80mm") @db.VarChar(10)
+  copies      Int                @default(1)
+  autoCut     Boolean            @default(true)
+  beep        Boolean            @default(false)
+  priority    Int                @default(0)
+  imageData   String?            @db.LongText
+  jobStatus   String             @default("queued") @db.VarChar(10)
+  attempts    Int                @default(0)
+  errorText   String?            @db.VarChar(500)
+  resultData  Json?
+  createdAt   DateTime           @default(now())
+  takenAt     DateTime?
+  doneAt      DateTime?
+
+  @@index([branchId, jobStatus, priority])
+  @@index([printerId])
+  @@map("print_jobs")
 }

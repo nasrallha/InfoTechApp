@@ -1,0 +1,205 @@
+/* شبكة المقاسات في الكاشير (وحدة variants) */
+.size-grid {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+}
+.size-grid__row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.size-grid__color {
+  min-width: 70px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: #334155;
+}
+.size-grid__cell {
+  width: 76px;
+  min-width: 76px;
+  height: auto !important;
+  min-height: 58px;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px !important;
+}
+.size-grid__cell b {
+  font-size: 16px;
+}
+.size-grid__cell small {
+  font-size: 11px;
+  color: #16a34a;
+}
+.size-grid__cell.is-out small {
+  color: #dc2626;
+}
+.size-grid__cell .size-grid__price {
+  color: #64748b;
+}
+
+/* شبكة الكميات في فاتورة الشراء */
+.size-grid__label {
+  width: 76px;
+  min-width: 76px;
+  text-align: center;
+  font-weight: 700;
+  color: #334155;
+}
+.size-grid__qty {
+  width: 76px !important;
+  min-width: 76px;
+}
+.size-grid__qty input {
+  text-align: center;
+}
+
+/* ============ الألوان (دواير) ============ */
+.color-dot {
+  display: inline-block;
+  border-radius: 50%;
+  border: 1px solid;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.color-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  padding: 0;
+  transition: transform 0.1s;
+}
+.color-swatch:hover {
+  transform: scale(1.12);
+}
+.color-swatch.is-on {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px var(--c-primary);
+}
+.color-swatch--add {
+  background: #f8fafc;
+  border: 2px dashed #94a3b8;
+  color: #64748b;
+}
+.color-palette__picked {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  font-size: 12px;
+}
+.size-grid__color {
+  gap: 6px;
+}
+.size-grid__taken {
+  color: #16a34a;
+  line-height: 32px;
+}
+
+/* الكاشير: اختيار اللون (دواير كبيرة) ثم المقاس */
+.size-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.size-color {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: #334155;
+}
+.size-color .color-swatch {
+  width: 38px;
+  height: 38px;
+}
+.size-color.is-on {
+  font-weight: 700;
+}
+.size-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* كارت الصنف: الألوان والمقاسات */
+.variant-swatches {
+  display: grid;
+  gap: 8px;
+}
+.variant-swatches__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.variant-swatches__label {
+  min-width: 48px;
+  color: #64748b;
+  font-size: 13px;
+}
+.size-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 42px;
+  padding: 2px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  line-height: 1.2;
+}
+.size-chip small {
+  font-size: 11px;
+  color: #16a34a;
+}
+.size-chip.is-out small {
+  color: #dc2626;
+}
+.size-chip.is-on {
+  border-color: var(--c-primary);
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px var(--c-primary);
+}
+
+/* الكاشير: ألوان الموديل على كارت الصنف */
+.pos-tile__colors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  margin: 2px 0;
+}

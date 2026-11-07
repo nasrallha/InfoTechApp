@@ -12,7 +12,8 @@ import {
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
-import { useCan } from "@/components/auth/AuthProvider";
+import { useCan, useModule } from "@/components/auth/AuthProvider";
+import { C } from "@/lib/theme";
 import "./invoices.css";
 
 // أنواع الفواتير: الرابط + الأيقونة + اللون + الصلاحية المطلوبة لظهورها
@@ -21,7 +22,7 @@ export const INVOICE_TYPES = [
     key: "SalesInvoice",
     href: "/invoices/sales",
     Icon: ShoppingCartOutlined,
-    color: "#006266",
+    color: C.primary,
     permission: "sales.view",
   },
   // فاتورة تصدير (عميل برّه المملكة - ضريبة صفرية): بتفتح فاتورة بيع جديدة بنوع تصدير
@@ -29,43 +30,50 @@ export const INVOICE_TYPES = [
     key: "ExportInvoice",
     href: "/invoices/sales/new?export=1",
     Icon: GlobalOutlined,
-    color: "#117a65",
+    color: C.primary,
     permission: "sales.create",
   },
   {
     key: "SalesReturn",
     href: "/invoices/sales-returns",
     Icon: RollbackOutlined,
-    color: "#c0392b",
+    color: C.dangerText,
     permission: "salesReturns.view",
   },
   {
     key: "PurchaseInvoice",
     href: "/invoices/purchases",
     Icon: ShoppingOutlined,
-    color: "#2471a3",
+    color: C.infoText,
     permission: "purchases.view",
   },
   {
     key: "PurchaseReturn",
     href: "/invoices/purchase-returns",
     Icon: UndoOutlined,
-    color: "#d35400",
+    color: C.warningText,
     permission: "purchaseReturns.view",
   },
   {
     key: "Quotation",
     href: "/invoices/quotations",
     Icon: FileSearchOutlined,
-    color: "#7d3c98",
+    color: C.purple,
     permission: "quotations.view",
   },
 ];
 
 // هل المستخدم يقدر يفتح أي نوع فاتورة؟ (لإظهار زر "الفواتير" في القائمة)
+// نظام المغسلة: الفوترة من الكاشير (وضع المغسلة)، ففاتورة البيع والتصدير وعرض السعر مش ظاهرين
+const LAUNDRY_HIDDEN = ["SalesInvoice", "ExportInvoice", "Quotation"];
+
 export function useVisibleInvoiceTypes() {
   const can = useCan();
-  return INVOICE_TYPES.filter((type) => can(type.permission));
+  const laundryOn = useModule("laundry");
+  return INVOICE_TYPES.filter(
+    (type) =>
+      can(type.permission) && !(laundryOn && LAUNDRY_HIDDEN.includes(type.key)),
+  );
 }
 
 // نافذة في نص الشاشة: كروت كبيرة لكل نوع فاتورة، الضغط على كارت يفتح صفحته

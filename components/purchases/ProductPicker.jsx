@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Empty, Input, Spin, Tag } from "antd";
+import { Button, Empty, Input, Modal, Spin, Tag } from "antd";
 import { message } from "@/components/common/feedback";
-import { BarcodeOutlined } from "@ant-design/icons";
+import { BarcodeOutlined, StopOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { searchPurchaseProductsAction } from "@/actions/purchase.actions";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // إضافة صنف للفاتورة: بالكتابة (اسم أو كود) أو بالماسح (باركود + Enter)
@@ -24,6 +25,8 @@ export default function ProductPicker({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
+  // باركود/كود مش موجود: رسالة كبيرة توقف الضرب لحد ما يقفلها بإيده
+  const [missing, setMissing] = useState(null);
   const inputRef = useRef(null);
   const requestId = useRef(0);
   const boxRef = useRef(null);
@@ -78,10 +81,15 @@ export default function ProductPicker({
 
   const add = (product, unitId) => {
     // باركود الميزان: الكمية (الوزن) جاية من الباركود
+    // الرقم التسلسلي اللي اتمسح (القطعة تتضاف برقمها)
+    const options = {
+      ...(product.scaleQty ? { qty: product.scaleQty } : {}),
+      ...(product.scannedSerial ? { serial: product.scannedSerial } : {}),
+    };
     onAdd(
       product,
       unitId ?? product.exactUnitId ?? product.units[0].unit.id,
-      product.scaleQty ? { qty: product.scaleQty } : undefined,
+      Object.keys(options).length ? options : undefined,
     );
     setText("");
     setResults([]);
@@ -125,8 +133,12 @@ export default function ProductPicker({
     if (exact) return add(exact, exact.exactUnitId);
     if (data.length === 1) return add(data[0]);
     if (!data.length) {
-      message.warning(t("ProductNotFoundFor", { q }));
+      setText("");
       setResults([]);
+      setOpen(false);
+      inputRef.current?.blur();
+      setMissing(q);
+      beep();
       return;
     }
     setResults(data);
@@ -134,8 +146,16 @@ export default function ProductPicker({
     setActive(0);
   };
 
+  const closeMissing = () => {
+    setMissing(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   return (
     <div className="pur-picker" ref={boxRef}>
+      {missing !== null && (
+        <MissingAlert code={missing} onClose={closeMissing} t={t} />
+      )}
       <Input
         ref={inputRef}
         size="large"
@@ -200,4 +220,122 @@ export default function ProductPicker({
       )}
     </div>
   );
+}
+
+// ============================================================
+// رسالة "الصنف مش موجود" في نص الشاشة + صوت تنبيه
+// - بتمنع أي ضرب (الماسح بيكتب حروف + Enter): كل الكيبورد بيتجاهل
+//   ما عدا Esc، والقفل بزرار "تمام" بالماوس أو Esc بس
+//   (عشان الصنف اللي بعده ما يتضربش والعامل مش واخد باله)
+// ============================================================
+function MissingAlert({ code, onClose, t }) {
+  useEffect(() => {
+    const block = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", block, true);
+    window.addEventListener("keypress", block, true);
+    return () => {
+      window.removeEventListener("keydown", block, true);
+      window.removeEventListener("keypress", block, true);
+    };
+  }, [onClose]);
+
+  return (
+    <Modal
+      open
+      centered
+      width={520}
+      closable={false}
+      keyboard={false}
+      mask={{ closable: false }}
+      footer={null}
+      styles={{ mask: { background: "rgba(127, 29, 29, 0.55)" } }}
+    >
+      <div style={{ textAlign: "center", padding: "12px 4px" }}>
+        <StopOutlined style={{ fontSize: 72, color: C.danger }} />
+        <div
+          style={{
+            fontSize: 26,
+            fontWeight: 700,
+            color: C.dangerText,
+            margin: "14px 0 6px",
+          }}
+        >
+          {t("NotFoundTitle")}
+        </div>
+        {/* نفس الرسالة باللغة التانية (عربي + إنجليزي دايماً) */}
+        <div
+          style={{ fontSize: 20, fontWeight: 700, color: C.dangerText }}
+          dir={t("NotFoundDir2")}
+        >
+          {t("NotFoundTitle2")}
+        </div>
+        <div
+          dir="ltr"
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            letterSpacing: 1,
+            background: C.dangerSoft,
+            border: `1px dashed ${C.dangerBorder}`,
+            borderRadius: 10,
+            padding: "8px 12px",
+            margin: "10px 0",
+            wordBreak: "break-all",
+          }}
+        >
+          {code}
+        </div>
+        <div style={{ color: C.text2, fontSize: 15, marginBottom: 6 }}>
+          {t("NotFoundHint")}
+        </div>
+        <div
+          style={{ color: C.muted, fontSize: 14, marginBottom: 18 }}
+          dir={t("NotFoundDir2")}
+        >
+          {t("NotFoundHint2")}
+        </div>
+        <Button
+          type="primary"
+          danger
+          size="large"
+          block
+          style={{ height: 52, fontSize: 18 }}
+          onClick={onClose}
+        >
+          {t("NotFoundOk")}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+// صوت تنبيه (3 صفارات) من غير ملفات صوت
+function beep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    [0, 0.22, 0.44].forEach((at) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + at);
+      gain.gain.setValueAtTime(0, ctx.currentTime + at + 0.15);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + at);
+      osc.stop(ctx.currentTime + at + 0.16);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 1000);
+  } catch {
+    // المتصفح مش بيسمح بالصوت: الرسالة كفاية
+  }
 }

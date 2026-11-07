@@ -35,6 +35,7 @@ export default function PurchasesList({
   const locale = useLocale();
   const t = useTranslations("Purchases");
   const tTable = useTranslations("Table");
+  const tButtons = useTranslations("Buttons");
   const { amount: money } = useCurrency();
 
   const isReturn = type === "return";
@@ -177,7 +178,7 @@ export default function PurchasesList({
       align: "center",
       render: (_, r) => (
         <Link href={`${basePath}/${r.id}`}>
-          <Button size="small" icon={<EyeOutlined />} />
+          <Button aria-label={tButtons("View")} title={tButtons("View")} size="small" icon={<EyeOutlined />} />
         </Link>
       ),
     },

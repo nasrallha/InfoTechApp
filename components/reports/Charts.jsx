@@ -16,19 +16,10 @@ import {
   YAxis,
 } from "recharts";
 import { useCurrency } from "@/components/common/CurrencyProvider";
+import { C, CHART_COLORS } from "@/lib/theme";
 
-export const CHART_COLORS = [
-  "#1f77b4",
-  "#2ca02c",
-  "#ff7f0e",
-  "#9467bd",
-  "#d62728",
-  "#17becf",
-  "#8c564b",
-  "#e377c2",
-  "#bcbd22",
-  "#7f7f7f",
-];
+// ألوان الرسوم من lib/theme.js (قيم حقيقية مش متغيرات CSS عشان SVG)
+export { CHART_COLORS };
 
 // الأرقام الكبيرة على المحور: 12500 ← 12.5K
 const short = (v) => {
@@ -164,7 +155,7 @@ export function HBars({
   data,
   dataKey,
   nameKey = "name",
-  color = "#1f77b4",
+  color = C.info,
   height = 300,
 }) {
   const { amount } = useCurrency();

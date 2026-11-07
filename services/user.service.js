@@ -1,4 +1,5 @@
 import "server-only";
+import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { hashPassword } from "@/lib/password";
@@ -114,6 +115,8 @@ export async function createUser({ password, image, ...data }, currentUser) {
 
   await assertRoleAndBranch(data, currentUser);
   await assertUsernameFree(data.username);
+  // حد المستخدمين في الباقة
+  await assertPlanLimit("users", currentUser);
 
   // نحفظ الصورة أولاً (لو موجودة)، ولو فشل الحفظ في قاعدة البيانات نحذفها
   const imagePath = image ? await saveImage(image, IMAGES_FOLDER) : null;

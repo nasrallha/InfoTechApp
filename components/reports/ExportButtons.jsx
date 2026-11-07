@@ -13,6 +13,7 @@ import { message } from "@/components/common/feedback";
 import PrintDocument from "@/components/printing/PrintDocument";
 import PdfDocument from "@/components/printing/PdfDocument";
 import ReportSheet from "./ReportSheet";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // أزرار التصدير لأي تقرير/قائمة: Excel + طباعة A4 + PDF
@@ -74,7 +75,7 @@ export default function ExportButtons({
       <Space wrap>
         <Button
           size={size}
-          icon={<FileExcelOutlined style={{ color: "#1d6f42" }} />}
+          icon={<FileExcelOutlined style={{ color: C.successText }} />}
           loading={busy === "excel"}
           disabled={disabled || (busy && busy !== "excel")}
           onClick={() => run("excel")}
@@ -92,7 +93,7 @@ export default function ExportButtons({
         </Button>
         <Button
           size={size}
-          icon={<FilePdfOutlined style={{ color: "#c0392b" }} />}
+          icon={<FilePdfOutlined style={{ color: C.dangerText }} />}
           loading={busy === "pdf"}
           disabled={disabled || (busy && busy !== "pdf")}
           onClick={() => run("pdf")}
@@ -101,13 +102,17 @@ export default function ExportButtons({
         </Button>
       </Space>
       {mode === "print" && report && (
-        <PrintDocument paperSize="A4" margin={10} onDone={done}>
+        <PrintDocument
+          paperSize={report.landscape ? "A4L" : "A4"}
+          margin={10}
+          onDone={done}
+        >
           <ReportSheet report={report} labels={labels} fixedWidth={false} />
         </PrintDocument>
       )}
       {mode === "pdf" && report && (
         <PdfDocument
-          paperSize="A4"
+          paperSize={report.landscape ? "A4L" : "A4"}
           fileName={report.fileName || report.title}
           onDone={done}
         >

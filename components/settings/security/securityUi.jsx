@@ -71,9 +71,13 @@ export function DeviceCell({ device, userAgent }) {
   );
 }
 
+// عنوان الجهاز: من الشمال لليمين (عشان العربي ميلخبطش ترتيبه)
+// والقديم المتسجل "::1" (الجهاز نفسه) بيتعرض 127.0.0.1
 export const Ip = ({ ip }) =>
   ip ? (
-    <bdi className="sec-ip">{ip}</bdi>
+    <bdi dir="ltr" className="sec-ip">
+      {ip === "::1" ? "127.0.0.1" : ip.replace(/^::ffff:/i, "")}
+    </bdi>
   ) : (
     <span className="sec-muted">—</span>
   );

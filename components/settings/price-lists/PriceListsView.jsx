@@ -11,8 +11,7 @@ import {
   Tag,
 } from "antd";
 import { message } from "@/components/common/feedback";
-import { DollarOutlined, TagsOutlined } from "@ant-design/icons";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
+import { DollarOutlined, TagsOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import PageHeader from "@/components/common/PageHeader";
@@ -21,6 +20,7 @@ import { StatusBadge } from "@/components/common/tableFilters";
 import { useCan } from "@/components/auth/AuthProvider";
 import { deletePriceListsAction } from "@/actions/price-list.actions";
 import PriceListForm from "./PriceListForm";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // شاشة قوائم الأسعار: كل قائمة، الفروع المربوطة بها، وعدد الأسعار فيها
@@ -95,9 +95,9 @@ export default function PriceListsView({ priceLists = [] }) {
           </Link>
           {can("priceLists.update") && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "4px 10px", cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => setModal({ open: true, priceList: r })}
             >
               {tButtons("Edit")}
@@ -111,7 +111,7 @@ export default function PriceListsView({ priceLists = [] }) {
               cancelText={tButtons("No")}
               onConfirm={() => remove(r.id)}
             >
-              <Button size="small" danger icon={<AiFillDelete />} />
+              <Button aria-label={tButtons("Delete")} title={tButtons("Delete")} size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           )}
         </Space>

@@ -47,6 +47,13 @@ const paymentsField = z.array(paymentSchema).max(10).default([]);
 // ------------------------------------------------------------
 // فاتورة شراء
 // ------------------------------------------------------------
+// قطعة برقمها التسلسلي (وحدة serials، اختياري في الشراء)
+const serialEntrySchema = z.object({
+  serial: z.string().trim().min(1, "RequiredField").max(100, "TextTooLong"),
+  serial2: z.string().trim().max(100, "TextTooLong").nullish(),
+  isUsed: z.boolean().default(false),
+});
+
 const purchaseItemSchema = z
   .object({
     productId: idField,
@@ -56,6 +63,7 @@ const purchaseItemSchema = z
     ...discountFields,
     // ملاحظة / وصف السطر (اختياري)
     note: optionalText(500),
+    serials: z.array(serialEntrySchema).max(1000).default([]),
   })
   .refine(percentMax, { message: "PercentMax", path: ["discountValue"] });
 
@@ -99,7 +107,14 @@ export const createPurchaseReturnSchema = z.object({
   supplierInvoiceNo: optionalText(50),
   notes: optionalText(500),
   items: z
-    .array(z.object({ itemId: idField, qty: qtyField }))
+    .array(
+      z.object({
+        itemId: idField,
+        qty: qtyField,
+        // الأرقام التسلسلية للقطع الراجعة للمورد (اختياري)
+        serialIds: z.array(idField).max(1000).default([]),
+      }),
+    )
     .min(1, "NoItems")
     .max(500),
   payments: paymentsField,

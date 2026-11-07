@@ -13,7 +13,7 @@ import {
 import { createBranch, updateBranch, deleteBranches } from "@/services/branch.service";
 
 export async function createBranchAction(input) {
-  return runAction(createBranchSchema, input, (data) => createBranch(data), {
+  return runAction(createBranchSchema, input, (data, user) => createBranch(data, user), {
     permission: "branches.create",
     refresh: true,
   });

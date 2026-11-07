@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { Alert, Button, Card, Segmented, Space, Table, Tag } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  InputNumber,
+  Segmented,
+  Space,
+  Table,
+  Tag,
+} from "antd";
 import {
   ArrowRightOutlined,
   DesktopOutlined,
   LockOutlined,
+  SearchOutlined,
   SwapOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
-import { formatDateTime } from "@/lib/dates";
+import { formatDateTime, formatDay } from "@/lib/dates";
+import { shiftDay } from "@/lib/shift-label";
+import DayPicker from "@/components/common/DayPicker";
 import { formatDocNo } from "@/lib/doc-number";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import PrintActions from "@/components/printing/PrintActions";
@@ -18,6 +30,7 @@ import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import ShiftReport from "./ShiftReport";
 import ShiftPrint from "./ShiftPrint";
 import { CashMovementModal, CloseShiftModal } from "./ShiftModals";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 const userName = (u, locale) =>
@@ -26,7 +39,7 @@ const userName = (u, locale) =>
 // ============================================================
 // قائمة الورديات (الكاشير يرى وردياته، والمشرف ورديات الفرع)
 // ============================================================
-export function ShiftsList({ data, status, canPos }) {
+export function ShiftsList({ data, status, day, dayNo, canPos }) {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();
@@ -35,10 +48,16 @@ export function ShiftsList({ data, status, canPos }) {
   const { amount: money } = useCurrency();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
+  // البحث: يوم العمل + ترتيب الوردية فيه (Enter أو زر البحث)
+  const [find, setFind] = useState({ day: day ?? null, no: dayNo ?? null });
+  const search = () => go({ day: find.day, no: find.day ? find.no : null });
+
   const go = (params) => {
-    const next = { status, page: 1, ...params };
+    const next = { status, day, no: dayNo, page: 1, ...params };
     const query = new URLSearchParams();
     if (next.status) query.set("status", next.status);
+    if (next.day) query.set("day", next.day);
+    if (next.day && next.no) query.set("no", String(next.no));
     if (next.page > 1) query.set("page", String(next.page));
     const qs = query.toString();
     router.push(`${pathname}${qs ? `?${qs}` : ""}`);
@@ -48,12 +67,22 @@ export function ShiftsList({ data, status, canPos }) {
     {
       title: t("ShiftNo"),
       key: "n",
-      width: 100,
+      width: 160,
       align: "center",
       render: (_, s) => (
-        <Link href={`/sales/shifts/${s.id}`}>
-          <b>{formatDocNo("shift", s.number)}</b>
-        </Link>
+        <>
+          <Link href={`/sales/shifts/${s.id}`}>
+            <b>{formatDocNo("shift", s.number)}</b>
+          </Link>
+          {s.dayNo && (
+            <div style={{ fontSize: 12, color: C.muted }}>
+              {t("DayShift", {
+                n: s.dayNo,
+                date: formatDay(shiftDay(s)),
+              })}
+            </div>
+          )}
+        </>
       ),
     },
     {
@@ -124,7 +153,7 @@ export function ShiftsList({ data, status, canPos }) {
           </Link>
         )}
       </div>
-      <Space className="mb-3">
+      <Space className="mb-3" wrap>
         <Segmented
           value={status ?? "all"}
           onChange={(v) => go({ status: v === "all" ? undefined : v })}
@@ -134,6 +163,28 @@ export function ShiftsList({ data, status, canPos }) {
             { value: "closed", label: t("Closed") },
           ]}
         />
+        <DayPicker
+          allowClear
+          style={{ width: 150 }}
+          placeholder={t("BusinessDay")}
+          value={find.day}
+          onChange={(v) => setFind((f) => ({ ...f, day: v ?? null }))}
+        />
+        <InputNumber
+          min={1}
+          max={99}
+          precision={0}
+          controls={false}
+          style={{ width: 120 }}
+          prefix={t("ShiftOrderPrefix")}
+          disabled={!find.day}
+          value={find.no}
+          onChange={(v) => setFind((f) => ({ ...f, no: v ?? null }))}
+          onPressEnter={search}
+        />
+        <Button type="primary" icon={<SearchOutlined />} onClick={search}>
+          {t("Search")}
+        </Button>
       </Space>
       <Table
         bordered
@@ -174,6 +225,14 @@ export function ShiftDetails({ shift, company, printSettings, autoPrint }) {
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">
           {t("Shift")} <bdi>{formatDocNo("shift", shift.number)}</bdi>{" "}
+          {shift.dayNo && (
+            <Tag color="blue">
+              {t("DayShift", {
+                n: shift.dayNo,
+                date: formatDay(shiftDay(shift)),
+              })}
+            </Tag>
+          )}
           {shift.status === "open" ? (
             <Tag color="green">{t("OpenNow")}</Tag>
           ) : (

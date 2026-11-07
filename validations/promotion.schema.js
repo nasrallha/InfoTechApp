@@ -11,7 +11,10 @@ export const promotionSchema = z.object({
   id: idField.optional(),
   arName: nameField(150),
   enName: z.string().trim().max(150, "TextTooLong").optional().default(""),
-  scope: z.enum(["invoice", "category", "product"]),
+  scope: z.enum(["invoice", "category", "product", "loyalty"]),
+  // عرض الولاء: كل كام مرة مدفوعة + على إيه (كل الخدمات / أقسام / أصناف)
+  loyaltyEvery: z.number().int().min(1, "MustBePositive").max(1000).nullish(),
+  loyaltyTarget: z.enum(["service", "category", "product"]).nullish(),
   discountType: z.enum(["percent", "amount", "fixedPrice"]),
   value: z
     .number({ error: "RequiredField" })

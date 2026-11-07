@@ -37,9 +37,15 @@ import { showActionError } from "@/components/common/actionError";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCan } from "@/components/auth/AuthProvider";
 import DayPicker from "@/components/common/DayPicker";
+import { listSep } from "@/lib/list-sep";
 import "@/components/common/table.css";
 
-const SCOPE_COLOR = { invoice: "purple", category: "blue", product: "cyan" };
+const SCOPE_COLOR = {
+  invoice: "purple",
+  category: "blue",
+  product: "cyan",
+  loyalty: "magenta",
+};
 const STATUS_COLOR = {
   running: "green",
   scheduled: "gold",
@@ -74,6 +80,10 @@ export default function PromotionsView({ promotions, options }) {
   const day = today();
 
   const scope = Form.useWatch("scope", form);
+  // عرض الولاء: على إيه (كل الخدمات / أقسام / أصناف)
+  const loyaltyTarget = Form.useWatch("loyaltyTarget", form);
+  const isLoyalty = scope === "loyalty";
+  const pick = isLoyalty ? loyaltyTarget : scope;
   const discountType = Form.useWatch("discountType", form);
   const allBranches = Form.useWatch("allBranches", form);
 
@@ -110,7 +120,12 @@ export default function PromotionsView({ promotions, options }) {
     form.resetFields();
     form.setFieldsValue(
       p
-        ? { ...p, minInvoice: p.minInvoice ?? undefined }
+        ? {
+            ...p,
+            minInvoice: p.minInvoice ?? undefined,
+            loyaltyEvery: p.loyaltyEvery ?? undefined,
+            loyaltyTarget: p.loyaltyTarget ?? "service",
+          }
         : {
             arName: "",
             enName: "",
@@ -134,6 +149,13 @@ export default function PromotionsView({ promotions, options }) {
       ...values,
       ...(editing?.id ? { id: editing.id } : {}),
       minInvoice: values.minInvoice ?? null,
+      ...(values.scope === "loyalty"
+        ? {
+            discountType: "percent",
+            loyaltyEvery: values.loyaltyEvery ?? null,
+            loyaltyTarget: values.loyaltyTarget ?? "service",
+          }
+        : { loyaltyEvery: null, loyaltyTarget: null }),
       branchIds: values.branchIds ?? [],
       categoryIds: values.categoryIds ?? [],
       productIds: values.productIds ?? [],
@@ -173,14 +195,25 @@ export default function PromotionsView({ promotions, options }) {
         ? `${t("FixedPriceShort")} ${money(p.value)} ${symbol}`
         : `${money(p.value)} ${symbol}`;
 
+  const loyaltyText = (p) =>
+    `${t("LoyaltyEveryText", { n: p.loyaltyEvery ?? 0 })} — ${
+      p.loyaltyTarget === "service"
+        ? t("LoyaltyAllServices")
+        : p.loyaltyTarget === "category"
+          ? p.categoryIds.map(catName).join(listSep(locale))
+          : t("ProductsCount", { count: p.productIds.length })
+    }`;
+
   const targetText = (p) =>
-    p.scope === "invoice"
-      ? p.minInvoice
-        ? `${t("MinInvoice")}: ${money(p.minInvoice)}`
-        : t("AllInvoices")
-      : p.scope === "category"
-        ? p.categoryIds.map(catName).join("، ")
-        : t("ProductsCount", { count: p.productIds.length });
+    p.scope === "loyalty"
+      ? loyaltyText(p)
+      : p.scope === "invoice"
+        ? p.minInvoice
+          ? `${t("MinInvoice")}: ${money(p.minInvoice)}`
+          : t("AllInvoices")
+        : p.scope === "category"
+          ? p.categoryIds.map(catName).join(listSep(locale))
+          : t("ProductsCount", { count: p.productIds.length });
 
   const columns = [
     {
@@ -233,7 +266,7 @@ export default function PromotionsView({ promotions, options }) {
           ? t("AllBranches")
           : p.branchIds
               .map((id) => nm(options.branches.find((b) => b.id === id)))
-              .join("، "),
+              .join(listSep(locale)),
     },
     {
       title: tTable("Status"),
@@ -363,19 +396,72 @@ export default function PromotionsView({ promotions, options }) {
           <Form.Item name="scope" label={t("Scope")}>
             <Segmented
               block
-              options={["invoice", "category", "product"].map((s) => ({
-                value: s,
-                label: t(`scopes.${s}`),
-              }))}
+              options={["invoice", "category", "product", "loyalty"].map(
+                (s) => ({
+                  value: s,
+                  label: t(`scopes.${s}`),
+                }),
+              )}
               onChange={(v) => {
                 if (v === "invoice" && discountType === "fixedPrice") {
                   form.setFieldValue("discountType", "percent");
+                }
+                // عرض الولاء: المرة المجانية 100% افتراضيًا
+                if (v === "loyalty") {
+                  form.setFieldsValue({
+                    discountType: "percent",
+                    value: form.getFieldValue("value") ?? 100,
+                    loyaltyTarget:
+                      form.getFieldValue("loyaltyTarget") ?? "service",
+                  });
                 }
               }}
             />
           </Form.Item>
 
-          {scope === "category" && (
+          {/* عرض الولاء: كل كام مرة مدفوعة ← المرة اللي بعدها بخصم */}
+          {isLoyalty && (
+            <>
+              <Row gutter={12}>
+                <Col xs={24} sm={12}>
+                  <Form.Item
+                    name="loyaltyEvery"
+                    label={t("LoyaltyEvery")}
+                    extra={t("LoyaltyEveryHint")}
+                    rules={[
+                      { required: true, message: tAlerts("RequiredField") },
+                    ]}
+                  >
+                    <InputNumber
+                      min={1}
+                      max={1000}
+                      precision={0}
+                      style={{ width: "100%" }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.Item name="loyaltyTarget" label={t("LoyaltyTarget")}>
+                    <Segmented
+                      block
+                      options={["service", "category", "product"].map((v) => ({
+                        value: v,
+                        label: t(`loyaltyTargets.${v}`),
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Alert
+                type="info"
+                showIcon
+                className="mb-3"
+                title={t("LoyaltyHint")}
+              />
+            </>
+          )}
+
+          {pick === "category" && (
             <Form.Item
               name="categoryIds"
               label={t("Categories")}
@@ -394,7 +480,7 @@ export default function PromotionsView({ promotions, options }) {
               />
             </Form.Item>
           )}
-          {scope === "product" && (
+          {pick === "product" && (
             <Form.Item
               name="productIds"
               label={t("Products")}
@@ -413,7 +499,11 @@ export default function PromotionsView({ promotions, options }) {
           )}
 
           <Row gutter={12}>
-            <Col xs={24} sm={12}>
+            <Col
+              xs={24}
+              sm={12}
+              style={isLoyalty ? { display: "none" } : undefined}
+            >
               <Form.Item name="discountType" label={t("DiscountType")}>
                 <Select
                   options={[
@@ -432,9 +522,11 @@ export default function PromotionsView({ promotions, options }) {
               <Form.Item
                 name="value"
                 label={
-                  discountType === "percent"
-                    ? `${t("Value")} (%)`
-                    : `${t("Value")} (${symbol})`
+                  isLoyalty
+                    ? t("LoyaltyValue")
+                    : discountType === "percent"
+                      ? `${t("Value")} (%)`
+                      : `${t("Value")} (${symbol})`
                 }
                 extra={
                   scope !== "invoice" && discountType !== "percent"

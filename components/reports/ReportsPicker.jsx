@@ -2,16 +2,22 @@
 
 import { Modal } from "antd";
 import {
+  FireOutlined,
+  AppstoreOutlined,
   CalendarOutlined,
   LineChartOutlined,
   PieChartOutlined,
   PercentageOutlined,
+  SafetyCertificateOutlined,
   ShoppingCartOutlined,
+  TeamOutlined,
   ShoppingOutlined,
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
+import { useStaffWords } from "@/components/technicians/useStaffT";
 import { useRouter } from "@/i18n/routing";
-import { useCan } from "@/components/auth/AuthProvider";
+import { useCan, useModule } from "@/components/auth/AuthProvider";
+import { C } from "@/lib/theme";
 import "@/components/invoices/invoices.css";
 
 // التقارير: الرابط + الأيقونة + اللون + الصلاحية
@@ -20,47 +26,88 @@ export const REPORTS = [
     key: "profit",
     href: "/reports/profit",
     Icon: LineChartOutlined,
-    color: "#1e8449",
+    color: C.successText,
     permission: "reports.profit",
   },
   {
     key: "daily",
     href: "/reports/daily",
     Icon: CalendarOutlined,
-    color: "#b9770e",
+    color: C.warningText,
     permission: "reports.daily",
   },
   {
     key: "sales",
     href: "/reports/sales",
     Icon: ShoppingCartOutlined,
-    color: "#006266",
+    color: C.primary,
     permission: "reports.sales",
   },
   {
     key: "purchases",
     href: "/reports/purchases",
     Icon: ShoppingOutlined,
-    color: "#2471a3",
+    color: C.infoText,
     permission: "reports.purchases",
   },
   {
     key: "vat",
     href: "/reports/vat",
     Icon: PercentageOutlined,
-    color: "#7d3c98",
+    color: C.purple,
     permission: "reports.vat",
+  },
+  // الأرقام التسلسلية (وحدة serials)
+  {
+    key: "warranties",
+    href: "/reports/warranties",
+    Icon: SafetyCertificateOutlined,
+    color: C.warningText,
+    permission: "serials.warranties",
+  },
+  // المقاسات والألوان (وحدة variants): المبيعات والرصيد بالموديل
+  {
+    key: "models",
+    href: "/reports/models",
+    Icon: AppstoreOutlined,
+    color: C.accent,
+    permission: "reports.sales",
+    module: "variants",
+  },
+  // التبغ (وحدة restaurant): أصناف التبغ ورسوم التبغ
+  {
+    key: "tobacco",
+    href: "/reports/tobacco",
+    Icon: FireOutlined,
+    color: C.warningText,
+    permission: "reports.sales",
+    module: "restaurant",
+  },
+  // عمولات الفنيين (وحدة technicians)
+  {
+    key: "commissions",
+    href: "/reports/commissions",
+    Icon: TeamOutlined,
+    color: C.purple,
+    permission: "technicians.commissions",
   },
 ];
 
 export function useVisibleReports() {
   const can = useCan();
-  return REPORTS.filter((r) => can(r.permission));
+  const variantsOn = useModule("variants");
+  const restaurantOn = useModule("restaurant");
+  const modules = { variants: variantsOn, restaurant: restaurantOn };
+  return REPORTS.filter(
+    (r) => can(r.permission) && (!r.module || modules[r.module]),
+  );
 }
 
 // نافذة اختيار التقرير (نفس شكل نافذة الفواتير)
 export default function ReportsPicker({ open, onClose }) {
   const t = useTranslations("Reports");
+  // اسم مقدم الخدمة (عمولات الفنيين / العاملات / الحلاقين)
+  const staff = useStaffWords();
   const router = useRouter();
   const reports = useVisibleReports();
 
@@ -96,8 +143,12 @@ export default function ReportsPicker({ open, onClose }) {
             <span className="invoice-picker__icon">
               <Icon />
             </span>
-            <span className="invoice-picker__title">{t(`names.${key}`)}</span>
-            <span className="invoice-picker__hint">{t(`hints.${key}`)}</span>
+            <span className="invoice-picker__title">
+              {t(`names.${key}`, staff)}
+            </span>
+            <span className="invoice-picker__hint">
+              {t(`hints.${key}`, staff)}
+            </span>
           </button>
         ))}
       </div>

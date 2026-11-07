@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { lineQtyProblem } from "@/lib/unit-qty";
 import {
   Alert,
   Button,
@@ -10,7 +11,6 @@ import {
   Input,
   Popconfirm,
   Row,
-  Segmented,
   Select,
   Space,
   Table,
@@ -56,6 +56,9 @@ import {
 import { LineNoteEditor } from "./LineNote";
 import "./purchases.css";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
+import LineSerials from "@/components/serials/LineSerials";
+import { useModuleSettings } from "@/components/auth/AuthProvider";
+import PurchaseSizeGrid from "./PurchaseSizeGrid";
 
 let lineSeq = 0;
 
@@ -76,6 +79,15 @@ const initialItems = (purchase) =>
     note: i.note ?? "",
     // نسبة الصنف الحالية (لو الفاتورة كانت "بدون ضريبة" النسبة المحفوظة صفر)
     taxRate: i.productTaxRate ?? i.taxRate,
+    // الأرقام التسلسلية المسجلة مع الشراء (وحدة serials)
+    serialCount: i.serialCount ?? 0,
+    serialLabel1: i.serialLabel1 ?? null,
+    serialLabel2: i.serialLabel2 ?? null,
+    serials: (i.serials ?? []).map((x) => ({
+      serial: x.serial,
+      serial2: x.serial2 ?? null,
+      isUsed: Boolean(x.isUsed),
+    })),
   }));
 
 const initialDiscount = (purchase) =>
@@ -115,6 +127,8 @@ export default function PurchaseForm({
   purchase = null,
 }) {
   const [form] = Form.useForm();
+  // تكرار نفس الصنف في سطور (كل سطر بوصفه) - من الإعدادات العامة
+  const { allowDuplicateLines = false } = useModuleSettings();
   // الإضافة السريعة: الجديد بيظهر في القائمة على طول (قبل ما الصفحة تتحدث)
   const [addedParties, setAddedParties] = useState([]);
   const suppliers = useMemo(() => {
@@ -204,6 +218,8 @@ export default function PurchaseForm({
   };
 
   // ---------- الأصناف ----------
+  // المقاسات (وحدة variants): رقم الموديل اللي شبكة كمياته مفتوحة
+  const [sizeGrid, setSizeGrid] = useState(null);
   // السعر الافتراضي = تكلفة الوحدة (في "شامل" نضيف عليها الضريبة)
   const defaultPrice = (unit, taxRate, mode = taxMode) =>
     mode === "inclusive"
@@ -212,12 +228,15 @@ export default function PurchaseForm({
 
   // options (من نافذة الأصناف): { qty, price } اللذان كتبهما المستخدم
   const addProduct = (product, unitId, options = {}) => {
+    // المقاسات (وحدة variants): الموديل ← شبكة الكميات
+    if (product.sizePick) return setSizeGrid(product.sizePick);
     const addQty = options.qty > 0 ? options.qty : 1;
     setItems((prev) => {
       // نفس الصنف بنفس الوحدة: نزيد الكمية (والسعر الجديد لو كُتب)
-      const found = prev.find(
-        (l) => l.productId === product.id && l.unitId === unitId,
-      );
+      // إلا لو الإعداد بيسمح بتكرار الصنف (كل سطر بوصفه)
+      const found =
+        !allowDuplicateLines &&
+        prev.find((l) => l.productId === product.id && l.unitId === unitId);
       if (found) {
         return prev.map((l) =>
           l === found
@@ -246,6 +265,10 @@ export default function PurchaseForm({
           discountType: "amount",
           discountValue: 0,
           taxRate: product.taxRate,
+          serialCount: product.serialCount ?? 0,
+          serialLabel1: product.serialLabel1 ?? null,
+          serialLabel2: product.serialLabel2 ?? null,
+          serials: [],
         },
       ];
     });
@@ -324,6 +347,7 @@ export default function PurchaseForm({
         discountType: l.discountType,
         discountValue: Number(l.discountValue) || 0,
         note: l.note?.trim() || null,
+        serials: l.serials ?? [],
       })),
       payments: payments.map((p) => ({
         paymentMethodId: p.paymentMethodId,
@@ -373,6 +397,14 @@ export default function PurchaseForm({
             value={l.note}
             onChange={(note) => updateLine(l.key, { note })}
           />
+          {/* الأرقام التسلسلية: اختياري في الشراء */}
+          <LineSerials
+            line={l}
+            factor={l.units.find((u) => u.unit.id === l.unitId)?.factor ?? 1}
+            withWarranty={false}
+            optional
+            onChange={(patch) => updateLine(l.key, patch)}
+          />
         </div>
       ),
     },
@@ -406,7 +438,7 @@ export default function PurchaseForm({
           precision={3}
           controls={false}
           value={l.qty}
-          status={l.qty > 0 ? undefined : "error"}
+          status={l.qty > 0 && !lineQtyProblem(l) ? undefined : "error"}
           onChange={(v) => updateLine(l.key, { qty: v ?? 0 })}
           formatter={(v) => (v === "" || v == null ? "" : String(Number(v)))}
         />
@@ -705,6 +737,16 @@ export default function PurchaseForm({
             }
             priceIncl={taxMode === "inclusive"}
           />
+          {sizeGrid && (
+            <PurchaseSizeGrid
+              modelId={sizeGrid}
+              defaultCost={(unit, product) =>
+                defaultPrice(unit, product.taxRate)
+              }
+              onAdd={addProduct}
+              onClose={() => setSizeGrid(null)}
+            />
+          )}
         </div>
         <Table
           className="mt-3"

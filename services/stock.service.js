@@ -18,11 +18,15 @@ const round4 = (v) => Math.round((Number(v) + Number.EPSILON) * 1e4) / 1e4;
 
 // وحدات الصنف للتفصيل (كرتونة / شدة / حبة): الأساسية factor = 1
 export const unitsSelect = {
-  baseUnit: { select: { id: true, arName: true, enName: true } },
+  baseUnit: {
+    select: { id: true, arName: true, enName: true, allowDecimals: true },
+  },
   productUnits: {
     select: {
       conversionFactor: true,
-      unit: { select: { id: true, arName: true, enName: true } },
+      unit: {
+        select: { id: true, arName: true, enName: true, allowDecimals: true },
+      },
     },
   },
 };
@@ -122,7 +126,23 @@ async function changeBalances(tx, deltas, allowNegative) {
 // movements: [{ productId, warehouseId, qty(+/-), cost, type, refType, refId, refNo, date }]
 // ------------------------------------------------------------
 export async function applyMovements(tx, movements, { allowNegative }) {
-  const rows = movements.filter((m) => Math.abs(n(m.qty)) > EPS);
+  const moving = movements.filter((m) => Math.abs(n(m.qty)) > EPS);
+  if (!moving.length) return;
+  // الخدمات (مصنعية، تركيب...) مالهاش مخزون: مفيش حركات ولا أرصدة
+  const services = new Set(
+    (
+      await tx.product.findMany({
+        where: {
+          id: { in: [...new Set(moving.map((m) => m.productId))] },
+          isService: true,
+        },
+        select: { id: true },
+      })
+    ).map((p) => p.id),
+  );
+  const rows = services.size
+    ? moving.filter((m) => !services.has(m.productId))
+    : moving;
   if (!rows.length) return;
   await tx.stockMovement.createMany({
     data: rows.map((m) => ({
@@ -234,6 +254,8 @@ export async function getVisibleWarehouses(user) {
         enName: true,
         isMain: true,
         isActive: true,
+        // الفروع المربوطة (للعرض: "المستودع - الفرع")
+        branches: { select: { arName: true, enName: true } },
       },
     });
   }
@@ -402,5 +424,181 @@ export async function getItemCard({ productId, warehouseIds }) {
       balance = round4(balance + n(m.qty));
       return { ...m, qty: n(m.qty), cost: n(m.cost), balance };
     }),
+  };
+}
+
+// ============================================================
+// حركة المخزون الشاملة (شاشة الأرصدة ← "حركة المخزون")
+// لكل صنف في المستودعات المختارة والفترة:
+//   الرصيد الافتتاحي (قبل الفترة + رصيد أول المدة اللي جوه الفترة)
+//   + مشتريات − مرتجع مشتريات − مبيعات + مرتجع مبيعات
+//   + تحويل وارد − تحويل صادر ± فروق جرد − تالف + زيادة = الرصيد المتبقي
+// التكلفة: متوسط مرجّح لتكلفة الشراء والرصيد الافتتاحي لحد آخر الفترة
+// all: كل الصفوف (للتصدير) بدل الصفحة
+// ============================================================
+export const MOVEMENT_COLUMNS = [
+  "purchase",
+  "purchase_return",
+  "sale",
+  "sale_return",
+  "transfer_in",
+  "transfer_out",
+  "count",
+  "damage",
+  "surplus",
+];
+
+export async function getStockMovementReport({
+  warehouseIds,
+  q = "",
+  categoryId,
+  from,
+  to,
+  hideIdle = false,
+  page = 1,
+  pageSize = 50,
+  all = false,
+}) {
+  const empty = { total: 0, page, pageSize, rows: [], totals: {} };
+  if (!warehouseIds.length) return empty;
+  const query = q.trim();
+  const start = from ? new Date(`${from}T00:00:00+03:00`) : null;
+  const end = to ? new Date(`${to}T23:59:59.999+03:00`) : null;
+
+  const products = await prisma.product.findMany({
+    where: {
+      isService: false,
+      AND: [
+        query
+          ? {
+              OR: [
+                { code: { contains: query } },
+                { arName: { contains: query } },
+                { enName: { contains: query } },
+                { productUnits: { some: { barcode: query } } },
+              ],
+            }
+          : {},
+        categoryId
+          ? { OR: [{ categoryId }, { category: { parentId: categoryId } }] }
+          : {},
+      ],
+    },
+    orderBy: { arName: "asc" },
+    select: {
+      id: true,
+      code: true,
+      arName: true,
+      enName: true,
+      cost: true,
+      isActive: true,
+      ...unitsSelect,
+      category: { select: { arName: true, enName: true } },
+    },
+  });
+  if (!products.length) return empty;
+  const ids = products.map((p) => p.id);
+  const inWh = { warehouseId: { in: warehouseIds } };
+
+  const [before, inPeriod, costRows] = await Promise.all([
+    // الرصيد قبل بداية الفترة
+    start
+      ? prisma.stockMovement.groupBy({
+          by: ["productId"],
+          where: { ...inWh, productId: { in: ids }, date: { lt: start } },
+          _sum: { qty: true },
+        })
+      : [],
+    prisma.stockMovement.groupBy({
+      by: ["productId", "type"],
+      where: {
+        ...inWh,
+        productId: { in: ids },
+        ...(start || end
+          ? {
+              date: {
+                ...(start ? { gte: start } : {}),
+                ...(end ? { lte: end } : {}),
+              },
+            }
+          : {}),
+      },
+      _sum: { qty: true },
+    }),
+    // للمتوسط المرجّح: حركات الشراء والرصيد الافتتاحي لحد آخر الفترة
+    prisma.stockMovement.findMany({
+      where: {
+        productId: { in: ids },
+        type: { in: ["purchase", "opening"] },
+        qty: { gt: 0 },
+        ...(end ? { date: { lte: end } } : {}),
+      },
+      select: { productId: true, qty: true, cost: true },
+    }),
+  ]);
+
+  const beforeOf = new Map(before.map((b) => [b.productId, n(b._sum.qty)]));
+  const moves = new Map();
+  for (const g of inPeriod) {
+    if (!moves.has(g.productId)) moves.set(g.productId, {});
+    moves.get(g.productId)[g.type] = n(g._sum.qty);
+  }
+  const costAcc = new Map();
+  for (const c of costRows) {
+    const a = costAcc.get(c.productId) ?? { q: 0, v: 0 };
+    a.q += n(c.qty);
+    a.v += n(c.qty) * n(c.cost);
+    costAcc.set(c.productId, a);
+  }
+
+  const totals = { opening: 0, balance: 0, value: 0 };
+  for (const k of MOVEMENT_COLUMNS) totals[k] = 0;
+
+  const rows = [];
+  for (const p of products) {
+    const m = moves.get(p.id) ?? {};
+    const opening = round4((beforeOf.get(p.id) ?? 0) + (m.opening ?? 0));
+    const row = {
+      id: p.id,
+      code: p.code,
+      arName: p.arName,
+      enName: p.enName,
+      isActive: p.isActive,
+      unit: p.baseUnit,
+      units: unitsOf(p),
+      category: p.category,
+      opening,
+    };
+    let balance = opening;
+    let moved = Math.abs(opening) > EPS;
+    for (const k of MOVEMENT_COLUMNS) {
+      const v = round4(m[k] ?? 0);
+      balance += v;
+      if (Math.abs(v) > EPS) moved = true;
+      // الخارج (مبيعات، تالف، تحويل صادر...) بيتعرض موجب، والجرد بإشارته
+      row[k] = k === "count" ? v : Math.abs(v);
+    }
+    if (hideIdle && !moved) continue;
+    const acc = costAcc.get(p.id);
+    const cost = acc && acc.q > EPS ? round4(acc.v / acc.q) : n(p.cost);
+    row.balance = round4(balance);
+    row.cost = cost;
+    row.value = Math.round(row.balance * cost * 100) / 100;
+    rows.push(row);
+    totals.opening += row.opening;
+    for (const k of MOVEMENT_COLUMNS) totals[k] += row[k];
+    totals.balance += row.balance;
+    totals.value += row.value;
+  }
+  for (const k of Object.keys(totals))
+    totals[k] =
+      k === "value" ? Math.round(totals[k] * 100) / 100 : round4(totals[k]);
+
+  return {
+    total: rows.length,
+    page,
+    pageSize,
+    totals,
+    rows: all ? rows : rows.slice((page - 1) * pageSize, page * pageSize),
   };
 }

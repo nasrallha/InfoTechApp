@@ -20,6 +20,8 @@ export const MOVEMENT_COLOR = {
   count: "purple",
   sale: "blue",
   sale_return: "magenta",
+  damage: "red",
+  surplus: "lime",
 };
 
 // رابط المستند صاحب الحركة
@@ -34,6 +36,7 @@ const refLink = (m) => {
       : `/invoices/sales/${m.refId}`;
   if (m.refType === "transfer") return `/inventory/transfers/${m.refId}`;
   if (m.refType === "count") return `/inventory/counts/${m.refId}`;
+  if (m.refType === "adjustment") return `/inventory/adjustments/${m.refId}`;
   return null;
 };
 

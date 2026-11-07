@@ -20,6 +20,8 @@ export const passwordField = z
 // تسجيل الدخول: لا نتحقق من الشكل هنا، فقط أنها ليست فارغة
 // (لو الشكل خطأ فالدخول سيفشل برسالة "بيانات الدخول غير صحيحة")
 export const loginSchema = z.object({
+  // كود الشركة (وضع الشركات، لو الجهاز لسه مش عارف الشركة)
+  companyCode: z.string().trim().toUpperCase().max(16).optional(),
   username: z.string({ error: "RequiredField" }).trim().toLowerCase().min(1, "RequiredField"),
   password: z.string({ error: "RequiredField" }).min(1, "RequiredField"),
 });

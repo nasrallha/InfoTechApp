@@ -8,6 +8,9 @@ import { formatDocNo } from "@/lib/doc-number";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
 import { KpiRow, ReportHeader, useFilterInfo } from "./ReportParts";
+import { C } from "@/lib/theme";
+import LaundryDailySection, { laundryDailySheets } from "./LaundryDailySection";
+import RestaurantFeesSection, { feesSheet } from "./RestaurantFeesSection";
 
 const COLS = [
   "sales",
@@ -51,7 +54,7 @@ export default function DailyReportView({ data, filters, options }) {
 
   const cell = (v, k) =>
     v ? (
-      <span style={{ color: SIGN[k] < 0 ? "#c0392b" : undefined }}>
+      <span style={{ color: SIGN[k] < 0 ? C.dangerText : undefined }}>
         {SIGN[k] < 0 ? "-" : ""}
         {money(v)}
       </span>
@@ -65,7 +68,17 @@ export default function DailyReportView({ data, filters, options }) {
       key: "m",
       width: 140,
       fixed: "start",
-      render: (_, m) => <b>{nm(m)}</b>,
+      render: (_, m) => (
+        <span>
+          <b>{nm(m)}</b>
+          {/* رصيد الاشتراك (المغسلة): للعلم، برا المجموع */}
+          {m.infoOnly && (
+            <Tag className="ms-1" color={C.muted}>
+              {t("laundry.InfoTag")}
+            </Tag>
+          )}
+        </span>
+      ),
     },
     ...visible.map((k) => ({
       title: t(`daily.${k}`),
@@ -79,7 +92,12 @@ export default function DailyReportView({ data, filters, options }) {
       key: "net",
       width: 130,
       align: "end",
-      render: (_, m) => <b style={{ fontSize: 15 }}>{money(m.net)}</b>,
+      render: (_, m) =>
+        m.infoOnly ? (
+          <span style={{ color: C.muted }}>—</span>
+        ) : (
+          <b style={{ fontSize: 15 }}>{money(m.net)}</b>
+        ),
     },
   ];
 
@@ -90,6 +108,7 @@ export default function DailyReportView({ data, filters, options }) {
       render: (_, s) => (
         <Link href={`/sales/shifts/${s.id}`}>
           {formatDocNo("shift", s.number)}
+          {s.dayNo ? ` (${s.dayNo})` : ""}
         </Link>
       ),
     },
@@ -161,7 +180,12 @@ export default function DailyReportView({ data, filters, options }) {
       })),
       { title: t("Net"), key: "net", type: "money" },
     ],
-    rows: data.methods.map((m) => ({ ...m, key: m.id, name: nm(m) })),
+    rows: data.methods.map((m) => ({
+      ...m,
+      key: m.id,
+      name: m.infoOnly ? `${nm(m)} (${t("laundry.InfoTag")})` : nm(m),
+      net: m.infoOnly ? null : m.net,
+    })),
     totals: T,
     sections: [
       data.vouchers.length > 0 && {
@@ -214,10 +238,14 @@ export default function DailyReportView({ data, filters, options }) {
         rows: data.shifts.map((s) => ({
           ...s,
           key: s.id,
-          no: formatDocNo("shift", s.number),
+          no: `${formatDocNo("shift", s.number)}${s.dayNo ? ` (${s.dayNo})` : ""}`,
           user: un(s.user),
         })),
       },
+      // المغسلة: الطلبات وفواتير الاشتراك والاشتراكات الجديدة (للعلم)
+      ...laundryDailySheets(data.laundry, t),
+      // المطعم: الرسوم (للعلم)
+      feesSheet(data.fees, t),
     ].filter(Boolean),
     signatures: [t("Cashier"), t("Accountant"), t("Approved")],
   });
@@ -235,31 +263,35 @@ export default function DailyReportView({ data, filters, options }) {
           {
             title: t("daily.sales"),
             value: money(T.sales - T.salesReturns),
-            color: "#2471a3",
+            color: C.infoText,
           },
           {
             title: t("daily.receipts"),
             value: money(T.receipts),
-            color: "#1e8449",
+            color: C.successText,
           },
           {
             title: t("daily.purchases"),
             value: money(T.purchases - T.purchaseReturns),
-            color: "#d35400",
+            color: C.warningText,
           },
           {
             title: t("daily.payments"),
             value: money(T.payments),
-            color: "#c0392b",
+            color: C.dangerText,
           },
           {
             title: t("NetMovement"),
             value: `${money(T.net)} ${symbol}`,
-            color: "#1f4e78",
+            color: C.navy,
             strong: true,
           },
         ]}
       />
+      {/* المغسلة (للعلم، برا الصافي) */}
+      {data.laundry && <LaundryDailySection laundry={data.laundry} />}
+      {/* المطعم: رسوم التبغ / الخدمة / التوصيل (للعلم) */}
+      <RestaurantFeesSection fees={data.fees} />
       <Card size="small" title={t("ByPaymentMethod")} className="mb-4">
         <Table
           size="small"
@@ -268,10 +300,11 @@ export default function DailyReportView({ data, filters, options }) {
           pagination={false}
           dataSource={data.methods}
           columns={columns}
+          rowClassName={(m) => (m.infoOnly ? "report-row--info" : "")}
           scroll={{ x: columns.reduce((s, c) => s + c.width, 0) }}
           summary={() => (
             <Table.Summary.Row
-              style={{ background: "#f3f6fa", fontWeight: 800 }}
+              style={{ background: C.bg, fontWeight: 800 }}
             >
               <Table.Summary.Cell index={0}>{t("Total")}</Table.Summary.Cell>
               {visible.map((k, i) => (
@@ -336,7 +369,7 @@ export default function DailyReportView({ data, filters, options }) {
                     render: (_, v) => (
                       <b
                         style={{
-                          color: v.type === "payment" ? "#c0392b" : "#1e8449",
+                          color: v.type === "payment" ? C.dangerText : C.successText,
                         }}
                       >
                         {v.type === "payment" ? "-" : "+"}
@@ -375,7 +408,7 @@ export default function DailyReportView({ data, filters, options }) {
                     render: (_, m) => (
                       <b
                         style={{
-                          color: m.type === "out" ? "#c0392b" : "#1e8449",
+                          color: m.type === "out" ? C.dangerText : C.successText,
                         }}
                       >
                         {m.type === "out" ? "-" : "+"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { message } from "@/components/common/feedback";
+import { listSep } from "@/lib/list-sep";
 
 // ============================================================
 // رسالة خطأ الـ action للمستخدم
@@ -29,6 +30,17 @@ export function showActionError(res, tAlerts, locale) {
         </div>
       ),
     });
+    return;
+  }
+  // أصناف السبب (زي الكمية بكسر في وحدة متقبلش كسور): أسماؤها بعد الرسالة
+  if (list?.length && list[0]?.arName != null) {
+    const names = list
+      .slice(0, 5)
+      .map((x) =>
+        locale === "ar" ? x.arName || x.enName : x.enName || x.arName,
+      )
+      .join(listSep(locale));
+    message.error(`${tAlerts(res.error ?? "UnexpectedError")}: ${names}`);
     return;
   }
   // تفاصيل زي { minutes } أو { remaining } بتتحط في نص الرسالة

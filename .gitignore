@@ -70,3 +70,11 @@ skills-lock.json
 # سجلات التشغيل
 /logs/
 *.log
+
+# كاش بيانات قواعد الشركات (وضع الشركات)
+/.tenants
+
+# وسيط الطباعة: الحزم والملف المبني (بيتبني بـ npm run build جوه print-agent)
+/print-agent/node_modules
+/print-agent/dist
+/public/downloads/InfoTech-Print-Agent.exe

@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Alert, Button, Flex, Popconfirm, Space, Table, Tag, Tooltip } from "antd";
 import { message } from "@/components/common/feedback";
-import { DollarOutlined, StarFilled, StarOutlined } from "@ant-design/icons";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
+import { DollarOutlined, StarFilled, StarOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
@@ -15,6 +14,7 @@ import {
   setBaseCurrencyAction,
 } from "@/actions/currency.actions";
 import CurrencyForm from "./CurrencyForm";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // شاشة العملات: العملة الأساسية مميزة بنجمة، ويمكن تغييرها
@@ -52,7 +52,7 @@ export default function CurrenciesView({ currencies = [] }) {
       align: "center",
       render: (v, r) => (
         <Space>
-          {r.isBase && <StarFilled style={{ color: "#d4a017" }} />}
+          {r.isBase && <StarFilled style={{ color: C.warning }} />}
           <b dir="ltr">{v}</b>
         </Space>
       ),
@@ -106,9 +106,9 @@ export default function CurrenciesView({ currencies = [] }) {
             render: (_, r) => (
               <Space>
                 <Tag
-                  color="#006266"
+                  color={C.primary}
                   style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                  icon={<AiTwotoneEdit />}
+                  icon={<EditOutlined />}
                   onClick={() => setModal({ open: true, currency: r })}
                 >
                   {tButtons("Edit")}
@@ -124,7 +124,7 @@ export default function CurrenciesView({ currencies = [] }) {
                     }
                   >
                     <Tooltip title={t("MakeBase")}>
-                      <Button size="small" icon={<StarOutlined />} loading={busyId === r.id} />
+                      <Button aria-label={t("MakeBase")} title={t("MakeBase")} size="small" icon={<StarOutlined />} loading={busyId === r.id} />
                     </Tooltip>
                   </Popconfirm>
                 )}
@@ -138,7 +138,7 @@ export default function CurrenciesView({ currencies = [] }) {
                       run(r.id, () => deleteCurrenciesAction([r.id]), "CurrencyDeleted")
                     }
                   >
-                    <Button size="small" danger icon={<AiFillDelete />} />
+                    <Button aria-label={tButtons("Delete")} title={tButtons("Delete")} size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 )}
               </Space>

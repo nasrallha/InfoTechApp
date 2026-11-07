@@ -5,6 +5,9 @@ import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { round } from "@/lib/invoice-calc";
 import { getBaseCurrency } from "./currency.service";
+import { getDayStartHour } from "@/lib/business-day-server";
+import { bizToday } from "@/lib/business-day";
+import { dayToDbDate, isDay } from "@/lib/dates";
 
 // ============================================================
 // ورديات الكاشير
@@ -38,6 +41,9 @@ const shiftSelect = {
   user: userSelect,
   openedAt: true,
   openingCash: true,
+  // ترتيب الوردية في يوم العمل (الوردية 1 / 2 / 3) لكل فرع
+  businessDay: true,
+  dayNo: true,
   closedAt: true,
   closedBy: userSelect,
   expectedCash: true,
@@ -95,9 +101,34 @@ export async function getOpeningSuggestion(user) {
 
 // فتح وردية جديدة (المستخدم له وردية واحدة مفتوحة فقط)
 // رصيد أول المدة = ما عدّه الكاشير في الدرج، ويُقارن بالمتروك من الوردية السابقة
-export async function openShift({ openingCash, notes }, user) {
+// ترتيب الوردية في يوم العمل: بعد آخر وردية في نفس الفرع ونفس اليوم
+// (يوم العمل حسب "بداية يوم العمل" في الإعدادات العامة)
+async function nextDayNo(tx, branchId, day) {
+  const last = await tx.shift.findFirst({
+    where: { branchId, businessDay: dayToDbDate(day) },
+    orderBy: { dayNo: "desc" },
+    select: { dayNo: true },
+  });
+  return (last?.dayNo ?? 0) + 1;
+}
+
+// اتنين فتحوا في نفس اللحظة على نفس الفرع ← نفس الترتيب ← نعيد المحاولة
+const isDayNoClash = (e) => e?.code === "P2002";
+
+export async function openShift(input, user) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await openShiftOnce(input, user);
+    } catch (e) {
+      if (attempt >= 3 || !isDayNoClash(e)) throw e;
+    }
+  }
+}
+
+async function openShiftOnce({ openingCash, notes }, user) {
   const currency = await getBaseCurrency();
   const d = currency.decimals ?? 2;
+  const day = bizToday(await getDayStartHour());
   return runTx(async (tx) => {
     const open = await tx.shift.findFirst({
       where: { userId: user.id, status: "open" },
@@ -108,12 +139,15 @@ export async function openShift({ openingCash, notes }, user) {
     const expected = prev ? round(n(prev.leftCash), d) : null;
     const opening = round(openingCash ?? 0, d);
     const number = await nextShiftNumber(tx);
+    const dayNo = await nextDayNo(tx, user.branch.id, day);
     return tx.shift.create({
       data: {
         number,
         branchId: user.branch.id,
         userId: user.id,
         openedAt: new Date(),
+        businessDay: dayToDbDate(day),
+        dayNo,
         openingCash: opening,
         previousShiftId: prev?.id ?? null,
         expectedOpening: expected,
@@ -394,13 +428,28 @@ function shiftScope(user) {
   return { branchId: user.branch.id };
 }
 
-export async function listShifts({ user, status, page = 1, pageSize = 20 }) {
-  const where = { ...shiftScope(user), ...(status ? { status } : {}) };
+// البحث: اليوم (يوم العمل) + ترتيب الوردية فيه ← الوردية برقمها الأساسي
+export async function listShifts({
+  user,
+  status,
+  day,
+  dayNo,
+  page = 1,
+  pageSize = 20,
+}) {
+  const where = {
+    ...shiftScope(user),
+    ...(status ? { status } : {}),
+    ...(isDay(day) ? { businessDay: dayToDbDate(day) } : {}),
+    ...(isDay(day) && dayNo ? { dayNo } : {}),
+  };
   const [total, rows] = await Promise.all([
     prisma.shift.count({ where }),
     prisma.shift.findMany({
       where,
-      orderBy: { id: "desc" },
+      orderBy: isDay(day)
+        ? [{ branchId: "asc" }, { dayNo: "asc" }]
+        : { id: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: { ...shiftSelect, _count: { select: { sales: true } } },

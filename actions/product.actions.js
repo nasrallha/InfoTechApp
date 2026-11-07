@@ -14,6 +14,7 @@ import {
   updateProduct,
   deleteProducts,
   getProductDetails,
+  nextProductCode,
 } from "@/services/product.service";
 import { idField } from "@/validations/common.schema";
 
@@ -51,9 +52,23 @@ function readProductForm(formData) {
     taxExemptionReason: formData.get("taxExemptionReason") || null,
     startStock: num("startStock"),
     isActive: bool("isActive"),
+    isService: bool("isService"),
     image: image instanceof File && image.size > 0 ? image : null,
     removeImage: bool("removeImage"),
     units,
+    // الأرقام التسلسلية والضمان (وحدة serials)
+    serialCount: num("serialCount"),
+    serialLabel1: formData.get("serialLabel1") || null,
+    serialLabel2: formData.get("serialLabel2") || null,
+    warrantyMonths: num("warrantyMonths"),
+    warrantyType: formData.get("warrantyType") || null,
+    // المتابعة الدورية (وحدة followUps)
+    followUpDays: num("followUpDays"),
+    // التغيير الدوري للسيارات (وحدة vehicles)
+    changeKm: num("changeKm"),
+    changeMonths: num("changeMonths"),
+    // مدة الخدمة (الحجوزات)
+    durationMin: num("durationMin"),
   };
 }
 
@@ -61,7 +76,7 @@ export async function createProductAction(formData) {
   return runAction(
     createProductSchema,
     readProductForm(formData),
-    (data) => createProduct(data),
+    (data, user) => createProduct(data, user),
     {
       permission: "products.create",
     },
@@ -91,5 +106,12 @@ export async function deleteProductsAction(ids) {
 export async function getProductDetailsAction(id) {
   return runAction(idField, id, (d, user) => getProductDetails(d, user), {
     permission: "products.view",
+  });
+}
+
+// الكود التلقائي الجاي (بيظهر في خانة الكود لو فاضية)
+export async function nextProductCodeAction() {
+  return runAction(null, null, () => nextProductCode(), {
+    permission: "products.create",
   });
 }

@@ -44,6 +44,7 @@ export default function SalesList({
   const t = useTranslations("Sales");
   const tP = useTranslations("Purchases");
   const tTable = useTranslations("Table");
+  const tButtons = useTranslations("Buttons");
   const { amount: money } = useCurrency();
   const basePath = BASE[kind];
   const isQuotation = kind === "quotation";
@@ -230,7 +231,7 @@ export default function SalesList({
       align: "center",
       render: (_, r) => (
         <Link href={`${basePath}/${r.id}`}>
-          <Button size="small" icon={<EyeOutlined />} />
+          <Button aria-label={tButtons("View")} title={tButtons("View")} size="small" icon={<EyeOutlined />} />
         </Link>
       ),
     },

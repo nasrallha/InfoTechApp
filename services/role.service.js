@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { can, isOwnerPermission } from "@/lib/permissions";
+import { multiTenant } from "@/lib/tenant";
+import { customRolesAllowed } from "@/lib/plan-features";
 
 // الحقول التي نرجعها للواجهة
 const roleSelect = {
@@ -10,6 +12,7 @@ const roleSelect = {
   enName: true,
   isActive: true,
   isSuper: true,
+  templateKey: true,
   permissions: { select: { permission: true } },
   _count: { select: { users: true } },
 };
@@ -60,6 +63,20 @@ function handleUniqueError(error) {
   throw error;
 }
 
+// الأدوار الثابتة (من لوحة التحكم): مقفولة
+// والأدوار العادية: بس لو الباقة فيها "أدوار خاصة" (مدير النظام مستثنى)
+// التحكم في الأدوار: لمدير النظام لو الباقة فيها "أدوار خاصة"، ولمالك البرنامج دايماً
+async function canManageCustomRoles(currentUser) {
+  return Boolean(currentUser?.isOwner) || (await customRolesAllowed());
+}
+
+async function assertEditable(role, currentUser) {
+  // الأدوار الثابتة مقفولة في وضع الشركات بس (قاعدتك المرجعية بتعدّل فيها عادي)
+  if (role.templateKey && multiTenant()) throw new AppError("TemplateRoleLocked");
+  if (!(await canManageCustomRoles(currentUser)))
+    throw new AppError("CustomRolesNotInPlan");
+}
+
 // دور "مدير النظام" لا يتعامل معه (إنشاء/تعديل/حذف) إلا مدير نظام
 function assertCanManageSuper(isSuperRole, currentUser) {
   if (isSuperRole && !currentUser.isSuper) throw new AppError("OnlySuperCanManageSuperRole");
@@ -71,6 +88,8 @@ function assertCanManageSuper(isSuperRole, currentUser) {
 
 export async function createRole(data, currentUser) {
   assertCanManageSuper(data.isSuper, currentUser);
+  if (!(await canManageCustomRoles(currentUser)))
+    throw new AppError("CustomRolesNotInPlan");
 
   try {
     return toDTO(await prisma.role.create({ data, select: roleSelect }));
@@ -82,9 +101,10 @@ export async function createRole(data, currentUser) {
 export async function updateRole({ id, ...data }, currentUser) {
   const current = await prisma.role.findUnique({
     where: { id },
-    select: { isSuper: true, isActive: true, isOwner: true },
+    select: { isSuper: true, isActive: true, isOwner: true, templateKey: true },
   });
   if (!current || current.isOwner) throw new AppError("RoleNotFound");
+  await assertEditable(current, currentUser);
 
   assertCanManageSuper(current.isSuper || data.isSuper, currentUser);
 
@@ -120,11 +140,15 @@ export async function updateRole({ id, ...data }, currentUser) {
 export async function setRolePermissions({ roleId, permissions }, currentUser) {
   const role = await prisma.role.findUnique({
     where: { id: roleId },
-    select: { isSuper: true, isOwner: true },
+    select: { isSuper: true, isOwner: true, templateKey: true },
   });
   if (!role || role.isOwner) throw new AppError("RoleNotFound");
-  // صلاحيات مالك البرنامج مش بتتدي لأي دور
-  if (currentUser.ownerMode && permissions.some(isOwnerPermission)) {
+  await assertEditable(role, currentUser);
+  // صلاحيات مالك البرنامج مش بتتدي لأي دور (وفي وضع الشركات: أبداً)
+  if (
+    (currentUser.ownerMode || multiTenant()) &&
+    permissions.some(isOwnerPermission)
+  ) {
     throw new AppError("CannotGrantMissingPermission");
   }
 
@@ -160,6 +184,17 @@ export async function deleteRoles(ids, currentUser) {
   // دور مالك البرنامج مايتمسحش
   if (await prisma.role.count({ where: { id: { in: ids }, isOwner: true } })) {
     throw new AppError("RoleNotFound");
+  }
+  if (!(await canManageCustomRoles(currentUser)))
+    throw new AppError("CustomRolesNotInPlan");
+  // الأدوار الثابتة مبتتمسحش (في وضع الشركات)
+  if (
+    multiTenant() &&
+    await prisma.role.count({
+      where: { id: { in: ids }, templateKey: { not: null } },
+    })
+  ) {
+    throw new AppError("TemplateRoleLocked");
   }
   const supers = await prisma.role.count({ where: { id: { in: ids }, isSuper: true } });
   assertCanManageSuper(supers > 0, currentUser);

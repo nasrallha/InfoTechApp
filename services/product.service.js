@@ -1,8 +1,10 @@
 import "server-only";
+import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { getVisibleWarehouses, syncOpeningStock } from "./stock.service";
 import { saveImage, deleteImage } from "@/lib/upload";
+import { hasModule } from "@/lib/modules";
 
 // مجلد صور المنتجات داخل uploads
 const IMAGES_FOLDER = "products";
@@ -60,6 +62,20 @@ const productSelect = {
   taxExemptionReason: true,
   startStock: true,
   isActive: true,
+  isService: true,
+  serialCount: true,
+  serialLabel1: true,
+  serialLabel2: true,
+  warrantyMonths: true,
+  warrantyType: true,
+  followUpDays: true,
+  changeKm: true,
+  changeMonths: true,
+  durationMin: true,
+  // المقاسات والألوان (وحدة variants)
+  modelId: true,
+  size: true,
+  color: true,
   categoryId: true,
   baseUnitId: true,
   category: { select: nameSelect },
@@ -234,6 +250,28 @@ async function assertReferences({ categoryId, baseUnitId, units }) {
   if (found !== unitIds.length) throw new AppError("UnitNotFound");
 }
 
+// الاسم: ممكن يتكرر بس في مجموعة (قسم) مختلفة
+// (موبايل في سامسونج وموبايل في آيفون ← مسموح، اتنين في نفس القسم ← لا)
+// (بتستخدمها شاشة المطعم كمان: إضافة صنف المنيو من هناك)
+export async function assertUniqueName(
+  { arName, enName, categoryId },
+  excludeId = null,
+) {
+  const clash = await prisma.product.findFirst({
+    where: {
+      categoryId,
+      OR: [{ arName }, { enName }],
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { arName: true, enName: true },
+  });
+  if (!clash) return;
+  const field = clash.arName === arName ? "arName" : "enName";
+  throw new AppError("ProductNameInCategory", [clash[field]], {
+    [field]: "ProductNameInCategory",
+  });
+}
+
 // الكود والباركود لازم يكونوا فريدين في البرنامج كله
 // (كود المنتج = باركود الوحدة الأساسية، فلا يتكرر مع باركود أي وحدة إضافية)
 // excludeProductId: في التعديل نستثني المنتج نفسه
@@ -263,6 +301,87 @@ async function assertUniqueCodes({ code, units }, excludeProductId = null) {
   }
 }
 
+// حقول الأرقام التسلسلية والضمان: لو الوحدة مقفولة عند الشركة
+// الإضافة بالقيم الافتراضية، والتعديل منلمسهاش
+const SERIAL_FIELDS = [
+  "serialCount",
+  "serialLabel1",
+  "serialLabel2",
+  "warrantyMonths",
+  "warrantyType",
+];
+async function withoutDisabledFields(input) {
+  // الخدمة مالهاش رصيد افتتاحي ولا أرقام تسلسلية
+  const data = input.isService
+    ? { ...input, startStock: 0, serialCount: 0 }
+    : input;
+  const rest = { ...data };
+  // الخدمة مالهاش متابعة، والوحدة المقفولة: الحقل بيتساب زي ما هو
+  if (!(await hasModule("followUps"))) delete rest.followUpDays;
+  else if (rest.isService) rest.followUpDays = 0;
+  // التغيير الدوري (زيت...): للصنف والخدمة، والوحدة المقفولة: زي ما هو
+  if (!(await hasModule("vehicles"))) {
+    delete rest.changeKm;
+    delete rest.changeMonths;
+  }
+  // مدة الخدمة (الحجوزات): للخدمة بس
+  if (!(await hasModule("bookings"))) delete rest.durationMin;
+  else if (!rest.isService) rest.durationMin = 0;
+  if (await hasModule("serials")) return rest;
+  for (const f of SERIAL_FIELDS) delete rest[f];
+  return rest;
+}
+
+// ------------------------------------------------------------
+// الخدمة: الوحدة "خدمة" والقسم "خدمات" بيتعملوا تلقائي أول مرة
+// ------------------------------------------------------------
+// (بتستخدمها شاشة المطعم كمان: وحدة «خدمة» وقسم «خدمات» لأصناف الرسوم)
+export async function findOrCreate(model, arName, enName) {
+  const where = { OR: [{ arName }, { enName }] };
+  const found = await prisma[model].findFirst({ where, select: { id: true } });
+  if (found) return found.id;
+  try {
+    const row = await prisma[model].create({
+      data: { arName, enName },
+      select: { id: true },
+    });
+    return row.id;
+  } catch (error) {
+    // اتعمل في نفس اللحظة من طلب تاني
+    if (error?.code !== "P2002") throw error;
+    const again = await prisma[model].findFirst({
+      where,
+      select: { id: true },
+    });
+    if (!again) throw error;
+    return again.id;
+  }
+}
+
+// الخدمة: الوحدة دايماً "خدمة"، والقسم "خدمات" لو ما اختارش، ومالهاش
+// وحدات إضافية ولا تكلفة ولا رصيد ولا أرقام تسلسلية
+async function serviceDefaults(data, rawUnits) {
+  if (!data.isService) return { data, units: rawUnits };
+  const [baseUnitId, categoryId] = await Promise.all([
+    findOrCreate("unit", "خدمة", "Service"),
+    data.categoryId
+      ? data.categoryId
+      : findOrCreate("category", "خدمات", "Services"),
+  ]);
+  return {
+    data: { ...data, baseUnitId, categoryId, cost: 0, startStock: 0 },
+    units: [],
+  };
+}
+
+// الصورة ممكن تكون مشتركة بين مقاسات الموديل (وحدة variants):
+// بتتمسح من الهارد بس لو مفيش صنف تاني بيستخدمها
+export async function dropImage(path) {
+  if (!path) return;
+  const used = await prisma.product.count({ where: { image: path } });
+  if (!used) await deleteImage(path);
+}
+
 // لو حصل تكرار في نفس اللحظة (طلبان مع بعض) قاعدة البيانات ترفض بـ P2002
 function handleUniqueError(error) {
   if (error?.code === "P2002") throw new AppError("BarcodeExists");
@@ -273,9 +392,39 @@ function handleUniqueError(error) {
 // الإضافة
 // ------------------------------------------------------------
 
-export async function createProduct({ image, units, ...data }) {
+// الكود التلقائي = أكبر «كود» رقمي + 1 (من عمود code مش id: الـ id رقم داخلي)
+// - الأكواد اللي فيها حروف (FEE-SERVICE، A-12، مقاسات) مش بتتحسب
+// - الباركودات (8 أرقام وأكتر) مش بتتحسب، عشان الترقيم يفضل 1، 2، 3...
+// ولو الرقم مستخدم كباركود وحدة إضافية: اللي بعده
+export async function nextProductCode() {
+  const rows = await prisma.$queryRaw`SELECT MAX(CAST(code AS UNSIGNED)) AS maxCode FROM products WHERE code REGEXP '^[0-9]{1,7}$'`;
+  let no = Number(rows?.[0]?.maxCode ?? 0) + 1;
+  for (let i = 0; i < 50; i++, no++) {
+    const code = String(no);
+    const [p, u] = await Promise.all([
+      prisma.product.count({ where: { code } }),
+      prisma.productUnit.count({ where: { barcode: code } }),
+    ]);
+    if (!p && !u) return code;
+  }
+  return String(no);
+}
+
+export async function createProduct(
+  { image, units: rawUnits, ...input },
+  user,
+) {
+  // الكود فاضي ← تلقائي (الرقم اللي بعد أكبر كود)
+  if (!input.code) input = { ...input, code: await nextProductCode() };
+  const { data, units } = await serviceDefaults(
+    await withoutDisabledFields(input),
+    rawUnits,
+  );
+  // حد الأصناف في الباقة
+  await assertPlanLimit("products", user);
   await assertReferences({ ...data, units });
   await assertUniqueCodes({ code: data.code, units });
+  await assertUniqueName(data);
 
   const imagePath = image ? await saveImage(image, IMAGES_FOLDER) : null;
 
@@ -311,17 +460,35 @@ export async function updateProduct({
   id,
   image,
   removeImage,
-  units,
-  ...data
+  units: rawUnits,
+  ...input
 }) {
+  const { data, units } = await serviceDefaults(
+    await withoutDisabledFields(input),
+    rawUnits,
+  );
   const current = await prisma.product.findUnique({
     where: { id },
-    select: { id: true, image: true },
+    select: {
+      id: true,
+      image: true,
+      isService: true,
+      _count: { select: { stockMovements: true } },
+    },
   });
   if (!current) throw new AppError("ProductNotFound");
+  // صنف عليه حركات مخزون مينفعش يتحول لخدمة (والعكس) عشان الرصيد ميتلخبطش
+  if (
+    Boolean(data.isService) !== Boolean(current.isService) &&
+    current._count.stockMovements > 0
+  )
+    throw new AppError("ServiceToggleHasStock", null, {
+      isService: "ServiceToggleHasStock",
+    });
 
   await assertReferences({ ...data, units });
   await assertUniqueCodes({ code: data.code, units }, id);
+  await assertUniqueName(data, id);
 
   // الصورة: جديدة ← نحفظها، شالها ← null، لم يغيّر ← لا نلمسها
   let newImagePath;
@@ -352,7 +519,7 @@ export async function updateProduct({
       select: { id: true },
     });
 
-    if (imageChanged) await deleteImage(current.image);
+    if (imageChanged) await dropImage(current.image);
     // تغيير الرصيد الافتتاحي ← تعديل حركته بالفرق
     await syncOpeningStock(
       id,
@@ -397,7 +564,7 @@ export async function deleteProducts(ids) {
     where: { id: { in: ids } },
   });
 
-  await Promise.all(images.map((p) => deleteImage(p.image)));
+  for (const p of new Set(images.map((x) => x.image))) await dropImage(p);
 
   return { deleted: count };
 }

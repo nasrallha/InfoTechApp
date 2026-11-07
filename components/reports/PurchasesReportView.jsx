@@ -7,6 +7,7 @@ import { formatDateTime } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
 import { DocsTotal, KpiRow, ReportHeader, useFilterInfo } from "./ReportParts";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // تقرير المشتريات: الفواتير والمرتجعات + طرق الدفع + الموردين
@@ -161,22 +162,22 @@ export default function PurchasesReportView({ data, filters, options }) {
             title: t("Purchases"),
             value: money(T.purchases),
             hint: `${T.purchasesCount} ${t("Invoices")}`,
-            color: "#2471a3",
+            color: C.infoText,
           },
           {
             title: t("Returns"),
             value: money(T.returns),
             hint: `${T.returnsCount} ${t("Invoices")}`,
-            color: "#c0392b",
+            color: C.dangerText,
           },
           {
             title: t("NetPurchases"),
             value: `${money(T.total)} ${symbol}`,
-            color: "#1f4e78",
+            color: C.navy,
             strong: true,
           },
-          { title: t("Tax"), value: money(T.tax), color: "#7d3c98" },
-          { title: t("Credit"), value: money(T.credit), color: "#d35400" },
+          { title: t("Tax"), value: money(T.tax), color: C.purple },
+          { title: t("Credit"), value: money(T.credit), color: C.warningText },
         ]}
       />
       <div className="report-grid">

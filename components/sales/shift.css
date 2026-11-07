@@ -17,14 +17,14 @@
 }
 
 .shift-den__x {
-  color: #888;
+  color: var(--c-muted);
   text-align: center;
 }
 
 .shift-den__sum {
   text-align: end;
   font-variant-numeric: tabular-nums;
-  color: #333;
+  color: var(--c-text);
 }
 
 .shift-den__total,
@@ -35,12 +35,12 @@
   margin-top: 8px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #f0f5ff;
-  border: 1px solid #adc6ff;
+  background: var(--c-info-soft);
+  border: 1px solid var(--c-info-border);
   font-size: 16px;
 }
 
 .shift-left {
-  background: #f6ffed;
-  border-color: #b7eb8f;
+  background: var(--c-success-soft);
+  border-color: var(--c-success-border);
 }

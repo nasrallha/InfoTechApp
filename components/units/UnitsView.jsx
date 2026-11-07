@@ -1,8 +1,8 @@
 "use client";
+import { ColumnWidthOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
-import { BsUnity } from "react-icons/bs";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
 import { UnitsExport } from "@/components/reports/ListExports";
@@ -34,7 +34,7 @@ export default function UnitsView({ units }) {
         onCancel={() => setAddUnitModalOpen(false)}
         title={
           <>
-            <BsUnity
+            <ColumnWidthOutlined
               style={{
                 display: "inline-block",
                 fontSize: 25,

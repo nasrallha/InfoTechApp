@@ -2,11 +2,13 @@
 import { useState } from "react";
 import { Table, Space, Button, Tag, Popconfirm, Flex } from "antd";
 import { message } from "@/components/common/feedback";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
 import {
   SafetyCertificateOutlined,
   CrownFilled,
   KeyOutlined,
+  LockOutlined,
+  DeleteOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import FormModal from "@/components/common/FormModal";
@@ -20,11 +22,15 @@ import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import { roleGroups, rolePermissionsCount } from "@/lib/permissions";
 import EditRoleForm from "./EditRoleForm";
 import RolePermissionsForm from "./RolePermissionsForm";
+import { listSep } from "@/lib/list-sep";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // roles: الأدوار من قاعدة البيانات
 // بعد الحذف أو التعديل، الـ action يحدّث الصفحة فتصل roles الجديدة تلقائياً
-const RoleTable = ({ roles = [] }) => {
+// customAllowed: الباقة بتسمح بتعديل الأدوار العادية
+// الأدوار الثابتة (templateKey) مقفولة دايماً
+const RoleTable = ({ roles = [], customAllowed = true, lockFixed = true }) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -42,10 +48,13 @@ const RoleTable = ({ roles = [] }) => {
 
   const tPermissions = useTranslations("Permissions");
   const can = useCan();
-  const currentUserOwnerMode = Boolean(useCurrentUser()?.ownerMode);
+  const currentUser = useCurrentUser();
+  const currentUserOwnerMode = Boolean(currentUser?.ownerMode);
+  // صلاحيات وحدات النشاط المقفولة عند الشركة مبتظهرش
+  const moduleHidden = currentUser?.moduleBlocked;
   // الصلاحيات اللي تتدي للأدوار (من غير صلاحيات مالك البرنامج)
   const assignable = new Set(
-    roleGroups(currentUserOwnerMode).flatMap((g) =>
+    roleGroups(currentUserOwnerMode, moduleHidden).flatMap((g) =>
       g.actions.map((a) => `${g.key}.${a}`),
     ),
   );
@@ -55,6 +64,9 @@ const RoleTable = ({ roles = [] }) => {
   const canEdit = can("roles.update");
   const canDelete = can("roles.delete");
   const canPermissions = can("roles.permissions");
+  // الدور ده ينفع يتعدّل؟ (مدير النظام دايماً، الثابت أبداً، العادي حسب الباقة)
+  const locked = (r) => Boolean(r.templateKey) && lockFixed;
+  const editable = (r) => !locked(r) && customAllowed;
 
   // حذف دور أو أكثر
   const deleteRoles = async (ids) => {
@@ -63,7 +75,7 @@ const RoleTable = ({ roles = [] }) => {
     setDeleting(false);
 
     if (!res.success) {
-      const names = res.details?.map(nameOf).join("، ");
+      const names = res.details?.map(nameOf).join(listSep(locale));
       message.error(
         names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error),
       );
@@ -92,9 +104,18 @@ const RoleTable = ({ roles = [] }) => {
       render: (v, r) => (
         <span>
           {r.isSuper && (
-            <CrownFilled style={{ color: "#d4a017", marginInlineEnd: 6 }} />
+            <CrownFilled style={{ color: C.warning, marginInlineEnd: 6 }} />
           )}
           {v}
+          {locked(r) && (
+            <Tag
+              icon={<LockOutlined />}
+              color="default"
+              style={{ marginInlineStart: 6 }}
+            >
+              {tTable("FixedRole")}
+            </Tag>
+          )}
         </span>
       ),
       sorter: (a, b) => a.arName.localeCompare(b.arName),
@@ -131,7 +152,7 @@ const RoleTable = ({ roles = [] }) => {
         ) : (
           <Tag color={r.permissions.length ? "blue" : "default"}>
             {r.permissions.filter((p) => assignable.has(p)).length} /{" "}
-            {rolePermissionsCount(currentUserOwnerMode)}
+            {rolePermissionsCount(currentUserOwnerMode, moduleHidden)}
           </Tag>
         ),
     },
@@ -168,7 +189,7 @@ const RoleTable = ({ roles = [] }) => {
                 color="danger"
                 variant="outlined"
                 size="small"
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
                 loading={deleting}
               >
                 {tButtons("Delete")} ({selectedRows.length})
@@ -182,10 +203,15 @@ const RoleTable = ({ roles = [] }) => {
       width: 320,
       render: (_, record) => (
         <Space size="middle">
+          {!editable(record) && (
+            <Tag icon={<LockOutlined />} style={{ padding: "6px 12px" }}>
+              {tTable("FixedRole")}
+            </Tag>
+          )}
           {/* الصلاحيات */}
-          {canPermissions && (
+          {canPermissions && editable(record) && (
             <Tag
-              color="#2c3e50"
+              color={C.header}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
               icon={<KeyOutlined />}
               onClick={() => {
@@ -198,11 +224,11 @@ const RoleTable = ({ roles = [] }) => {
           )}
 
           {/* تعديل */}
-          {canEdit && (
+          {canEdit && editable(record) && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => {
                 setSelectedRole(record);
                 setEditModalOpen(true);
@@ -213,7 +239,7 @@ const RoleTable = ({ roles = [] }) => {
           )}
 
           {/* حذف دور واحد */}
-          {canDelete && (
+          {canDelete && !locked(record) && customAllowed && (
             <Popconfirm
               title={tAlerts("Confirm")}
               description={tAlerts("ConfirmDelete")}
@@ -222,10 +248,10 @@ const RoleTable = ({ roles = [] }) => {
               cancelText={tButtons("No")}
             >
               <Tag
-                color="#EA2027"
+                color={C.danger}
                 variant="filled"
                 style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
               >
                 {tButtons("Delete")}
               </Tag>
@@ -260,10 +286,11 @@ const RoleTable = ({ roles = [] }) => {
           },
         }}
         rowSelection={
-          canDelete
+          canDelete && customAllowed
             ? {
                 selectedRowKeys: selectedRows,
                 onChange: (keys) => setSelectedRows(keys),
+                getCheckboxProps: (r) => ({ disabled: locked(r) }),
               }
             : undefined
         }

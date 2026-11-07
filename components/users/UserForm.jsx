@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/components/auth/AuthProvider";
 import { applyFieldErrors } from "@/lib/form-errors";
 import { imageUrl } from "@/lib/image";
 import ImageUploadItem from "@/components/common/ImageUploadItem";
+import { C } from "@/lib/theme";
 
 // فورم المستخدم (نفس الفورم للإضافة والتعديل)
 // user: بيانات المستخدم في التعديل (أو null في الإضافة)
@@ -189,7 +190,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
               optionRender={(option) => (
                 <span>
                   {option.data.isSuper && (
-                    <CrownFilled style={{ color: "#d4a017", marginInlineEnd: 6 }} />
+                    <CrownFilled style={{ color: C.warning, marginInlineEnd: 6 }} />
                   )}
                   {option.data.label}
                 </span>

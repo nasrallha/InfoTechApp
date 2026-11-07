@@ -100,3 +100,80 @@ export const itemCardSchema = z.object({
   productId: idField,
   warehouseId: idField.optional(),
 });
+
+// ------------------------------------------------------------
+// التوالف والزيادات
+// ------------------------------------------------------------
+const adjustmentFields = {
+  warehouseId: idField,
+  date: z.string().refine(isDay, "InvalidDate").optional(),
+  notes: optionalText(255),
+  items: z
+    .array(
+      z.object({
+        productId: idField,
+        unitId: idField,
+        qty: qtyField,
+        reason: optionalText(255),
+        // التالف: القطع المختارة من اللي في المحل
+        serialIds: z.array(idField).max(1000).default([]),
+        // الزيادة: أرقام جديدة (اختياري)
+        serials: z
+          .array(
+            z.object({
+              serial: z.string().trim().min(1).max(100),
+              serial2: z.string().trim().max(100).nullish(),
+              isUsed: z.boolean().default(false),
+            }),
+          )
+          .max(1000)
+          .default([]),
+      }),
+    )
+    .min(1, "NoItems")
+    .max(500),
+};
+
+// التالف لازم سببه يتكتب لكل صنف
+const damageReasons = (d, ctx) => {
+  if (d.type !== "damage") return;
+  d.items.forEach((it, i) => {
+    if (!it.reason)
+      ctx.addIssue({
+        code: "custom",
+        path: ["items", i, "reason"],
+        message: "DamageReasonRequired",
+      });
+  });
+};
+
+export const createAdjustmentSchema = z
+  .object({ ...adjustmentFields, type: z.enum(["damage", "surplus"]) })
+  .superRefine(damageReasons);
+
+// التعديل: النوع ثابت (بيتبعت عشان التحقق من السبب بس)
+export const updateAdjustmentSchema = z
+  .object({
+    ...adjustmentFields,
+    id: idField,
+    type: z.enum(["damage", "surplus"]),
+  })
+  .superRefine(damageReasons);
+
+export const adjustmentListSchema = z.object({
+  type: z.enum(["damage", "surplus"]).optional(),
+  q: z.string().trim().max(50).default(""),
+  page: pageField,
+});
+
+// حركة المخزون الشاملة (شاشة الأرصدة)
+export const stockMovementReportSchema = z.object({
+  warehouseId: idField.optional(),
+  q: z.string().trim().max(100).default(""),
+  categoryId: idField.optional(),
+  from: z.string().refine(isDay, "InvalidDate").optional(),
+  to: z.string().refine(isDay, "InvalidDate").optional(),
+  hideIdle: z.boolean().default(false),
+  page: pageField,
+  all: z.boolean().default(false),
+});

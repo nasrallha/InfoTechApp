@@ -21,6 +21,7 @@ const AddUnitForm = ({ onSuccess, setLoading }) => {
       arName: values.arName,
       enName: values.enName,
       isActive: values.isActive,
+      allowDecimals: values.allowDecimals,
     });
     setLoading?.(false);
 
@@ -32,7 +33,8 @@ const AddUnitForm = ({ onSuccess, setLoading }) => {
 
     message.success(tAlerts("UnitAdded"));
     form.resetFields();
-    onSuccess?.();
+    // بنرجّع الوحدة الجديدة (للإضافة السريعة من شاشة الصنف)
+    onSuccess?.(res.data);
   };
 
   return (
@@ -41,7 +43,12 @@ const AddUnitForm = ({ onSuccess, setLoading }) => {
       id="AddUnitForm"
       autoComplete="off"
       onFinish={onFinish}
-      initialValues={{ arName: "", enName: "", isActive: true }}
+      initialValues={{
+        arName: "",
+        enName: "",
+        isActive: true,
+        allowDecimals: true,
+      }}
       style={{ padding: "10px 10px 0 10px" }}
     >
       <UnitFormFields tForm={tForm} tAlerts={tAlerts} />

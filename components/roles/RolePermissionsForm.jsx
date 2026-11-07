@@ -20,7 +20,9 @@ export default function RolePermissionsForm({ role, onSuccess, setLoading }) {
   const tAlerts = useTranslations("Alerts");
   const can = useCan();
   // صلاحيات مالك البرنامج مش بتظهر هنا (مش بتتدي لأي دور)
-  const groups = roleGroups(useCurrentUser()?.ownerMode);
+  // وصلاحيات وحدات النشاط المقفولة عند الشركة كمان
+  const currentUser = useCurrentUser();
+  const groups = roleGroups(currentUser?.ownerMode, currentUser?.moduleBlocked);
   // كل العمليات الموجودة في المجموعات (أعمدة الجدول): عرض، إضافة، تعديل، حذف، ...
   const ACTIONS = [...new Set(groups.flatMap((g) => g.actions))];
 
@@ -113,7 +115,7 @@ export default function RolePermissionsForm({ role, onSuccess, setLoading }) {
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="w-full text-center border-collapse">
           <thead>
-            <tr className="bg-[#34495e] text-white">
+            <tr className={"bg-(--c-header) text-white"}>
               <th className="p-2.5 text-start font-bold">{t("Group")}</th>
               {ACTIONS.map((action) => (
                 <th key={action} className="p-2.5 font-bold whitespace-nowrap">

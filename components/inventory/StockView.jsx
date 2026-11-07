@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Select, Space, Switch, Table, Tag, Tooltip } from "antd";
+import { Segmented, Select, Space, Switch, Table, Tag, Tooltip } from "antd";
 import { message } from "@/components/common/feedback";
 import { useLocale, useTranslations } from "next-intl";
 import { getStockBalancesAction } from "@/actions/inventory.actions";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import PageHeader from "@/components/common/PageHeader";
 import SearchBox from "@/components/common/SearchBox";
+import DayPicker from "@/components/common/DayPicker";
 import ItemCard from "./ItemCard";
+import StockMovementTable from "./StockMovementTable";
 import UnitBreakdown from "./UnitBreakdown";
+import { listSep } from "@/lib/list-sep";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 const qty = (v) => Number(Number(v ?? 0).toFixed(3));
@@ -32,6 +36,11 @@ export default function StockView({ warehouses = [], categories = [] }) {
   const [data, setData] = useState({ rows: [], total: 0, pageSize: 50 });
   const [loading, setLoading] = useState(false);
   const [card, setCard] = useState(null);
+  // العرض: الأرصدة الحالية / حركة المخزون (افتتاحي + كل الحركات + المتبقي)
+  const [mode, setMode] = useState("balances");
+  const [from, setFrom] = useState();
+  const [to, setTo] = useState();
+  const [hideIdle, setHideIdle] = useState(false);
   const requestId = useRef(0);
 
   const locale = useLocale();
@@ -40,8 +49,16 @@ export default function StockView({ warehouses = [], categories = [] }) {
   const tAlerts = useTranslations("Alerts");
   const { amount: money } = useCurrency();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
+  // المستودع + الفرع المربوط بيه (لمدير النظام)
+  const warehouseLabel = (w) => {
+    const branches = (w.branches ?? []).map(nameOf).filter(Boolean);
+    return branches.length
+      ? `${nameOf(w)} - ${branches.join(listSep(locale))}`
+      : nameOf(w);
+  };
 
   useEffect(() => {
+    if (mode !== "balances") return undefined;
     const id = ++requestId.current;
     const timer = setTimeout(async () => {
       setLoading(true);
@@ -58,7 +75,7 @@ export default function StockView({ warehouses = [], categories = [] }) {
       setData(res.data);
     }, 250);
     return () => clearTimeout(timer);
-  }, [warehouseId, q, categoryId, onlyNegative, page, tAlerts]);
+  }, [mode, warehouseId, q, categoryId, onlyNegative, page, tAlerts]);
 
   // المستودعات المعروضة كأعمدة (لو "الكل" وأكثر من مستودع)
   const shown = warehouseId
@@ -89,7 +106,7 @@ export default function StockView({ warehouses = [], categories = [] }) {
               </Tag>
             )}
           </div>
-          <div style={{ fontSize: 12, color: "#888" }}>
+          <div style={{ fontSize: 12, color: C.muted }}>
             <bdi>{r.code}</bdi>
             {r.category && <> · {nameOf(r.category)}</>}
           </div>
@@ -155,6 +172,16 @@ export default function StockView({ warehouses = [], categories = [] }) {
     <div>
       <PageHeader title={tSidebar("Stock")} />
 
+      <Segmented
+        className="mb-3"
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: "balances", label: t("ModeBalances") },
+          { value: "movement", label: t("ModeMovement") },
+        ]}
+      />
+
       <Space wrap className="mb-3">
         {warehouses.length > 1 && (
           <Select
@@ -166,7 +193,10 @@ export default function StockView({ warehouses = [], categories = [] }) {
               setWarehouseId(v);
               setPage(1);
             }}
-            options={warehouses.map((w) => ({ value: w.id, label: nameOf(w) }))}
+            options={warehouses.map((w) => ({
+              value: w.id,
+              label: warehouseLabel(w),
+            }))}
           />
         )}
         <SearchBox
@@ -198,16 +228,40 @@ export default function StockView({ warehouses = [], categories = [] }) {
             label: c.parent ? `${nameOf(c.parent)} / ${nameOf(c)}` : nameOf(c),
           }))}
         />
-        <Space>
-          <Switch
-            checked={onlyNegative}
-            onChange={(v) => {
-              setOnlyNegative(v);
-              setPage(1);
-            }}
-          />
-          <span>{t("OnlyNegative")}</span>
-        </Space>
+        {mode === "balances" ? (
+          <Space>
+            <Switch
+              checked={onlyNegative}
+              onChange={(v) => {
+                setOnlyNegative(v);
+                setPage(1);
+              }}
+            />
+            <span>{t("OnlyNegative")}</span>
+          </Space>
+        ) : (
+          <>
+            {/* الفترة: من غير تحديد = كل الحركات لحد النهارده */}
+            <DayPicker
+              allowClear
+              placeholder={t("FromDate")}
+              value={from}
+              onChange={setFrom}
+              style={{ width: 150 }}
+            />
+            <DayPicker
+              allowClear
+              placeholder={t("ToDate")}
+              value={to}
+              onChange={setTo}
+              style={{ width: 150 }}
+            />
+            <Space>
+              <Switch checked={hideIdle} onChange={setHideIdle} />
+              <span>{t("HideIdle")}</span>
+            </Space>
+          </>
+        )}
       </Space>
 
       {!warehouses.length && (
@@ -216,24 +270,45 @@ export default function StockView({ warehouses = [], categories = [] }) {
         </div>
       )}
 
-      <Table
-        bordered
-        size="small"
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={data.rows}
-        tableLayout="fixed"
-        scroll={{ x: width }}
-        onRow={(r) => ({ onClick: () => setCard(r) })}
-        pagination={{
-          current: page,
-          pageSize: data.pageSize,
-          total: data.total,
-          showSizeChanger: false,
-          onChange: setPage,
-        }}
-      />
+      {mode === "movement" ? (
+        <StockMovementTable
+          filters={{
+            warehouseId,
+            q,
+            categoryId,
+            from: from || undefined,
+            to: to || undefined,
+            hideIdle,
+          }}
+          warehouseLabel={
+            warehouseId
+              ? warehouseLabel(
+                  warehouses.find((w) => w.id === warehouseId) ?? {},
+                )
+              : t("AllWarehouses")
+          }
+          onOpenCard={setCard}
+        />
+      ) : (
+        <Table
+          bordered
+          size="small"
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={data.rows}
+          tableLayout="fixed"
+          scroll={{ x: width }}
+          onRow={(r) => ({ onClick: () => setCard(r) })}
+          pagination={{
+            current: page,
+            pageSize: data.pageSize,
+            total: data.total,
+            showSizeChanger: false,
+            onChange: setPage,
+          }}
+        />
+      )}
 
       <ItemCard
         product={card}

@@ -109,7 +109,7 @@ export default function SecuritySettingsForm({ settings, canEdit }) {
   );
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div>
       {!canEdit && (
         <Alert
           type="info"
@@ -139,175 +139,181 @@ export default function SecuritySettingsForm({ settings, canEdit }) {
         onFinish={onFinish}
         disabled={!canEdit}
       >
-        {/* ============ القفل بعد المحاولات الغلط ============ */}
-        <Card
-          size="small"
-          className="mb-4"
-          title={card(<LockOutlined />, t("CardLock"))}
-        >
-          <div className="sec-grid">
+        {/* الكروت أعمدة تملا الشاشة (من غير نزول لتحت) */}
+        <div className="settings-masonry">
+          {/* ============ القفل بعد المحاولات الغلط ============ */}
+          <Card
+            size="small"
+            className="mb-4"
+            title={card(<LockOutlined />, t("CardLock"))}
+          >
+            <div className="sec-grid">
+              <Form.Item
+                name="maxAttempts"
+                label={t("MaxAttempts")}
+                tooltip={t("MaxAttemptsHint")}
+              >
+                <Select
+                  options={countOpts(
+                    SECURITY_OPTIONS.maxAttempts,
+                    t("NoLock"),
+                    "Attempts",
+                  )}
+                />
+              </Form.Item>
+              <Form.Item
+                name="attemptWindowMinutes"
+                label={t("AttemptWindow")}
+                tooltip={t("AttemptWindowHint")}
+              >
+                <Select
+                  disabled={!lockOn}
+                  options={minutesOpts(SECURITY_OPTIONS.attemptWindowMinutes)}
+                />
+              </Form.Item>
+              <Form.Item name="lockMinutes" label={t("LockMinutes")}>
+                <Select
+                  disabled={!lockOn && !(v.ipMaxAttempts > 0)}
+                  options={minutesOpts(SECURITY_OPTIONS.lockMinutes)}
+                />
+              </Form.Item>
+              <Form.Item
+                name="ipMaxAttempts"
+                label={t("IpMaxAttempts")}
+                tooltip={t("IpMaxAttemptsHint")}
+              >
+                <Select
+                  options={countOpts(
+                    SECURITY_OPTIONS.ipMaxAttempts,
+                    t("NoIpLock"),
+                    "Attempts",
+                  )}
+                />
+              </Form.Item>
+            </div>
             <Form.Item
-              name="maxAttempts"
-              label={t("MaxAttempts")}
-              extra={t("MaxAttemptsHint")}
+              name="progressiveLock"
+              label={t("Progressive")}
+              extra={t("ProgressiveHint", { chain })}
+              valuePropName="checked"
+            >
+              <Switch disabled={!lockOn} />
+            </Form.Item>
+            <Form.Item
+              name="showRemaining"
+              label={t("ShowRemaining")}
+              tooltip={t("ShowRemainingHint")}
+              valuePropName="checked"
+              className="mb-0"
+            >
+              <Switch disabled={!lockOn} />
+            </Form.Item>
+          </Card>
+
+          {/* ============ الجلسة ============ */}
+          <Card
+            size="small"
+            className="mb-4"
+            title={card(<ClockCircleOutlined />, t("CardSession"))}
+          >
+            <div className="sec-grid">
+              <Form.Item
+                name="sessionHours"
+                label={t("SessionHours")}
+                tooltip={t("SessionHoursHint")}
+              >
+                <Select
+                  options={opts(SECURITY_OPTIONS.sessionHours, (h) =>
+                    dur(h * 60),
+                  )}
+                />
+              </Form.Item>
+              <Form.Item
+                name="idleMinutes"
+                label={t("IdleMinutes")}
+                tooltip={t("IdleMinutesHint")}
+              >
+                <Select
+                  options={minutesOpts(
+                    SECURITY_OPTIONS.idleMinutes,
+                    t("NoIdle"),
+                  )}
+                />
+              </Form.Item>
+            </div>
+            <Form.Item
+              name="logoutOnBrowserClose"
+              label={t("BrowserClose")}
+              tooltip={t("BrowserCloseHint")}
+              valuePropName="checked"
+              className="mb-0"
+            >
+              <Switch />
+            </Form.Item>
+          </Card>
+
+          {/* ============ الأجهزة ============ */}
+          <Card
+            size="small"
+            className="mb-4"
+            title={card(<LaptopOutlined />, t("CardDevices"))}
+          >
+            <Form.Item
+              name="maxDevices"
+              label={t("MaxDevices")}
+              tooltip={t("MaxDevicesHint")}
             >
               <Select
+                style={{ maxWidth: 360 }}
                 options={countOpts(
-                  SECURITY_OPTIONS.maxAttempts,
-                  t("NoLock"),
-                  "Attempts",
+                  SECURITY_OPTIONS.maxDevices,
+                  t("NoDeviceLimit"),
+                  "Devices",
                 )}
               />
             </Form.Item>
-            <Form.Item
-              name="attemptWindowMinutes"
-              label={t("AttemptWindow")}
-              extra={t("AttemptWindowHint")}
-            >
-              <Select
-                disabled={!lockOn}
-                options={minutesOpts(SECURITY_OPTIONS.attemptWindowMinutes)}
-              />
-            </Form.Item>
-            <Form.Item name="lockMinutes" label={t("LockMinutes")}>
-              <Select
-                disabled={!lockOn && !(v.ipMaxAttempts > 0)}
-                options={minutesOpts(SECURITY_OPTIONS.lockMinutes)}
-              />
+            <Form.Item name="deviceLimitMode" label={t("DeviceMode")}>
+              <Radio.Group disabled={!devicesOn} className="sec-radios">
+                {DEVICE_LIMIT_MODES.map((m) => (
+                  <Radio key={m} value={m}>
+                    <b>{t(`mode.${m}`)}</b>
+                    <div className="sec-muted">{t(`modeHint.${m}`)}</div>
+                  </Radio>
+                ))}
+              </Radio.Group>
             </Form.Item>
             <Form.Item
-              name="ipMaxAttempts"
-              label={t("IpMaxAttempts")}
-              extra={t("IpMaxAttemptsHint")}
+              name="deviceLimitSkipSuper"
+              label={t("SkipSuper")}
+              tooltip={t("SkipSuperHint")}
+              valuePropName="checked"
+              className="mb-0"
+            >
+              <Switch disabled={!devicesOn} />
+            </Form.Item>
+          </Card>
+
+          {/* ============ سجل الدخول ============ */}
+          <Card
+            size="small"
+            className="mb-4"
+            title={card(<FileSearchOutlined />, t("CardLog"))}
+          >
+            <Form.Item
+              name="logRetentionDays"
+              label={t("LogRetention")}
+              tooltip={t("LogRetentionHint")}
+              className="mb-0"
             >
               <Select
-                options={countOpts(
-                  SECURITY_OPTIONS.ipMaxAttempts,
-                  t("NoIpLock"),
-                  "Attempts",
+                style={{ maxWidth: 360 }}
+                options={opts(SECURITY_OPTIONS.logRetentionDays, (d) =>
+                  dur(d * 1440),
                 )}
               />
             </Form.Item>
-          </div>
-          <Form.Item
-            name="progressiveLock"
-            label={t("Progressive")}
-            extra={t("ProgressiveHint", { chain })}
-            valuePropName="checked"
-          >
-            <Switch disabled={!lockOn} />
-          </Form.Item>
-          <Form.Item
-            name="showRemaining"
-            label={t("ShowRemaining")}
-            extra={t("ShowRemainingHint")}
-            valuePropName="checked"
-            className="mb-0"
-          >
-            <Switch disabled={!lockOn} />
-          </Form.Item>
-        </Card>
-
-        {/* ============ الجلسة ============ */}
-        <Card
-          size="small"
-          className="mb-4"
-          title={card(<ClockCircleOutlined />, t("CardSession"))}
-        >
-          <div className="sec-grid">
-            <Form.Item
-              name="sessionHours"
-              label={t("SessionHours")}
-              extra={t("SessionHoursHint")}
-            >
-              <Select
-                options={opts(SECURITY_OPTIONS.sessionHours, (h) =>
-                  dur(h * 60),
-                )}
-              />
-            </Form.Item>
-            <Form.Item
-              name="idleMinutes"
-              label={t("IdleMinutes")}
-              extra={t("IdleMinutesHint")}
-            >
-              <Select
-                options={minutesOpts(SECURITY_OPTIONS.idleMinutes, t("NoIdle"))}
-              />
-            </Form.Item>
-          </div>
-          <Form.Item
-            name="logoutOnBrowserClose"
-            label={t("BrowserClose")}
-            extra={t("BrowserCloseHint")}
-            valuePropName="checked"
-            className="mb-0"
-          >
-            <Switch />
-          </Form.Item>
-        </Card>
-
-        {/* ============ الأجهزة ============ */}
-        <Card
-          size="small"
-          className="mb-4"
-          title={card(<LaptopOutlined />, t("CardDevices"))}
-        >
-          <Form.Item
-            name="maxDevices"
-            label={t("MaxDevices")}
-            extra={t("MaxDevicesHint")}
-          >
-            <Select
-              style={{ maxWidth: 360 }}
-              options={countOpts(
-                SECURITY_OPTIONS.maxDevices,
-                t("NoDeviceLimit"),
-                "Devices",
-              )}
-            />
-          </Form.Item>
-          <Form.Item name="deviceLimitMode" label={t("DeviceMode")}>
-            <Radio.Group disabled={!devicesOn} className="sec-radios">
-              {DEVICE_LIMIT_MODES.map((m) => (
-                <Radio key={m} value={m}>
-                  <b>{t(`mode.${m}`)}</b>
-                  <div className="sec-muted">{t(`modeHint.${m}`)}</div>
-                </Radio>
-              ))}
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item
-            name="deviceLimitSkipSuper"
-            label={t("SkipSuper")}
-            extra={t("SkipSuperHint")}
-            valuePropName="checked"
-            className="mb-0"
-          >
-            <Switch disabled={!devicesOn} />
-          </Form.Item>
-        </Card>
-
-        {/* ============ سجل الدخول ============ */}
-        <Card
-          size="small"
-          className="mb-4"
-          title={card(<FileSearchOutlined />, t("CardLog"))}
-        >
-          <Form.Item
-            name="logRetentionDays"
-            label={t("LogRetention")}
-            extra={t("LogRetentionHint")}
-            className="mb-0"
-          >
-            <Select
-              style={{ maxWidth: 360 }}
-              options={opts(SECURITY_OPTIONS.logRetentionDays, (d) =>
-                dur(d * 1440),
-              )}
-            />
-          </Form.Item>
-        </Card>
+          </Card>
+        </div>
 
         {canEdit && (
           <Button

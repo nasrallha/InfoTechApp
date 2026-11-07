@@ -1,0 +1,67 @@
+/* تذكرة المطبخ (طباعة حرارية): صغيرة وبسيطة، أسود على أبيض */
+/* العرض بيتحدد من المكوّن (72mm / 48mm)، والخطوط بالـ pt زي الفاتورة */
+.kt {
+  box-sizing: border-box;
+  font-family: var(--font-main, sans-serif);
+  color: #000;
+  background: #fff;
+  padding: 2px;
+  font-size: 10pt;
+  line-height: 1.35;
+}
+/* سطر الرأس: رقم الطلب + النوع جنب بعض */
+.kt__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px dashed #000;
+  padding-bottom: 3px;
+  margin-bottom: 2px;
+}
+.kt__no {
+  font-size: 16pt;
+  font-weight: 800;
+}
+.kt__type {
+  font-size: 11pt;
+  font-weight: 700;
+  text-align: end;
+}
+.kt__added {
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid #000;
+  margin: 2px 0;
+}
+.kt__date {
+  font-size: 8.5pt;
+  text-align: center;
+  margin-bottom: 2px;
+}
+.kt__line {
+  display: flex;
+  gap: 4px;
+  padding: 2px 0;
+  border-top: 1px dotted #000;
+  font-size: 11pt;
+}
+.kt__qty {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.kt__note {
+  font-size: 9pt;
+}
+.kt__notes {
+  margin-top: 3px;
+  font-size: 10pt;
+  font-weight: 700;
+}
+.kt__printer {
+  font-size: 9pt;
+  text-align: center;
+  font-weight: 700;
+  margin: 2px 0;
+}

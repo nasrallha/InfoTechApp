@@ -2,6 +2,7 @@
 
 import { formatDateTime } from "@/lib/dates";
 import { formatDocNo } from "@/lib/doc-number";
+import { shiftDayTexts } from "@/lib/shift-label";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
 import "@/components/printing/invoice/invoice.css";
@@ -56,6 +57,12 @@ export default function ShiftPrint({ shift, company, settings }) {
         {L("تقرير تسليم وردية", "Shift handover report")}{" "}
         <bdi>{formatDocNo("shift", shift.number)}</bdi>
       </div>
+      {/* ترتيب الوردية في يوم العمل: الوردية 2 — 30/10/2026 */}
+      {shiftDayTexts(shift) && (
+        <div style={{ textAlign: "center", fontWeight: 700 }}>
+          {L(...shiftDayTexts(shift))}
+        </div>
+      )}
       <div className="inv__meta">
         {row(L("الكاشير", "Cashier"), un(shift.user))}
         {row(L("الفتح", "Opened"), formatDateTime(shift.openedAt))}

@@ -33,6 +33,7 @@ import {
 import ZatcaUnitWizard from "./ZatcaUnitWizard";
 import ZatcaSettingsCard from "./ZatcaSettingsCard";
 import { EnvTag, StatusTag, showZatcaError, stepOf } from "./zatcaUi";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 import "./zatca.css";
 
@@ -115,7 +116,7 @@ export default function ZatcaView({ data, settings, canSetup }) {
                 </div>
               }
             >
-              <WarningOutlined style={{ color: "#faad14" }} />
+              <WarningOutlined style={{ color: C.warning }} />
             </Tooltip>
           )}
         </Space>

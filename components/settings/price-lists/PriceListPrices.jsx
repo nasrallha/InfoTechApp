@@ -26,6 +26,7 @@ import {
 } from "@/actions/price-list.actions";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import SearchBox from "@/components/common/SearchBox";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 const keyOf = (productId, unitId) => `${productId}:${unitId}`;
@@ -126,7 +127,7 @@ export default function PriceListPrices({
       render: (_, r) => (
         <div>
           <div style={{ fontWeight: 600 }}>{nameOf(r.product)}</div>
-          <div style={{ fontSize: 12, color: "#888" }}>
+          <div style={{ fontSize: 12, color: C.muted }}>
             <bdi>{r.product.code}</bdi>
             {r.product.isPriceIncludeTax && (
               <Tag className="ms-2" color="geekblue">

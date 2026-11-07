@@ -15,6 +15,7 @@ import { showActionError } from "@/components/common/actionError";
 import { applyFieldErrors } from "@/lib/form-errors";
 import PageHeader from "@/components/common/PageHeader";
 import { updateOwnerProfileAction } from "@/actions/owner.actions";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // الإعدادات ← حساب المالك: الاسم (اللي بيظهر على المستندات)، اسم الدخول، الباسورد
@@ -131,7 +132,7 @@ export default function OwnerAccountForm({ profile }) {
           <Card
             size="small"
             className="mb-4"
-            style={{ borderColor: "#faad14" }}
+            style={{ borderColor: C.warning }}
           >
             <Form.Item
               name="currentPassword"

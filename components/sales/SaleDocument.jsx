@@ -1,21 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { qtyText, savedLineConversion } from "@/lib/unit-qty";
 import { qrDataUrl } from "@/lib/qr";
 import { imageUrl } from "@/lib/image";
 import { zatcaQrValue } from "@/lib/zatca";
-import { formatDateTime, formatDay } from "@/lib/dates";
+import { dbDateToDay, formatDateTime, formatDay } from "@/lib/dates";
 import { formatDocNo, saleDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
 import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
-import { PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
+import { BASE_FONT, PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
 import "@/components/printing/invoice/invoice.css";
+import SerialPrintLines from "@/components/serials/SerialPrintLines";
 
-const BASE_FONT = {
-  thermal: { small: 7.5, normal: 8.5, large: 10 },
-  A4: { small: 9, normal: 10, large: 11.5 },
-};
 const LOGO_HEIGHT = { small: 12, medium: 18, large: 26 };
 // الكاشير: الشعار أكبر (الطابعة الحرارية بتضيّع التفاصيل الصغيرة)
 const LOGO_THERMAL = { small: 16, medium: 24, large: 32 };
@@ -27,6 +25,15 @@ const LOGO_THERMAL = { small: 16, medium: 24, large: 32 };
 // kind: "sale" | "return" | "quotation"
 // doc: الفاتورة كاملة (getSale / getQuotation)
 // ============================================================
+// أنواع طلب المطعم على الفاتورة [عربي، إنجليزي]
+const REST_TYPES = {
+  local: ["محلي", "Dine-in"],
+  dinein: ["محلي (طاولة)", "Dine-in (table)"],
+  takeaway: ["سفري", "Takeaway"],
+  delivery: ["توصيل", "Delivery"],
+  app: ["تطبيق", "App"],
+};
+
 export default function SaleDocument({ settings, company, doc, kind }) {
   const { amount: money, symbolNode: symbol, currency } = useCurrency();
   const wc = wordsCurrency(currency);
@@ -34,7 +41,7 @@ export default function SaleDocument({ settings, company, doc, kind }) {
   const lang = settings.language;
   const dir = lang === "en" ? "ltr" : "rtl";
   const width = PRINT_AREA[settings.paperSize] ?? 72;
-  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 8.5;
+  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
   const isQuotation = kind === "quotation";
   const isReturn = kind === "return";
 
@@ -132,6 +139,16 @@ export default function SaleDocument({ settings, company, doc, kind }) {
       : doc.createdBy.arFullname
     : null;
   const customerName = lang === "en" ? doc.customerEnName : doc.customerArName;
+  // فاتورة المغسلة (وحدة laundry): كود العميل وجواله + إجمالي السطر = الكمية × السعر
+  // (الخصم والضريبة في الإجماليات تحت) + المخصوم من الاشتراك والرصيد الباقي
+  const laundry = doc.laundry ?? null;
+  // فاتورة المطعم: الطلب (رقمه اليومي ونوعه والطاولة...)
+  const rest = doc.restaurantOrder ?? null;
+  // سطور الرسوم (أصناف كودها FEE-...): بتظهر تحت الأصناف مع الإجماليات مش في الجدول
+  // (في البيانات والزكاة سطور عادية بضريبتها)
+  const isFee = (l) => /^FEE-/.test(l.code ?? "");
+  const itemLines = doc.items.filter((l) => !isFee(l));
+  const feeLines = doc.items.filter(isFee);
 
   return (
     <div
@@ -204,6 +221,52 @@ export default function SaleDocument({ settings, company, doc, kind }) {
           <span>{L("التاريخ", "Date")}</span>
           <bdi>{formatDateTime(doc.date)}</bdi>
         </div>
+        {/* المطعم: رقم الطلب ونوعه والطاولة / التطبيق / التوصيل */}
+        {rest && (
+          <>
+            <div className="sd-order-no">
+              <span>{L("رقم الطلب", "Order No")}</span>
+              <bdi>{rest.dailyNo}</bdi>
+            </div>
+            <div>
+              <span>{L("نوع الطلب", "Order type")}</span>
+              <span>{REST_TYPES[rest.orderType] ? L(...REST_TYPES[rest.orderType]) : rest.orderType}</span>
+            </div>
+            {rest.tableNo && (
+              <div>
+                <span>{L("رقم الطاولة", "Table No")}</span>
+                <bdi>{rest.tableNo}</bdi>
+              </div>
+            )}
+            {rest.channel && (
+              <div>
+                <span>{L("التطبيق", "App")}</span>
+                <span>
+                  {L(rest.channel.arName, rest.channel.enName)}
+                  {rest.channelOrderNo ? <> (<bdi>{rest.channelOrderNo}</bdi>)</> : null}
+                </span>
+              </div>
+            )}
+            {rest.orderType === "delivery" && rest.phone && (
+              <div>
+                <span>{L("جوال العميل", "Customer phone")}</span>
+                <bdi>{rest.phone}</bdi>
+              </div>
+            )}
+            {rest.orderType === "delivery" && rest.address && (
+              <div>
+                <span>{L("العنوان", "Address")}</span>
+                <span>{rest.address}</span>
+              </div>
+            )}
+            {rest.driver && (
+              <div>
+                <span>{L("السائق", "Driver")}</span>
+                <span>{rest.driver.name}</span>
+              </div>
+            )}
+          </>
+        )}
         {isQuotation && doc.validUntil && (
           <div>
             <span>{L("صالح حتى", "Valid until")}</span>
@@ -220,10 +283,43 @@ export default function SaleDocument({ settings, company, doc, kind }) {
           <span>{L("العميل", "Customer")}</span>
           <span>{customerName || L("عميل نقدي", "Cash customer")}</span>
         </div>
+        {laundry && doc.customer?.code != null && (
+          <div>
+            <span>{L("كود العميل", "Customer code")}</span>
+            <bdi>{doc.customer.code}</bdi>
+          </div>
+        )}
+        {laundry && doc.customer?.phone && (
+          <div>
+            <span>{L("جوال العميل", "Customer phone")}</span>
+            <bdi>{doc.customer.phone}</bdi>
+          </div>
+        )}
         {doc.customerTaxNo && (
           <div>
             <span>{L("الرقم الضريبي للعميل", "Customer VAT")}</span>
             <bdi>{doc.customerTaxNo}</bdi>
+          </div>
+        )}
+        {/* السيارة (الورش): اللوحة والنوع والعداد */}
+        {doc.vehiclePlate && (
+          <div>
+            <span>{L("رقم اللوحة", "Plate No.")}</span>
+            <bdi>
+              <b>{doc.vehiclePlate}</b>
+            </bdi>
+          </div>
+        )}
+        {doc.vehiclePlate && doc.vehicleType && (
+          <div>
+            <span>{L("نوع السيارة", "Vehicle")}</span>
+            <span>{doc.vehicleType}</span>
+          </div>
+        )}
+        {doc.vehiclePlate && doc.odometer != null && (
+          <div>
+            <span>{L("قراءة العداد", "Odometer")}</span>
+            <bdi>{Number(doc.odometer).toLocaleString("en")} km</bdi>
           </div>
         )}
         {settings.showCashier && cashier && (
@@ -252,7 +348,7 @@ export default function SaleDocument({ settings, company, doc, kind }) {
           </tr>
         </thead>
         <tbody>
-          {doc.items.map((l) => {
+          {itemLines.map((l) => {
             const unitAr = l.unit?.arName;
             const unitEn = l.unit?.enName;
             const arName =
@@ -269,18 +365,69 @@ export default function SaleDocument({ settings, company, doc, kind }) {
                 <td className="inv__col-name">
                   {N(arName, enName)}
                   {l.note && <div className="inv__note">{l.note}</div>}
+                  {/* الغيار الجاي (زيت...) */}
+                  {!isReturn && (l.nextKm != null || l.nextDate) && (
+                    <div className="inv__note">
+                      {L("الغيار القادم", "Next change")}:{" "}
+                      {[
+                        l.nextKm != null &&
+                          `${Number(l.nextKm).toLocaleString("en")} km`,
+                        l.nextDate && formatDay(dbDateToDay(l.nextDate)),
+                      ]
+                        .filter(Boolean)
+                        .join(L(" أو ", " or "))}
+                    </div>
+                  )}
+                  {!isQuotation && (
+                    <SerialPrintLines
+                      line={l}
+                      date={doc.date}
+                      L={L}
+                      showWarranty={!isReturn}
+                      className="inv__note"
+                    />
+                  )}
                 </td>
-                <td>{Number(l.qty)}</td>
+                <td>
+                  {qtyText(l.qty)}
+                  {/* السيراميك: الكمية بالوحدة التانية (كراتين / م²) */}
+                  {(() => {
+                    const c = savedLineConversion(l);
+                    return c ? (
+                      <div style={{ fontSize: "0.85em" }}>
+                        ({qtyText(c.qty)} {N(c.unit?.arName, c.unit?.enName)})
+                      </div>
+                    ) : null;
+                  })()}
+                </td>
                 {showUnitCol && <td>{N(unitAr, unitEn)}</td>}
                 <td>{money(l.price)}</td>
                 {showDiscount && <td>{money(l.itemDiscount)}</td>}
                 {showTax && <td>{money(l.taxAmount)}</td>}
-                <td>{money(l.totalAmount)}</td>
+                <td>
+                  {money(
+                    laundry
+                      ? Math.round(Number(l.qty) * Number(l.price) * 100) / 100
+                      : l.totalAmount,
+                  )}
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      {/* الرسوم (الخدمة / التوصيل / التبغ): تحت الأصناف من غير كمية ولا وحدة، بالمبلغ الشامل */}
+      {feeLines.length > 0 && (
+        <div className="inv__totals inv__fees">
+          {feeLines.map((l) => (
+            <div key={l.id}>
+              <span>{N(l.arName, l.enName)}</span>
+              <bdi>{money(l.totalAmount)}</bdi>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="inv__totals">
         <div>
@@ -324,6 +471,28 @@ export default function SaleDocument({ settings, company, doc, kind }) {
             <bdi>{money(doc.remainingAmount)}</bdi>
           </div>
         )}
+        {/* المغسلة: المخصوم من الاشتراك والرصيد الباقي للعميل */}
+        {/* (المرتجع: المسترد للاشتراك) */}
+        {laundry?.walletUsed ? (
+          <>
+            <div>
+              <span>
+                {laundry.walletUsed > 0
+                  ? L("المخصوم من الاشتراك", "Deducted from subscription")
+                  : L("المسترد إلى الاشتراك", "Refunded to subscription")}
+              </span>
+              <bdi>{money(Math.abs(laundry.walletUsed))}</bdi>
+            </div>
+            {laundry.walletBalance != null && (
+              <div className="inv__grand">
+                <span>{L("رصيد الاشتراك المتبقي", "Subscription balance left")}</span>
+                <bdi>
+                  {money(laundry.walletBalance)} {symbol}
+                </bdi>
+              </div>
+            )}
+          </>
+        ) : null}
         {!isQuotation && doc.changeAmount > 0 && (
           <>
             <div>

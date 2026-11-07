@@ -1,36 +1,51 @@
-.ant-modal .ant-modal-container{
-    padding: 0 0 10px 0 !important;
+/* ============================================================
+   النوافذ (Modal) في كل البرنامج - الألوان من lib/theme.js
+   - شريط عنوان غامق بعرض النافذة كلها
+   - الأزرار حسب نوعها: «موافق/حفظ» بلون البرنامج (primary)
+     و«إلغاء» زر هادئ، وزر الحذف يفضل أحمر (danger) زي ما هو
+   ============================================================ */
+.ant-modal .ant-modal-container {
+  padding: 0 0 10px 0 !important;
+  overflow: hidden;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
 }
-.ant-modal .ant-modal-title{
-    text-align: center !important;
-    padding: 5px;
-    background-color: #222f3e;
-    color: #fff !important;
-    border-radius: 8px 8px 0 0;
-    font-size: 18px !important;
-    letter-spacing: 1;
+.ant-modal .ant-modal-header {
+  margin-bottom: 0;
+  background: var(--c-header);
 }
-.ant-modal .ant-modal-footer{
-    padding: 10px !important;
+.ant-modal .ant-modal-title {
+  text-align: center !important;
+  padding: 10px 44px;
+  background-color: var(--c-header);
+  color: var(--c-on-dark) !important;
+  font-size: 17px !important;
+  font-weight: 600;
+  line-height: 1.5;
 }
-.ant-modal .ant-modal-footer button{
-    padding:  25px 50px !important;
-    font-size: 20px;
+.ant-modal .ant-modal-footer {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px 20px 2px !important;
+  border-top: 1px solid var(--c-border);
 }
-.ant-modal .ant-modal-footer button:first-child{
-    background-color: #eb4d4b !important;
-    color:  #fff !important;
+.ant-modal .ant-modal-footer > .ant-btn {
+  margin: 0 !important;
+  min-width: 130px;
+  height: 44px;
+  padding: 0 28px;
+  font-size: 16px;
+  font-weight: 600;
 }
-.ant-modal .ant-modal-footer button:last-child{
-    background-color: #57606f !important;
-    color:  #fff !important;
+/* زر الإلغاء (العادي): هادئ بحدود رمادي */
+.ant-modal .ant-modal-footer > .ant-btn-default:not(.ant-btn-dangerous) {
+  color: var(--c-text2);
+  border-color: var(--c-border-strong);
 }
-.ant-modal .ant-modal-footer button:first-child:hover{
-    background-color: #e84118 !important;
-    color:  #fff !important;
-    border-color: transparent !important;
-}
-.ant-modal .ant-modal-footer button:last-child:hover{
-    background-color: #222f3e !important;
-    color:  #fff !important;
+.ant-modal .ant-modal-footer > .ant-btn-default:not(.ant-btn-dangerous):hover {
+  color: var(--c-primary);
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
 }

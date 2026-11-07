@@ -1,0 +1,96 @@
+/* ============================================================
+   ألوان الحالات العامة (العقود، المواعيد، الفنيين، العمولات):
+   أزرار فلتر ملونة بالعدد + صفوف جدول بخلفية الحالة + كروت ملونة
+   اللون بيتبعت في المتغير --c
+   ============================================================ */
+.sc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sc-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--c);
+  background: color-mix(in srgb, var(--c) 8%, #fff);
+  color: var(--c);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sc-filter:hover {
+  background: color-mix(in srgb, var(--c) 16%, #fff);
+}
+.sc-filter.is-active {
+  background: var(--c);
+  color: #fff;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.sc-filter__count {
+  min-width: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--c);
+  color: #fff;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+.sc-filter.is-active .sc-filter__count {
+  background: #fff;
+  color: var(--c);
+}
+
+/* صفوف الجدول: خلفية فاتحة بلون الحالة + خط ملوّن على الجنب */
+.sc-table .sc-row > td {
+  background: color-mix(in srgb, var(--c) 7%, #fff) !important;
+}
+.sc-table .sc-row:hover > td {
+  background: color-mix(in srgb, var(--c) 14%, #fff) !important;
+}
+.sc-table .sc-row > td:first-child {
+  border-inline-start: 4px solid var(--c);
+}
+
+/* كارت بخلفية متدرجة بلون الحالة (رأس صفحة العقد) */
+.sc-hero {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--c) 12%, #fff),
+    #fff 70%
+  );
+  border: 1px solid color-mix(in srgb, var(--c) 30%, #fff);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+/* كروت الأرقام (العمولات) */
+.sc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.sc-stat {
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--c) 14%, #fff),
+    #fff 80%
+  );
+  border: 1px solid color-mix(in srgb, var(--c) 30%, #fff);
+  border-inline-start: 4px solid var(--c);
+}
+.sc-stat__label {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.sc-stat__value {
+  color: var(--c);
+  font-size: 22px;
+  font-weight: 800;
+}

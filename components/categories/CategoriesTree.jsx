@@ -13,14 +13,15 @@ import {
   Avatar,
 } from "antd";
 import { message } from "@/components/common/feedback";
-import { EditOutlined, DeleteOutlined, PictureOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, PictureOutlined, AppstoreOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
-import { MdCategory } from "react-icons/md";
 import FormModal from "@/components/common/FormModal";
 import EditCategoryForm from "./EditCategoryForm";
 import { deleteCategoriesAction } from "@/actions/category.actions";
 import { imageUrl } from "@/lib/image";
+import { listSep } from "@/lib/list-sep";
+import { C } from "@/lib/theme";
 
 // categories: الأقسام من قاعدة البيانات (رئيسية ومع كل واحد children)
 // بعد الحذف أو التعديل، الـ action يحدّث الصفحة فتصل categories الجديدة تلقائياً
@@ -70,7 +71,7 @@ const treeData = useMemo(() => {
 
     if (!res.success) {
       // لو الحذف مرفوض نعرض أسماء الأقسام المستخدمة
-      const names = res.details?.map(nameOf).join("، ");
+      const names = res.details?.map(nameOf).join(listSep(locale));
       message.error(names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error));
       return;
     }
@@ -115,9 +116,9 @@ const treeData = useMemo(() => {
 
         <Space size="large" onClick={(e) => e.stopPropagation()}>
           {canEdit && (
-            <Tooltip title={`${tButtons("Edit")} ${node.title}`} color="#1abc9c">
+            <Tooltip title={`${tButtons("Edit")} ${node.title}`} color={C.accent}>
               <Tag
-                color="#006266"
+                color={C.primary}
                 variant="filled"
                 style={{ padding: "8px 15px", fontSize: 15, cursor: "pointer" }}
                 icon={<EditOutlined />}
@@ -136,9 +137,9 @@ const treeData = useMemo(() => {
               okText={tButtons("Yes")}
               cancelText={tButtons("No")}
             >
-              <Tooltip title={`${tButtons("Delete")} ${node.title}`} color="#eb4d4b">
+              <Tooltip title={`${tButtons("Delete")} ${node.title}`} color={C.danger}>
                 <Tag
-                  color="#EA2027"
+                  color={C.danger}
                   variant="filled"
                   style={{ padding: "8px 15px", fontSize: 15, cursor: "pointer" }}
                   icon={<DeleteOutlined />}
@@ -194,7 +195,7 @@ const treeData = useMemo(() => {
               onCheck={(keys) => setCheckedKeys(keys.checked)}
               className="font-bold"
               style={{
-                border: "1px solid #f0f0f0",
+                border: `1px solid ${C.border}`,
                 padding: 12,
                 borderRadius: 8,
                 background: "#fff",
@@ -209,7 +210,7 @@ const treeData = useMemo(() => {
         onCancel={() => setEditCategoryModalOpen(false)}
         title={
           <>
-            <MdCategory
+            <AppstoreOutlined
               style={{
                 display: "inline-block",
                 fontSize: 25,

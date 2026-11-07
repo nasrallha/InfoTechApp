@@ -1,4 +1,5 @@
 import "server-only";
+import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 
@@ -58,7 +59,9 @@ function handleUniqueError(error) {
 // الإضافة والتعديل
 // ------------------------------------------------------------
 
-export async function createBranch(data) {
+export async function createBranch(data, user) {
+  // حد الفروع في الباقة
+  await assertPlanLimit("branches", user);
   try {
     return await prisma.branch.create({ data, select: branchSelect });
   } catch (error) {

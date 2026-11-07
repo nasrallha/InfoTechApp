@@ -47,7 +47,8 @@ const AddCategoryForm = ({ mainCategories = [], onSuccess, setLoading }) => {
 
     message.success(tAlerts("CategoryAdded"));
     form.resetFields();
-    onSuccess?.();
+    // بنرجّع القسم الجديد (للإضافة السريعة من شاشة الصنف)
+    onSuccess?.(res.data);
   };
 
   return (

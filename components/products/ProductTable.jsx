@@ -1,17 +1,38 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Table, Space, Button, Tag, Popconfirm, Flex, Avatar, Tooltip } from "antd";
+import {
+  Table,
+  Space,
+  Button,
+  Tag,
+  Popconfirm,
+  Flex,
+  Avatar,
+  Tooltip,
+} from "antd";
 import { message } from "@/components/common/feedback";
-import { PictureOutlined, BarcodeOutlined, EyeOutlined } from "@ant-design/icons";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
+import {
+  PictureOutlined,
+  BarcodeOutlined,
+  EyeOutlined,
+  ColumnHeightOutlined,
+  DeleteOutlined,
+  EditOutlined,
+} from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
-import { useCan } from "@/components/auth/AuthProvider";
+import { useCan, useModule } from "@/components/auth/AuthProvider";
 import { useRouter } from "@/i18n/routing";
-import { textFilter, statusFilter, StatusBadge } from "@/components/common/tableFilters";
+import {
+  textFilter,
+  statusFilter,
+  StatusBadge,
+} from "@/components/common/tableFilters";
 import { deleteProductsAction } from "@/actions/product.actions";
 import { imageUrl } from "@/lib/image";
 import UnitBreakdown from "@/components/inventory/UnitBreakdown";
 import ProductDetailsModal from "./ProductDetailsModal";
+import VariantsModal from "./VariantsModal";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // تنسيق الأرقام المالية: 1234.5 ← 1,234.50
@@ -39,12 +60,20 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
   const tTable = useTranslations("Table");
   const tButtons = useTranslations("Buttons");
   const can = useCan();
+  const tSerial = useTranslations("Serials");
+  // الأرقام التسلسلية (وحدة serials): عمود + فلتر
+  const serialsOn = useModule("serials");
+  // المقاسات والألوان (وحدة variants): زرار «المقاسات» للصنف
+  const variantsOn = useModule("variants");
+  const tVariants = useTranslations("Variants");
+  const [variantsId, setVariantsId] = useState(null);
   const canEdit = can("products.update");
   const canDelete = can("products.delete");
   const canPrint = can("barcodes.print");
 
   // فتح شاشة طباعة الباركود ومعها المنتجات المختارة
-  const printBarcodes = (ids) => router.push(`/printing/barcodes?ids=${ids.join(",")}`);
+  const printBarcodes = (ids) =>
+    router.push(`/printing/barcodes?ids=${ids.join(",")}`);
   const tForm = useTranslations("Form");
   const tAlerts = useTranslations("Alerts");
 
@@ -79,7 +108,12 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
       width: 90,
       align: "center",
       render: (image) => (
-        <Avatar shape="square" size={40} src={imageUrl(image)} icon={<PictureOutlined />} />
+        <Avatar
+          shape="square"
+          size={40}
+          src={imageUrl(image)}
+          icon={<PictureOutlined />}
+        />
       ),
     },
     {
@@ -101,7 +135,16 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
       width: 240,
       ellipsis: true,
       align: "center",
-      render: (_, r) => nameOf(r),
+      render: (_, r) => (
+        <>
+          {nameOf(r)}
+          {r.isService && (
+            <Tag color="cyan" style={{ marginInlineStart: 6 }}>
+              {tForm("Service")}
+            </Tag>
+          )}
+        </>
+      ),
       sorter: (a, b) => nameOf(a).localeCompare(nameOf(b)),
       // البحث في الاسم العربي والإنجليزي معاً
       ...textFilter({
@@ -180,13 +223,44 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
             ) : null
           }
         >
-          <b className={r.stock < 0 ? "text-red-600" : r.stock === 0 ? "text-gray-400" : undefined}>
+          <b
+            className={
+              r.stock < 0
+                ? "text-red-600"
+                : r.stock === 0
+                  ? "text-gray-400"
+                  : undefined
+            }
+          >
             {Number(r.stock.toFixed(3))}
           </b>{" "}
-          <span style={{ fontSize: 12, color: "#888" }}>{nameOf(r.baseUnit)}</span>
+          <span style={{ fontSize: 12, color: C.muted }}>
+            {nameOf(r.baseUnit)}
+          </span>
         </Tooltip>
       ),
     },
+    ...(serialsOn
+      ? [
+          {
+            title: tSerial("TrackSerial"),
+            key: "serialCount",
+            width: 150,
+            align: "center",
+            filters: [
+              { text: tSerial("Tracked"), value: true },
+              { text: tSerial("Count0"), value: false },
+            ],
+            onFilter: (v, r) => r.serialCount > 0 === v,
+            render: (_, r) =>
+              r.serialCount > 0 ? (
+                <Tag color="purple">{tSerial(`Count${r.serialCount}`)}</Tag>
+              ) : (
+                <span style={{ color: C.subtle }}>—</span>
+              ),
+          },
+        ]
+      : []),
     {
       title: tTable("AdditionalUnits"),
       key: "units",
@@ -228,7 +302,7 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
                 color="danger"
                 variant="outlined"
                 size="small"
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
                 loading={deleting}
               >
                 {tButtons("Delete")} ({selectedRows.length})
@@ -238,14 +312,14 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
         </Flex>
       ),
       key: "action",
-      width: canPrint ? 420 : 290,
+      width: (canPrint ? 420 : 290) + (variantsOn ? 120 : 0),
       align: "center",
       fixed: locale === "ar" ? "left" : "right",
       render: (_, record) => (
         <Space size="middle">
           {/* عرض الصنف بالتفصيل (كارت الصنف) */}
           <Tag
-            color="#0984e3"
+            color={C.info}
             style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
             icon={<EyeOutlined />}
             onClick={() => setViewId(record.id)}
@@ -256,7 +330,7 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
           {/* طباعة باركود لهذا المنتج */}
           {canPrint && (
             <Tag
-              color="#2c3e50"
+              color={C.header}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
               icon={<BarcodeOutlined />}
               onClick={() => printBarcodes([record.id])}
@@ -265,12 +339,24 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
             </Tag>
           )}
 
+          {/* المقاسات والألوان (وحدة variants) */}
+          {variantsOn && !record.isService && (
+            <Tag
+              color={record.modelId ? C.success : C.muted}
+              style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
+              icon={<ColumnHeightOutlined />}
+              onClick={() => setVariantsId(record.id)}
+            >
+              {tVariants("Button")}
+            </Tag>
+          )}
+
           {/* التعديل في صفحة مستقلة لأن فورم المنتج كبير */}
           {canEdit && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => router.push(`/products/${record.id}/edit`)}
             >
               {tButtons("Edit")}
@@ -286,10 +372,10 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
               cancelText={tButtons("No")}
             >
               <Tag
-                color="#EA2027"
+                color={C.danger}
                 variant="filled"
                 style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
               >
                 {tButtons("Delete")}
               </Tag>
@@ -305,28 +391,37 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
 
   return (
     <>
-    <Table
-      bordered
-      rowKey="id"
-      columns={columns}
-      dataSource={products}
-      loading={deleting}
-      /* عرض ثابت لكل عمود حتى يتطابق الهيدر مع الصفوف (مهم مع scroll.y) */
-      tableLayout="fixed"
-      scroll={{ x: TABLE_WIDTH, y: 500 }}
-      size="small"
-      pagination={{
-        current: page,
-        pageSize,
-        onChange: (p, ps) => {
-          setPage(p);
-          setPageSize(ps);
-        },
-      }}
-      // التحديد متاح دائماً (للتصدير والباركود)، والحذف بصلاحيته
-      rowSelection={{ selectedRowKeys: selectedRows, onChange: (keys) => setSelectedRows(keys) }}
-    />
-    <ProductDetailsModal productId={viewId} onClose={() => setViewId(null)} />
+      <Table
+        bordered
+        rowKey="id"
+        columns={columns}
+        dataSource={products}
+        loading={deleting}
+        /* عرض ثابت لكل عمود حتى يتطابق الهيدر مع الصفوف (مهم مع scroll.y) */
+        tableLayout="fixed"
+        scroll={{ x: TABLE_WIDTH, y: 500 }}
+        size="small"
+        pagination={{
+          current: page,
+          pageSize,
+          onChange: (p, ps) => {
+            setPage(p);
+            setPageSize(ps);
+          },
+        }}
+        // التحديد متاح دائماً (للتصدير والباركود)، والحذف بصلاحيته
+        rowSelection={{
+          selectedRowKeys: selectedRows,
+          onChange: (keys) => setSelectedRows(keys),
+        }}
+      />
+      <ProductDetailsModal productId={viewId} onClose={() => setViewId(null)} />
+      {variantsId && (
+        <VariantsModal
+          productId={variantsId}
+          onClose={() => setVariantsId(null)}
+        />
+      )}
     </>
   );
 };

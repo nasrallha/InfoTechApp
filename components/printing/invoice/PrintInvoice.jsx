@@ -44,9 +44,12 @@ export default function PrintInvoice({
 
     let timer;
     let printTimer;
-    // ننتظر رسم الفاتورة (الشعار و QR) ثم نقيس طولها ونطبع
+    let cancelled = false;
+    // ننتظر رسم الفاتورة (الشعار و QR) وتحميل الخط، ثم نقيس طولها ونطبع
     const raf = requestAnimationFrame(() => {
-      timer = setTimeout(() => {
+      timer = setTimeout(async () => {
+        await document.fonts?.ready;
+        if (cancelled) return;
         if (settings.paperSize === "A4") {
           setPageCss("@page { size: A4; margin: 0; }");
         } else {
@@ -64,6 +67,7 @@ export default function PrintInvoice({
     });
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       clearTimeout(timer);
       clearTimeout(printTimer);

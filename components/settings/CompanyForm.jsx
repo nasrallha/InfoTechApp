@@ -66,6 +66,8 @@ const toFormValues = (company) => ({
 export default function CompanyForm({ company, canEdit }) {
   const [form] = Form.useForm();
   const sellerScheme = Form.useWatch("sellerIdScheme", form);
+  // الشعار: خانة الرفع بتختفي لما يكون فيه شعار (يتشال الأول ويترفع غيره)
+  const logoList = Form.useWatch("logo", form) ?? [];
   const [saving, setSaving] = useState(false);
   const locale = useLocale();
   const tSidebar = useTranslations("Sidebar");
@@ -231,10 +233,12 @@ export default function CompanyForm({ company, canEdit }) {
                   accept=".png,.jpg,.jpeg,.webp"
                   className="company-logo-upload"
                 >
-                  <div className="flex flex-col items-center gap-1 text-slate-500">
-                    <PlusOutlined style={{ fontSize: 22 }} />
-                    <span>{tButtons("Upload")}</span>
-                  </div>
+                  {logoList.length === 0 && (
+                    <div className="flex flex-col items-center gap-1 text-slate-500">
+                      <PlusOutlined style={{ fontSize: 22 }} />
+                      <span>{tButtons("Upload")}</span>
+                    </div>
+                  )}
                 </Upload>
               </Form.Item>
             </Card>

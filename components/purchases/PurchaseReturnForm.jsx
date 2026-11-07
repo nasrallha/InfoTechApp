@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Row,
   Segmented,
+  Select,
   Space,
   Table,
   Tag,
@@ -78,6 +79,7 @@ export default function PurchaseReturnForm({
   const t = useTranslations("Purchases");
   const tTax = useTranslations("TaxModes");
   const tAlerts = useTranslations("Alerts");
+  const tSerial = useTranslations("Serials");
   const { amount: money, decimals } = useCurrency();
   // بصمة الحفظ: الضغط على حفظ مرتين (أو بعد ما الرد يضيع) مايكررش المستند
   const saveKey = useSaveKey();
@@ -92,6 +94,8 @@ export default function PurchaseReturnForm({
   // الفاتورة المختارة والأصناف المرتجعة { itemId: qty }
   const [purchase, setPurchase] = useState(initialPurchase ?? null);
   const [selected, setSelected] = useState({});
+  // الأرقام التسلسلية الراجعة للمورد { itemId: [serialId] } (اختياري)
+  const [serialPick, setSerialPick] = useState({});
   const [filter, setFilter] = useState("");
 
   const todayDay = today();
@@ -107,6 +111,7 @@ export default function PurchaseReturnForm({
   const reset = (p) => {
     setPurchase(p);
     setSelected({});
+    setSerialPick({});
     setFilter("");
     setPayments(null);
     setCandidates([]);
@@ -188,6 +193,22 @@ export default function PurchaseReturnForm({
     setFilter("");
   };
 
+  // ---------- الأرقام التسلسلية ----------
+  const hasSerials = items.some((l) => l.stockSerials?.length);
+  const pickSerials = (line, ids) => {
+    setSerialPick((prev) => ({ ...prev, [line.id]: ids }));
+    if (ids.length) {
+      const factor = Number(line.factor) || 1;
+      setSelected((prev) => ({
+        ...prev,
+        [line.id]: Math.min(
+          Math.round((ids.length / factor) * 1000) / 1000,
+          line.available,
+        ),
+      }));
+    }
+  };
+
   // ---------- الحساب ----------
   const lines = useMemo(
     () =>
@@ -259,6 +280,7 @@ export default function PurchaseReturnForm({
     const chosen = Object.entries(selected).map(([id, qty]) => ({
       itemId: Number(id),
       qty: Number(qty),
+      serialIds: serialPick[id] ?? [],
     }));
     if (!chosen.length) return message.error(t("ChooseItemsToReturn"));
     if (chosen.some((c) => !(c.qty > 0)))
@@ -384,6 +406,33 @@ export default function PurchaseReturnForm({
           />
         ) : null,
     },
+    // الأرقام التسلسلية (لو الفاتورة فيها قطع مسجلة لسه في المحل)
+    ...(hasSerials
+      ? [
+          {
+            title: tSerial("ReturnedSerials"),
+            key: "serials",
+            width: 230,
+            render: (_, l) =>
+              l.stockSerials?.length && l.available > 0 ? (
+                <Select
+                  mode="multiple"
+                  size="small"
+                  style={{ width: "100%" }}
+                  placeholder={tSerial("ChooseSerials")}
+                  disabled={selected[l.id] == null}
+                  value={serialPick[l.id] ?? []}
+                  optionFilterProp="label"
+                  onChange={(ids) => pickSerials(l, ids)}
+                  options={l.stockSerials.map((x) => ({
+                    value: x.id,
+                    label: x.serial2 ? `${x.serial} / ${x.serial2}` : x.serial,
+                  }))}
+                />
+              ) : null,
+          },
+        ]
+      : []),
     {
       title: t("Price"),
       key: "price",

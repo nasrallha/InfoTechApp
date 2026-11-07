@@ -5,14 +5,18 @@
 import { NextResponse } from "next/server";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
-import { SESSION_COOKIE } from "./lib/session-config";
+import { SESSION_COOKIE, TENANT_COOKIE } from "./lib/session-config";
 import { readAppLocale } from "./lib/app-locale";
 
 // اللغة الافتراضية من الإعدادات العامة (lib/app-locale) بدل الثابتة في الكود
+// وضع الشركات: من إعدادات الشركة اللي على الجهاز (cookie الشركة)
 // (نسخة من next-intl لكل اختيار، بتتعمل مرة واحدة)
 const handlers = new Map();
-function i18nHandler() {
-  const { defaultLocale, localeDetection } = readAppLocale();
+function i18nHandler(request) {
+  const code = request.cookies.get(TENANT_COOKIE)?.value;
+  const { defaultLocale, localeDetection } = readAppLocale(
+    /^[A-Z2-9]{8}$/.test(code ?? "") ? code : null,
+  );
   const key = `${defaultLocale}:${localeDetection}`;
   if (!handlers.has(key)) {
     handlers.set(
@@ -24,7 +28,8 @@ function i18nHandler() {
 }
 
 // الصفحات المفتوحة بدون تسجيل دخول
-const PUBLIC_PAGES = ["/login"];
+// + لينك الحجز للعملاء (/book/<كود الشركة>) + الطلب الأونلاين (/order/<كود الشركة>)
+const PUBLIC_PAGES = ["/login", "/book", "/order"];
 
 export default function proxy(request) {
   const { pathname } = request.nextUrl;
@@ -44,7 +49,7 @@ export default function proxy(request) {
     }
   }
 
-  return i18nHandler()(request);
+  return i18nHandler(request)(request);
 }
 
 export const config = {

@@ -24,6 +24,7 @@ import {
   folderTreeStartAction,
   revealFolderAction,
 } from "@/actions/backup.actions";
+import { C } from "@/lib/theme";
 
 const SHORTCUT_ICON = {
   current: <CloudServerOutlined />,
@@ -191,7 +192,7 @@ export default function FolderBrowser({ open, start, onClose, onSelect }) {
         </Space>
       }
     >
-      <div className="mb-2" style={{ color: "#888", fontSize: 13 }}>
+      <div className="mb-2" style={{ color: C.muted, fontSize: 13 }}>
         {t("BrowseHint")}
       </div>
 

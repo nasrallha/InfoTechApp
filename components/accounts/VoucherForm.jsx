@@ -36,10 +36,12 @@ import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import NextDocNo from "@/components/common/NextDocNo";
 import DayPicker from "@/components/common/DayPicker";
+import QuickAddParty from "@/components/parties/QuickAddParty";
 import { formatDocNo } from "@/lib/doc-number";
 import PrintActions from "@/components/printing/PrintActions";
 import VoucherDocument from "./VoucherDocument";
 import { VOUCHER_COLOR, VOUCHER_PARTIES, VOUCHER_PATH } from "./voucherConfig";
+import { C } from "@/lib/theme";
 
 const EPS = 0.0001;
 
@@ -78,6 +80,16 @@ export default function VoucherForm({
   const [loadingAccount, setLoadingAccount] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  // العملاء/الموردين اللي اتضافوا من الزر السريع
+  const [added, setAdded] = useState({ customers: [], suppliers: [] });
+  const withAdded = (list, kind) => [
+    ...list,
+    ...added[kind].filter((a) => !list.some((p) => p.id === a.id)),
+  ];
+  const onPartyCreated = (kind, field) => (p) => {
+    setAdded((prev) => ({ ...prev, [kind]: [...prev[kind], p] }));
+    form.setFieldValue(field, p.id);
+  };
   const isSettlement = type === "settlement";
   const isParty = partyType === "customer" || partyType === "supplier";
 
@@ -354,41 +366,65 @@ export default function VoucherForm({
               </Form.Item>
 
               {partyType === "customer" && (
-                <Form.Item
-                  name="customerId"
-                  label={t("Customer")}
-                  rules={[
-                    { required: true, message: tAlerts("RequiredField") },
-                  ]}
-                >
-                  <Select
-                    showSearch
-                    size="large"
-                    placeholder={t("ChooseCustomer")}
-                    options={partyOptions(options.customers)}
-                    filterOption={(input, o) =>
-                      o.search.includes(input.toLowerCase())
-                    }
-                  />
+                <Form.Item label={t("Customer")} required>
+                  <Space.Compact style={{ width: "100%" }}>
+                    <Form.Item
+                      name="customerId"
+                      noStyle
+                      rules={[
+                        { required: true, message: tAlerts("RequiredField") },
+                      ]}
+                    >
+                      <Select
+                        showSearch
+                        size="large"
+                        style={{ width: "100%" }}
+                        placeholder={t("ChooseCustomer")}
+                        options={partyOptions(
+                          withAdded(options.customers, "customers"),
+                        )}
+                        filterOption={(input, o) =>
+                          o.search.includes(input.toLowerCase())
+                        }
+                      />
+                    </Form.Item>
+                    <QuickAddParty
+                      kind="customers"
+                      size="large"
+                      onCreated={onPartyCreated("customers", "customerId")}
+                    />
+                  </Space.Compact>
                 </Form.Item>
               )}
               {partyType === "supplier" && (
-                <Form.Item
-                  name="supplierId"
-                  label={t("Supplier")}
-                  rules={[
-                    { required: true, message: tAlerts("RequiredField") },
-                  ]}
-                >
-                  <Select
-                    showSearch
-                    size="large"
-                    placeholder={t("ChooseSupplier")}
-                    options={partyOptions(options.suppliers)}
-                    filterOption={(input, o) =>
-                      o.search.includes(input.toLowerCase())
-                    }
-                  />
+                <Form.Item label={t("Supplier")} required>
+                  <Space.Compact style={{ width: "100%" }}>
+                    <Form.Item
+                      name="supplierId"
+                      noStyle
+                      rules={[
+                        { required: true, message: tAlerts("RequiredField") },
+                      ]}
+                    >
+                      <Select
+                        showSearch
+                        size="large"
+                        style={{ width: "100%" }}
+                        placeholder={t("ChooseSupplier")}
+                        options={partyOptions(
+                          withAdded(options.suppliers, "suppliers"),
+                        )}
+                        filterOption={(input, o) =>
+                          o.search.includes(input.toLowerCase())
+                        }
+                      />
+                    </Form.Item>
+                    <QuickAddParty
+                      kind="suppliers"
+                      size="large"
+                      onCreated={onPartyCreated("suppliers", "supplierId")}
+                    />
+                  </Space.Compact>
                 </Form.Item>
               )}
               {partyType === "expense" && (
@@ -534,7 +570,7 @@ export default function VoucherForm({
               ) : (
                 <>
                   <Row gutter={12} className="mb-3">
-                    <Col span={8}>
+                    <Col xs={24} sm={8}>
                       <Statistic
                         title={
                           balance < -EPS
@@ -548,19 +584,19 @@ export default function VoucherForm({
                         value={money(Math.abs(balance))}
                         styles={{
                           content: {
-                            color: balance > 0 ? "#c0392b" : "#1e8449",
+                            color: balance > 0 ? C.dangerText : C.successText,
                             fontWeight: 700,
                           },
                         }}
                       />
                     </Col>
-                    <Col span={8}>
+                    <Col xs={24} sm={8}>
                       <Statistic
                         title={t("ThisVoucher")}
                         value={money(amount || 0)}
                       />
                     </Col>
-                    <Col span={8}>
+                    <Col xs={24} sm={8}>
                       <Statistic
                         title={
                           after < -EPS

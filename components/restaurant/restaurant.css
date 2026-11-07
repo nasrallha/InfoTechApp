@@ -1,0 +1,740 @@
+/* ============================================================
+   شاشة المطعم: التابات + أقسام نافذة الصنف + اختيار الأحجام
+   الألوان من lib/theme.js (var(--c-*))
+   ============================================================ */
+
+/* التابات: شريط بخلفية فاتحة، والتاب المختار زرار بلون البرنامج */
+.rest-tabs > .ant-tabs-nav {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 6px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+.rest-tabs > .ant-tabs-nav::before {
+  display: none;
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-ink-bar {
+  display: none;
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab {
+  margin: 0 !important;
+  padding: 8px 18px;
+  border-radius: 8px;
+  color: var(--c-muted);
+  font-weight: 500;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab + .ant-tabs-tab {
+  margin-inline-start: 4px !important;
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab:hover {
+  background: var(--c-bg-subtle);
+  color: var(--c-text);
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active,
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active:hover {
+  background: var(--c-primary) !important;
+}
+/* المختار مع الماوس: درجة أغمق شوية (الكلام يفضل أبيض وباين) */
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active:hover {
+  background: var(--c-primary-hover) !important;
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active:hover .ant-tabs-tab-btn,
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active:hover .anticon {
+  color: var(--c-on-dark) !important;
+}
+/* التاب العادي مع الماوس: خلفية فاتحة بلون البرنامج والكلام بلونه */
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab:not(.ant-tabs-tab-active):hover {
+  background: var(--c-primary-soft);
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab:not(.ant-tabs-tab-active):hover .ant-tabs-tab-btn {
+  color: var(--c-primary-active);
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn,
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab-active .anticon {
+  color: var(--c-on-dark) !important;
+}
+.rest-tabs > .ant-tabs-nav .ant-tabs-tab .anticon {
+  margin-inline-end: 6px;
+}
+
+/* محتوى التاب: كارت أبيض */
+.rest-tabs > .ant-tabs-content-holder {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+/* أقسام نافذة الصنف */
+.rest-section {
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 12px 14px 4px;
+  margin-bottom: 12px;
+  background: var(--c-surface);
+}
+.rest-section__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: -12px -14px 12px;
+  padding: 8px 14px;
+  background: var(--c-bg-subtle);
+  border-bottom: 1px solid var(--c-border);
+  border-radius: 10px 10px 0 0;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.rest-section__title small {
+  font-weight: 400;
+  color: var(--c-muted);
+  font-size: 12px;
+}
+.rest-section > :last-child {
+  margin-bottom: 10px;
+}
+
+/* اختيار الأحجام: كارت لكل حجم، والمختار بإطار بلون البرنامج */
+.rest-sizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.rest-size {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.rest-size.is-on {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+/* الموبايل: التابات بتتسحب أفقي، والمسافات أقل */
+@media (max-width: 640px) {
+  .rest-tabs > .ant-tabs-nav .ant-tabs-tab {
+    padding: 6px 12px;
+  }
+  .rest-tabs > .ant-tabs-content-holder {
+    padding: 10px;
+  }
+}
+
+/* ============================================================
+   كاشير المطعم
+   ============================================================ */
+.rpos-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* حقول الطلب: عمودين (والعنوان سطر كامل) */
+.rpos-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.rpos-fields > :only-child,
+.rpos-fields .rpos-wide {
+  grid-column: 1 / -1;
+}
+/* سطر الرسوم في السلة: خلفية فاتحة من غير أزرار */
+.pos-line.rpos-fee {
+  background: var(--c-bg-subtle);
+  border-style: dashed;
+}
+.rpos-search {
+  margin-bottom: 8px;
+}
+
+/* نافذة الصنف: الحجم والإضافات أزرار كبيرة */
+.rpos-block {
+  margin-bottom: 14px;
+}
+.rpos-block__title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--c-text);
+}
+.rpos-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.rpos-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px;
+  border: 2px solid var(--c-border-strong);
+  border-radius: 10px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.rpos-chip small {
+  color: var(--c-muted);
+}
+.rpos-chip:hover {
+  border-color: var(--c-primary-border);
+}
+/* المختار (الحجم / مقلي / مشوي...): أخضر */
+.rpos-chip.is-on {
+  border-color: var(--c-success);
+  background: var(--c-success-soft);
+  color: var(--c-success-text);
+}
+.rpos-chip.is-on small {
+  color: var(--c-success-text);
+}
+@media (max-width: 640px) {
+  .rpos-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   نافذة صنف المنيو: مضغوطة (الصورة مربع على الجنب + الحقول جنبها)
+   ============================================================ */
+.rest-item-modal .ant-modal-body {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+.rest-item-modal .ant-form-item {
+  margin-bottom: 10px;
+}
+.rest-item-modal .ant-form-item-label {
+  padding-bottom: 2px;
+}
+.rest-item-modal .ant-form-item-label > label {
+  font-size: 13px;
+  color: var(--c-muted);
+}
+.rest-item-modal .rest-section {
+  padding: 10px 12px 2px;
+  margin-bottom: 10px;
+}
+.rest-item-modal .rest-section__title {
+  margin: -10px -12px 10px;
+  padding: 7px 12px;
+}
+.rest-item-data {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.rest-item-data__img {
+  flex: 0 0 112px;
+}
+.rest-item-data__fields {
+  flex: 1;
+  min-width: 0;
+}
+.rest-item-switches {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  min-height: 32px;
+  margin-top: 26px;
+}
+.rest-item-switches > span {
+  margin-inline-end: 12px;
+}
+
+/* مربع الصورة: خلفية فاتحة بلون البرنامج */
+.image-upload-card .ant-upload.ant-upload-select,
+.image-upload-card .ant-upload-list-item-container {
+  width: 104px !important;
+  height: 104px !important;
+  margin: 0 !important;
+}
+.image-upload-card .ant-upload.ant-upload-select {
+  background: var(--c-primary-soft) !important;
+  border: 1px dashed var(--c-primary) !important;
+  border-radius: 10px !important;
+}
+.image-upload-card__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-primary-active);
+  font-size: 12px;
+}
+.image-upload-card__btn .anticon {
+  font-size: 22px;
+}
+.rest-item-data__img .ant-form-item {
+  margin-bottom: 0;
+}
+
+@media (max-width: 575px) {
+  .rest-item-data {
+    flex-direction: column;
+  }
+  .rest-item-switches {
+    margin-top: 0;
+  }
+}
+
+/* ============================================================
+   كاشير المطعم: كل الأزرار كبيرة وبخلفية واضحة (pos--restaurant)
+   ============================================================ */
+/* الشريط العلوي: أزرار أكبر بخلفية خفيفة */
+.pos--restaurant .pos-top .ant-btn {
+  height: 40px;
+  padding-inline: 14px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 14%) !important;
+}
+/* حقول رأس السلة بنفس الارتفاع */
+.pos--restaurant .rpos-fields .ant-input,
+.pos--restaurant .rpos-fields .ant-input-number,
+.pos--restaurant .rpos-fields .ant-select-selector {
+  min-height: 40px;
+}
+/* أزرار السلة: كل زرار بلونه */
+.pos--restaurant .pos-actions .ant-btn {
+  height: 46px;
+  font-size: 15px;
+  font-weight: 600;
+  border-width: 1px;
+}
+.pos--restaurant .pos-actions > :nth-child(1) {
+  background: var(--c-warning-soft);
+  border-color: var(--c-warning-border);
+  color: var(--c-warning-text);
+}
+.pos--restaurant .pos-actions > :nth-child(2) .ant-btn,
+.pos--restaurant .pos-actions > .ant-btn:nth-child(2) {
+  background: var(--c-info-soft);
+  border-color: var(--c-info-border);
+  color: var(--c-info-text);
+}
+.pos--restaurant .pos-actions > :nth-child(3) {
+  background: var(--c-purple-soft);
+  border-color: var(--c-purple);
+  color: var(--c-purple);
+}
+.pos--restaurant .pos-actions .ant-btn-dangerous {
+  background: var(--c-danger-soft);
+  border-color: var(--c-danger-border);
+  color: var(--c-danger-text);
+}
+.pos--restaurant .pos-actions .ant-btn:disabled {
+  opacity: 0.55;
+}
+/* حفظ على الطاولة: لون البرنامج */
+.pos--restaurant .lp-save-order {
+  height: 50px;
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  background: var(--c-primary) !important;
+  border-color: var(--c-primary) !important;
+  color: var(--c-on-dark) !important;
+}
+.pos--restaurant .lp-save-order:disabled {
+  opacity: 0.55;
+}
+/* أزرار الكمية والتعديل في السطر */
+.pos--restaurant .pos-line__controls .ant-btn {
+  width: 38px;
+  height: 38px;
+}
+.pos--restaurant .pos-line__delete {
+  background: var(--c-danger-soft) !important;
+  border-color: var(--c-danger-border) !important;
+  color: var(--c-danger-text) !important;
+}
+/* الأقسام في المنيو: أكبر */
+.pos--restaurant .pos-cat {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+/* نوع الطلب: زراير متساوية (لحد 5) - الأيقونة فوق الاسم عشان الاسم مايتقصش */
+.rpos-types {
+  display: grid;
+  gap: 6px;
+}
+.rpos-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px 2px;
+  border: 1px solid var(--c-primary-border);
+  border-radius: 10px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-active);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.rpos-type .anticon {
+  font-size: 17px;
+}
+.rpos-type:hover:not(:disabled) {
+  border-color: var(--c-primary);
+}
+/* المختار (النشط): أخضر */
+.rpos-type.is-on {
+  background: var(--c-success);
+  border-color: var(--c-success);
+  color: var(--c-on-dark);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
+}
+.rpos-type:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.rpos-type:disabled.is-on {
+  opacity: 1;
+}
+
+/* حقول الطلب (العميل، الطاولة، السائق...): خلفية فاتحة وإطار واضح */
+.pos--restaurant .rpos-fields .ant-input,
+.pos--restaurant .rpos-fields .ant-input-number,
+.pos--restaurant .rpos-fields .ant-select-selector,
+.pos--restaurant .rpos-fields .ant-select {
+  background: var(--c-bg-subtle) !important;
+  border-color: var(--c-border-strong) !important;
+}
+.pos--restaurant .rpos-fields .ant-input-number-prefix,
+.pos--restaurant .rpos-fields .ant-input-number-suffix {
+  color: var(--c-muted);
+  font-weight: 600;
+}
+
+/* نافذة الصنف: زراير الكمية كبيرة بخلفية زي زراير السلة */
+/* زراير الكمية في نافذة الصنف: (−) أحمر و (+) أخضر زي السلة */
+.rpos-qty .rpos-qty__btn {
+  width: 52px;
+  height: 46px;
+  font-size: 18px;
+  border: none !important;
+  color: var(--c-on-dark) !important;
+}
+.rpos-qty .rpos-qty__btn:first-child {
+  background: var(--c-danger) !important;
+}
+.rpos-qty .rpos-qty__btn:first-child:hover {
+  background: var(--c-danger-text) !important;
+}
+.rpos-qty .rpos-qty__btn:last-child {
+  background: var(--c-success) !important;
+}
+.rpos-qty .rpos-qty__btn:last-child:hover {
+  background: var(--c-success-text) !important;
+}
+.rpos-qty .ant-input-number {
+  height: 46px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.rpos-qty .ant-input-number-input {
+  height: 44px;
+  text-align: center;
+}
+
+/* نافذة الطلبات: أصناف الطلب لما الصف يتفتح */
+.rpos-order-lines {
+  display: grid;
+  gap: 4px;
+  padding: 4px 8px;
+}
+.rpos-order-lines__note {
+  color: var(--c-muted);
+  font-size: 12px;
+}
+
+/* ============================================================
+   الطلب الأونلاين (صفحة العميل - الموبايل أولًا)
+   ============================================================ */
+.pob-cats {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.pob-cat {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border: 1px solid var(--c-primary-border);
+  border-radius: 999px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-active);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pob-cat.is-on {
+  background: var(--c-success);
+  border-color: var(--c-success);
+  color: var(--c-on-dark);
+}
+.pob-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding-bottom: 70px;
+}
+.pob-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.pob-item:hover {
+  border-color: var(--c-primary);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+.pob-item__img {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 110px;
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+  color: var(--c-subtle);
+  font-size: 32px;
+  overflow: hidden;
+}
+.pob-item__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pob-item__name {
+  font-weight: 700;
+  color: var(--c-text);
+}
+.pob-item__price {
+  font-weight: 700;
+  color: var(--c-primary-active);
+}
+.pob-item__add {
+  position: absolute;
+  bottom: 8px;
+  inset-inline-end: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--c-success);
+  color: var(--c-on-dark);
+}
+/* شريط السلة تحت ثابت */
+.pob-bar {
+  position: sticky;
+  bottom: 12px;
+  margin-top: 12px;
+}
+.pob-bar .ant-btn,
+.pob-send {
+  height: 52px !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  background: var(--c-success) !important;
+  border-color: var(--c-success) !important;
+}
+.pob-cart {
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 6px 10px;
+  margin-bottom: 14px;
+  background: var(--c-bg-subtle);
+}
+.pob-cart__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--c-border);
+}
+.pob-cart__name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pob-cart__name small {
+  color: var(--c-muted);
+}
+.pob-cart__qty {
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  background: var(--c-surface);
+  border-block: 1px solid var(--c-primary-border);
+}
+.pob-cart__total {
+  min-width: 64px;
+  text-align: end;
+}
+.pob-cart__sum {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0 4px;
+  font-size: 16px;
+}
+.pob-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+.pob-muted {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.pob-done {
+  display: grid;
+  gap: 4px;
+  font-size: 15px;
+}
+.pob-done__no {
+  font-size: 22px;
+}
+@media (max-width: 560px) {
+  .pob-fields {
+    grid-template-columns: 1fr;
+  }
+  .pob-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .pob-item__img {
+    height: 90px;
+  }
+}
+
+/* الكاشير: بيانات الطلب الأونلاين + زرار القبول أخضر */
+.rpos-online-info {
+  margin-top: 4px;
+  font-size: 12px;
+}
+.rpos-accept {
+  background: var(--c-success) !important;
+  border-color: var(--c-success) !important;
+}
+
+/* نافذة صنف المنيو: الأحجام والإضافات جنب بعض (النافذة أقصر)، وعلى الموبايل تحت بعض */
+.rest-item-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+  align-items: start;
+}
+.rest-item-modal .rest-sizes {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.rest-item-modal .rest-size {
+  padding: 6px 8px;
+  gap: 4px;
+}
+@media (max-width: 760px) {
+  .rest-item-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   وسيط الطباعة (تاب الطباعة)
+   ============================================================ */
+.print-agent-card {
+  border-color: var(--c-primary-border);
+  background: var(--c-primary-soft);
+}
+.print-agent-codes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.print-agent-label {
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 4px;
+}
+.print-agent-code {
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.print-agent-found {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--c-primary-border);
+  border-radius: 8px;
+  background: var(--c-primary-soft);
+}
+.print-agent-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-height: 32px;
+  margin-top: 26px;
+}
+.print-agent-switches > span {
+  margin-inline-end: 10px;
+}
+@media (max-width: 640px) {
+  .print-agent-codes {
+    grid-template-columns: 1fr;
+  }
+  .print-agent-switches {
+    margin-top: 0;
+    margin-bottom: 12px;
+  }
+}

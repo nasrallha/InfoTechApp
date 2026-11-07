@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
 import { KpiRow, ReportHeader, useFilterInfo } from "./ReportParts";
+import { C } from "@/lib/theme";
 
 // "2026-09" ← "09/2026"
 const bucketLabel = (key) => `${key.slice(5, 7)}/${key.slice(0, 4)}`;
@@ -120,21 +121,22 @@ export default function VatReportView({ data, filters, options }) {
         options={options}
         fields={["branch"]}
         quarters
+        realDates
       />
       <KpiRow
         items={[
-          { title: t("NetSales"), value: money(O.netSales), color: "#2471a3" },
-          { title: t("OutputVat"), value: money(O.tax), color: "#1f77b4" },
+          { title: t("NetSales"), value: money(O.netSales), color: C.infoText },
+          { title: t("OutputVat"), value: money(O.tax), color: C.info },
           {
             title: t("NetPurchases"),
             value: money(I.netPurchases),
-            color: "#d35400",
+            color: C.warningText,
           },
-          { title: t("InputVat"), value: money(I.tax), color: "#e67e22" },
+          { title: t("InputVat"), value: money(I.tax), color: C.warning },
           {
             title: data.payable >= 0 ? t("VatPayable") : t("VatRefundable"),
             value: `${money(Math.abs(data.payable))} ${symbol}`,
-            color: "#7d3c98",
+            color: C.purple,
             strong: true,
           },
         ]}
@@ -149,7 +151,7 @@ export default function VatReportView({ data, filters, options }) {
             dataSource={lines}
             onRow={(l) => ({
               style: l.strong
-                ? { fontWeight: 800, background: "#f3f6fa" }
+                ? { fontWeight: 800, background: C.bg }
                 : undefined,
             })}
             columns={[

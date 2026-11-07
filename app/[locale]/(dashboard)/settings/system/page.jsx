@@ -14,10 +14,14 @@ async function SystemSettingsContent() {
 
   await connection();
   const settings = await getSystemSettings();
+  // لينك الحجز للعملاء: بكود الشركة (وضع الشركات)
+  const { multiTenant, currentCompanyCode } = await import("@/lib/tenant");
+  const bookingCode = multiTenant() ? await currentCompanyCode() : "main";
 
   return (
     <SystemSettingsForm
       settings={settings}
+      bookingCode={bookingCode}
       canEdit={can(user, "systemSettings.update")}
     />
   );

@@ -42,6 +42,7 @@ import {
   showZatcaError,
   showZatcaResult,
 } from "./zatcaUi";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 import "./zatca.css";
 
@@ -222,7 +223,7 @@ export default function ZatcaDocumentsView({
           {/* عرض الفاتورة (ومنها الطباعة) */}
           <Tooltip title={t("ViewInvoice")}>
             <Link href={linkOf(r)}>
-              <Button size="small" icon={<EyeOutlined />} />
+              <Button aria-label={t("ViewInvoice")} title={t("ViewInvoice")} size="small" icon={<EyeOutlined />} />
             </Link>
           </Tooltip>
           {canExport && exportable(r) && (
@@ -238,7 +239,7 @@ export default function ZatcaDocumentsView({
               <Tooltip title={t("DownloadPdfA3")}>
                 <Button
                   size="small"
-                  icon={<FilePdfOutlined style={{ color: "#c0392b" }} />}
+                  icon={<FilePdfOutlined style={{ color: C.dangerText }} />}
                   onClick={() => router.push(`${linkOf(r)}?zatca=pdf`)}
                 />
               </Tooltip>

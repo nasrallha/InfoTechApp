@@ -79,7 +79,7 @@ export function StatusBadge({ active, tForm }) {
   return (
     <span
       className={`font-bold p-1 px-2.5 rounded-md text-xs inline-block text-white ${
-        active ? "bg-green-600" : "bg-[#e74c3c]"
+        active ? "bg-green-600" : "bg-(--c-danger)"
       }`}
     >
       {active ? tForm("Active") : tForm("NotActive")}

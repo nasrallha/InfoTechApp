@@ -1,0 +1,230 @@
+/* ============================================================
+   جدول أسعار المغسلة
+   - الصف الأول (القطعة + أسماء الخدمات): لون رأس الجداول العادي (table.css)
+   - الصف التاني (عادي / مستعجل): أزرق فاتح عشان يبان إنه تفصيلة تحت الخدمة
+   ============================================================ */
+.ant-table-wrapper .ant-table-thead > tr > th.laundry-subhead {
+  background-color: var(--c-info-soft) !important;
+  color: var(--c-info-text) !important;
+  font-size: 14px;
+}
+
+/* ============================================================
+   شاشة الاستلام: نفس تصميم الكاشير (components/pos/pos.css)
+   وهنا الإضافات بس (نافذة السطر، العميل)
+   ============================================================ */
+
+/* كروت القطع (pos-tile من شاشة الكاشير) */
+.lr-tile--off {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.lr-tile__from {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+/* نافذة السطر: عنوان القسم + أزرار الخدمات + الإضافات */
+.lr-section {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--c-text);
+}
+.lr-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.lr-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 10px;
+  background: var(--c-surface);
+  font: inherit;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+  color: var(--c-text2);
+}
+.lr-choice b {
+  font-size: 15px;
+  color: var(--c-text);
+}
+.lr-choice.is-on {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+  box-shadow: 0 0 0 2px var(--c-primary-border);
+}
+/* الإضافات: أزرار كبيرة ببوردر واضح (للتاتش) */
+.lr-addon.ant-tag {
+  margin: 0;
+  padding: 8px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  border: 2px solid var(--c-border-strong);
+  border-radius: 999px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  user-select: none;
+}
+.lr-addon.ant-tag:hover {
+  border-color: var(--c-primary);
+}
+.lr-addon.ant-tag-checkable-checked {
+  border-color: var(--c-primary);
+  background: var(--c-primary);
+  color: var(--c-on-dark);
+}
+
+/* العميل */
+.lr-customer {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.lr-customer > div {
+  flex-basis: 100%;
+}
+
+/* الموبايل: أزرار الخدمات عمودين */
+@media (max-width: 575px) {
+  .lr-choices {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ============================================================
+   وضع المغسلة في الكاشير
+   ============================================================ */
+/* البحث عن طلب للفوترة + يومه */
+.lp-order-search {
+  display: flex;
+  gap: 6px;
+}
+.lp-order-search .search-box {
+  flex: 1;
+  min-width: 0;
+}
+/* حفظ كطلب: تحت زرار الدفع وبلون مختلف */
+.lp-save-order.ant-btn {
+  height: 48px;
+  margin-top: 8px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--c-info-text) !important;
+  border: 2px solid var(--c-info-border) !important;
+  background: var(--c-info-soft) !important;
+}
+.lp-save-order.ant-btn:disabled {
+  opacity: 0.5;
+}
+/* وضع تعديل طلب في الكاشير */
+.lp-editing {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  color: var(--c-warning-text);
+  background: var(--c-warning-soft);
+  border: 1px solid var(--c-warning-border);
+}
+
+/* ============================================================
+   الاشتراكات (رصيد العميل)
+   ============================================================ */
+/* رأس السلة: الرصيد + زرار الاشتراكات */
+.lp-wallet-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: var(--c-success-text);
+  background: var(--c-success-soft);
+  border: 1px solid var(--c-success-border);
+}
+.lp-wallet-chip b {
+  font-size: 16px;
+}
+/* نافذة الاشتراكات: الرصيد كبير فوق */
+.lp-wallet-balance {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: var(--c-success-text);
+  background: var(--c-success-soft);
+  border: 1px solid var(--c-success-border);
+}
+.lp-wallet-balance b {
+  font-size: 26px;
+}
+.lp-wallet-form {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--c-border-strong);
+  background: var(--c-bg-subtle);
+}
+
+/* طلبات العميل اللي لسه ما اتسلمتش (تحت اسمه في رأس السلة) */
+.lp-open-orders {
+  display: grid;
+  gap: 4px;
+  max-height: 160px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--c-warning-soft);
+  border: 1px solid var(--c-warning-border);
+}
+.lp-open-orders__title {
+  font-weight: 800;
+  color: var(--c-warning-text);
+}
+.lp-open-order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* مرتجع من شاشة الاستلام: الإجمالي ونصيب الاشتراك والباقي */
+.lp-return-sum {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+}
+.lp-return-sum > div {
+  display: flex;
+  justify-content: space-between;
+}
+.lp-return-sum b {
+  font-size: 16px;
+}
+
+/* واتساب: زرار الإرسال للعميل بلون واتساب */
+.wa-btn.ant-btn:not(:disabled) {
+  background: var(--c-whatsapp) !important;
+  border-color: var(--c-whatsapp) !important;
+  color: var(--c-on-dark) !important;
+}
+.wa-icon.ant-btn:not(:disabled) {
+  color: var(--c-whatsapp-text) !important;
+}

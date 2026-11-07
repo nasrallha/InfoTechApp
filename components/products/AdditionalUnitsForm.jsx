@@ -12,6 +12,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Button, Form, Input, InputNumber, Select, Row, Col } from "antd";
 import { useLocale, useTranslations } from "next-intl";
+import { C } from "@/lib/theme";
 
 // عنصر قابل للسحب (لترتيب الوحدات)
 const SortableItem = ({ id, children }) => {
@@ -85,10 +86,10 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     align="top"
                     className="mb-3"
                     style={{
-                      border: "1px solid #e5e7eb",
+                      border: `1px solid ${C.border}`,
                       borderRadius: 8,
                       padding: "8px 4px 0",
-                      background: "#fafafa",
+                      background: C.bgSubtle,
                     }}
                   >
                     {/* الوحدة */}
@@ -199,7 +200,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     <Col xs={2} md={2} className="flex items-center justify-center"
                       style={{ paddingTop: 38 }}>
                       <MinusCircleOutlined
-                        style={{ fontSize: 18, color: "#EA2027" }}
+                        style={{ fontSize: 18, color: C.danger }}
                         onClick={() => remove(name)}
                       />
                     </Col>

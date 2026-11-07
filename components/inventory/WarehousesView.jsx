@@ -11,8 +11,7 @@ import {
   Tag,
 } from "antd";
 import { message } from "@/components/common/feedback";
-import { HomeOutlined, StarFilled } from "@ant-design/icons";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
+import { HomeOutlined, StarFilled, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
@@ -20,6 +19,7 @@ import { StatusBadge } from "@/components/common/tableFilters";
 import { useCan } from "@/components/auth/AuthProvider";
 import { deleteWarehousesAction } from "@/actions/warehouse.actions";
 import WarehouseForm from "./WarehouseForm";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // شاشة المستودعات: الرئيسي بنجمة، وكل مستودع والفروع المربوطة به
@@ -48,7 +48,7 @@ export default function WarehousesView({ warehouses = [] }) {
       width: 220,
       render: (_, r) => (
         <Space>
-          {r.isMain && <StarFilled style={{ color: "#d4a017" }} />}
+          {r.isMain && <StarFilled style={{ color: C.warning }} />}
           <b>{nameOf(r)}</b>
         </Space>
       ),
@@ -100,13 +100,13 @@ export default function WarehousesView({ warehouses = [] }) {
               <Space>
                 {can("warehouses.update") && (
                   <Tag
-                    color="#006266"
+                    color={C.primary}
                     style={{
                       padding: "6px 12px",
                       fontSize: 14,
                       cursor: "pointer",
                     }}
-                    icon={<AiTwotoneEdit />}
+                    icon={<EditOutlined />}
                     onClick={() => setModal({ open: true, warehouse: r })}
                   >
                     {tButtons("Edit")}
@@ -120,7 +120,7 @@ export default function WarehousesView({ warehouses = [] }) {
                     cancelText={tButtons("No")}
                     onConfirm={() => remove(r.id)}
                   >
-                    <Button size="small" danger icon={<AiFillDelete />} />
+                    <Button aria-label={tButtons("Delete")} title={tButtons("Delete")} size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 )}
               </Space>

@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import { App, ConfigProvider } from "antd";
 import { setMessageInstance, setModalInstance } from "./feedback";
+import { useNoAutofill } from "./useNoAutofill";
 import arEG from "antd/locale/ar_EG";
 import enUS from "antd/locale/en_US";
+import { C } from "@/lib/theme";
 
 // ============================================================
 // إعدادات antd لكل البرنامج
@@ -14,29 +16,70 @@ import enUS from "antd/locale/en_US";
 // - theme: الألوان والأحجام الموحدة (ارتفاع الحقول والأزرار، الخط، الحواف)
 // ============================================================
 
-// لون البرنامج الأساسي (نفس لون العلامات في الجداول)
-export const BRAND_COLOR = "#006266";
+// لون البرنامج الأساسي (كل الألوان في lib/theme.js)
+export const BRAND_COLOR = C.primary;
 
 const theme = {
   token: {
-    colorPrimary: BRAND_COLOR,
-    colorLink: BRAND_COLOR,
+    colorPrimary: C.primary,
+    colorLink: C.primary,
+    colorSuccess: C.success,
+    colorError: C.danger,
+    colorWarning: C.warning,
+    colorInfo: C.info,
+    colorText: C.text,
+    colorTextSecondary: C.text2,
+    colorTextTertiary: C.muted,
+    colorTextQuaternary: C.subtle,
+    colorBorder: C.borderStrong,
+    colorBorderSecondary: C.border,
+    colorBgLayout: C.bg,
+    colorBgContainer: C.surface,
     borderRadius: 8,
     // ارتفاع الحقول والأزرار: عادي / صغير (داخل الجداول) / كبير
     controlHeight: 38,
     controlHeightSM: 30,
     controlHeightLG: 44,
     fontSize: 14,
-    fontFamily: "var(--font-cairo), 'Segoe UI', Tahoma, Arial, sans-serif",
+    fontFamily: "var(--font-main), 'Segoe UI', Tahoma, Arial, sans-serif",
   },
   components: {
-    Button: { fontWeight: 500 },
+    Button: { fontWeight: 500, primaryShadow: "none", dangerShadow: "none" },
     Card: { headerFontSize: 15 },
     InputNumber: { controlWidth: 120 },
+    // القائمة الجانبية: نفس اللون الغامق المشتق من لون البرنامج
+    Layout: { siderBg: C.ink, triggerBg: C.inkDeep },
+    // العنصر المختار: بلون البرنامج (تركواز) فوق التركواز الغامق
+    Menu: {
+      darkItemBg: C.ink,
+      darkSubMenuItemBg: C.inkDeep,
+      darkPopupBg: C.ink,
+      darkItemColor: "rgba(255, 255, 255, 0.88)",
+      darkItemSelectedBg: C.primary,
+      darkItemSelectedColor: C.onDark,
+      darkItemHoverBg: "rgba(255, 255, 255, 0.1)",
+      darkItemHoverColor: C.onDark,
+      darkGroupTitleColor: "rgba(255, 255, 255, 0.6)",
+    },
+    // عناوين الحقول: أعرض شوية وبلون النص الأساسي
+    Form: { labelColor: C.text },
+    // أزرار الاختيار (Segmented): المختار بلون البرنامج وكتابة بيضا،
+    // والخلفية فاتحة بلون البرنامج بدل الرمادي/الأبيض اللي مش باين
+    Segmented: {
+      trackBg: C.primarySoft,
+      itemColor: C.text2,
+      itemHoverColor: C.primary,
+      itemHoverBg: C.primaryBorder,
+      itemSelectedBg: C.primary,
+      itemSelectedColor: C.onDark,
+      trackPadding: 3,
+    },
   },
 };
 
 export default function AntdProvider({ locale, children }) {
+  // مفيش اقتراحات من المتصفح في أي حقل (الاسم، الجوال، الضريبي ...)
+  useNoAutofill();
   useNumericInputGuard();
 
   return (

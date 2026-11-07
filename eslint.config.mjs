@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // وسيط الطباعة: برنامج Node لوحده (CommonJS) مش جزء من Next
+    "print-agent/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

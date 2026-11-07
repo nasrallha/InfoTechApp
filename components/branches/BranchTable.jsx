@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { Table, Space, Button, Tag, Popconfirm, Flex } from "antd";
 import { message } from "@/components/common/feedback";
-import { AiFillDelete, AiTwotoneEdit } from "react-icons/ai";
-import { ShopOutlined } from "@ant-design/icons";
+import { ShopOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
 import FormModal from "@/components/common/FormModal";
@@ -14,6 +13,8 @@ import {
 } from "@/components/common/tableFilters";
 import { deleteBranchesAction } from "@/actions/branch.actions";
 import EditBranchForm from "./EditBranchForm";
+import { listSep } from "@/lib/list-sep";
+import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
 // branches: الفروع من قاعدة البيانات
@@ -46,7 +47,7 @@ const BranchTable = ({ branches = [], warehouses = [], priceLists = [] }) => {
     setDeleting(false);
 
     if (!res.success) {
-      const names = res.details?.map(nameOf).join("، ");
+      const names = res.details?.map(nameOf).join(listSep(locale));
       message.error(
         names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error),
       );
@@ -138,7 +139,7 @@ const BranchTable = ({ branches = [], warehouses = [], priceLists = [] }) => {
                 color="danger"
                 variant="outlined"
                 size="small"
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
                 loading={deleting}
               >
                 {tButtons("Delete")} ({selectedRows.length})
@@ -154,9 +155,9 @@ const BranchTable = ({ branches = [], warehouses = [], priceLists = [] }) => {
           {/* تعديل */}
           {canEdit && (
             <Tag
-              color="#006266"
+              color={C.primary}
               style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-              icon={<AiTwotoneEdit />}
+              icon={<EditOutlined />}
               onClick={() => {
                 setSelectedBranch(record);
                 setEditModalOpen(true);
@@ -176,10 +177,10 @@ const BranchTable = ({ branches = [], warehouses = [], priceLists = [] }) => {
               cancelText={tButtons("No")}
             >
               <Tag
-                color="#EA2027"
+                color={C.danger}
                 variant="filled"
                 style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
-                icon={<AiFillDelete />}
+                icon={<DeleteOutlined />}
               >
                 {tButtons("Delete")}
               </Tag>

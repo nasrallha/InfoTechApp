@@ -12,6 +12,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
 import { useCan } from "@/components/auth/AuthProvider";
+import { C } from "@/lib/theme";
 import "@/components/invoices/invoices.css";
 
 // شاشات الحسابات: الرابط + الأيقونة + اللون + الصلاحيات (يكفي واحدة منها)
@@ -20,35 +21,35 @@ export const ACCOUNT_PAGES = [
     key: "receipts",
     href: "/accounts/receipts",
     Icon: ArrowDownOutlined,
-    color: "#1e8449",
+    color: C.successText,
     permissions: ["receipts.view"],
   },
   {
     key: "payments",
     href: "/accounts/payments",
     Icon: ArrowUpOutlined,
-    color: "#b03a2e",
+    color: C.dangerText,
     permissions: ["paymentVouchers.view"],
   },
   {
     key: "settlements",
     href: "/accounts/settlements",
     Icon: DiffOutlined,
-    color: "#7d3c98",
+    color: C.purple,
     permissions: ["settlements.view"],
   },
   {
     key: "statements",
     href: "/accounts/statements",
     Icon: ProfileOutlined,
-    color: "#2471a3",
+    color: C.infoText,
     permissions: ["statements.customers", "statements.suppliers"],
   },
   {
     key: "expenseCategories",
     href: "/accounts/expense-categories",
     Icon: AppstoreOutlined,
-    color: "#b9770e",
+    color: C.warningText,
     permissions: ["expenseCategories.view"],
   },
 ];

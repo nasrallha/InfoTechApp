@@ -143,7 +143,7 @@ export default function BarcodeLabelsView({ labels = [], companyName }) {
                           run(label.id, () => deleteBarcodeLabelsAction([label.id]), "LabelDeleted")
                         }
                       >
-                        <Button danger icon={<DeleteOutlined />} />
+                        <Button aria-label={tButtons("Delete")} title={tButtons("Delete")} danger icon={<DeleteOutlined />} />
                       </Popconfirm>
                     )}
                   </div>

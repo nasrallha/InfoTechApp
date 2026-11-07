@@ -8,6 +8,7 @@ import { useCan } from "@/components/auth/AuthProvider";
 import { applyFieldErrors } from "@/lib/form-errors";
 import { BUYER_ID_SCHEMES, buyerMissing, isB2BCustomer } from "@/lib/zatca-tax";
 import { completeCustomerB2BAction } from "@/actions/customer.actions";
+import { listSep } from "@/lib/list-sep";
 
 // ============================================================
 // العميل اللي له رقم ضريبي = شركة (فاتورته ضريبية)
@@ -85,7 +86,7 @@ export default function CustomerB2BAlert({ customer, compact = false }) {
           compact ? null : (
             <span>
               {t("B2BMissing")}:{" "}
-              {missing.map((k) => t(`missing.${k}`)).join("، ")}
+              {missing.map((k) => t(`missing.${k}`)).join(listSep(locale))}
             </span>
           )
         }

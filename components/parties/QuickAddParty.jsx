@@ -63,7 +63,9 @@ export default function QuickAddParty({ kind, onCreated, size }) {
   return (
     <>
       <Tooltip title={`${tButtons(config.addButton)} (${QUICK_ADD_KEY})`}>
+        {/* بلون البرنامج عشان يبان جنب خانة العميل/المورد */}
         <Button
+          type="primary"
           size={size}
           icon={<UserAddOutlined />}
           aria-label={tButtons(config.addButton)}

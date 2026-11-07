@@ -20,7 +20,11 @@ export async function GET() {
       ),
     ]);
     return Response.json({ ok: true, db: true }, { headers: noStore });
-  } catch {
+  } catch (e) {
+    // مفيش شركة على الجهاز (صفحة الدخول قبل الكود / لينك الحجز للعملاء):
+    // السيرفر شغال ومفيش قاعدة نفحصها
+    if (e?.code === "NoCompany" || e?.code === "CompanyNotFound")
+      return Response.json({ ok: true, db: null }, { headers: noStore });
     return Response.json(
       { ok: false, db: false },
       { status: 503, headers: noStore },

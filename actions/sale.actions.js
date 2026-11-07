@@ -2,6 +2,7 @@
 
 // البوابة بين شاشات المبيعات (الكاشير، الفاتورة، المرتجع) والسيرفر
 
+import { z } from "zod";
 import { runAction } from "@/lib/action";
 import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
@@ -23,6 +24,8 @@ import {
   findSalesForReturn,
   getSaleForReturn,
   getSale,
+  posRecentSales,
+  posSaleForPrint,
 } from "@/services/sale.service";
 import {
   searchSaleProducts,
@@ -78,6 +81,22 @@ export async function deleteSaleAction(id) {
   });
 }
 
+// الكاشير: فواتير سابقة (بحث) + الفاتورة كاملة للعرض وإعادة الطباعة
+export async function posRecentSalesAction(input) {
+  return runAction(
+    z.object({ q: z.string().trim().max(50).default("") }),
+    input,
+    (d, user) => posRecentSales(d, user),
+    { permission: "sales.pos" },
+  );
+}
+
+export async function posSaleForPrintAction(id) {
+  return runAction(idField, id, (d, user) => posSaleForPrint(d, user), {
+    permission: "sales.pos",
+  });
+}
+
 // الفاتورة كاملة (للطباعة من الكاشير بعد الحفظ)
 export async function getSaleAction(id) {
   return runAction(idField, id, (d, user) => getSale(d, null, user), {
@@ -124,13 +143,13 @@ export async function getSaleForReturnAction(id) {
 export async function searchSaleProductsAction(query) {
   return runAction(saleSearchSchema, query, (q, user) => {
     assertSeller(user);
-    return searchSaleProducts(q, user);
+    return searchSaleProducts(q, user, { models: true });
   });
 }
 
 export async function browseSaleProductsAction(input) {
   return runAction(saleBrowseSchema, input, (d, user) => {
     assertSeller(user);
-    return browseSaleProducts(d, user);
+    return browseSaleProducts(d, user, { models: true });
   });
 }

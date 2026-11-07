@@ -8,6 +8,7 @@ import { Link } from "@/i18n/routing";
 import { useCan } from "@/components/auth/AuthProvider";
 import { getZatcaAlertsAction } from "@/actions/zatca.actions";
 import { modal } from "@/components/common/feedback";
+import { C } from "@/lib/theme";
 import "./zatca.css";
 
 const POLL_MS = 2 * 60_000;
@@ -144,7 +145,7 @@ export default function ZatcaBell() {
           <div>
             <ul className="zatca-bell-list">
               {items.map((i) => (
-                <li key={i.key} style={i.danger ? { color: "#cf1322" } : null}>
+                <li key={i.key} style={i.danger ? { color: C.dangerText } : null}>
                   <span>{i.label}</span>
                   {i.count != null && <b>{i.count}</b>}
                 </li>
@@ -157,7 +158,7 @@ export default function ZatcaBell() {
         )
       }
     >
-      <Badge count={total} size="small" color={danger ? "#f5222d" : "#faad14"}>
+      <Badge count={total} size="small" color={danger ? C.danger : C.warning}>
         <Button
           type="text"
           icon={<BellOutlined />}

@@ -6,7 +6,7 @@
   box-sizing: border-box;
   background: #fff;
   color: #111;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: "IBM Plex Sans Arabic", Tahoma, Arial, sans-serif;
   line-height: 1.45;
 }
 
@@ -47,35 +47,35 @@
 }
 
 .vch__company-name {
-  font-weight: 800;
+  font-weight: 700;
   font-size: 1.3em;
 }
 
 .vch--a4 .vch__company-name {
-  color: #1f4e78;
+  color: var(--c-navy);
 }
 
 .vch__title {
   margin: 4mm 0 3mm;
   padding: 2mm;
   text-align: center;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 1.35em;
   border-radius: 2mm;
   color: #fff;
-  background: #1f4e78;
+  background: var(--c-navy);
 }
 
 .vch__title--receipt {
-  background: #1e8449;
+  background: var(--c-success-text);
 }
 
 .vch__title--payment {
-  background: #b03a2e;
+  background: var(--c-danger-text);
 }
 
 .vch__title--settlement {
-  background: #6c3483;
+  background: var(--c-purple);
 }
 
 .vch--thermal .vch__title {
@@ -108,10 +108,10 @@
 }
 
 .vch--a4 .vch__meta > div {
-  border: 1px solid #d8e1ec;
+  border: 1px solid var(--c-border-strong);
   border-radius: 1.5mm;
   padding: 2mm 3mm;
-  background: #f6f9fc;
+  background: var(--c-bg-subtle);
 }
 
 .vch__amount {
@@ -126,19 +126,19 @@
 }
 
 .vch--a4 .vch__amount {
-  border-color: #1f4e78;
+  border-color: var(--c-navy);
   font-size: 1.5em;
   width: 50%;
   margin-inline-start: auto;
 }
 
 .vch--a4 .vch__lines > div {
-  border-bottom: 1px dotted #999;
+  border-bottom: 1px dotted var(--c-subtle);
   padding: 2.5mm 0;
 }
 
 .vch__lines > div > span:first-child {
-  color: #444;
+  color: var(--c-text2);
   white-space: nowrap;
 }
 
@@ -160,7 +160,7 @@
 .vch__alloc th,
 .vch__alloc td {
   padding: 1mm 1.5mm;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border-strong);
   text-align: start;
 }
 
@@ -170,9 +170,9 @@
 }
 
 .vch--a4 .vch__alloc th {
-  background: #1f4e78;
+  background: var(--c-navy);
   color: #fff;
-  border-color: #1f4e78;
+  border-color: var(--c-navy);
 }
 
 .vch__signatures {
@@ -188,7 +188,7 @@
 
 .vch__sign {
   min-height: 10mm;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--c-text);
   padding-top: 2mm;
 }
 

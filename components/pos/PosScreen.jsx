@@ -10,15 +10,18 @@ import {
   Select,
   Space,
   Spin,
+  Switch,
   Tag,
   Tooltip,
 } from "antd";
 import {
   AppstoreOutlined,
   ArrowRightOutlined,
+  CalendarOutlined,
   ClearOutlined,
   DeleteOutlined,
   FullscreenOutlined,
+  HistoryOutlined,
   LockOutlined,
   SwapOutlined,
   MinusOutlined,
@@ -29,6 +32,11 @@ import {
   ShoppingCartOutlined,
   TagOutlined,
   GiftOutlined,
+  RollbackOutlined,
+  SaveOutlined,
+  SettingOutlined,
+  UnorderedListOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/routing";
@@ -52,7 +60,12 @@ import { useCan } from "@/components/auth/AuthProvider";
 import ProductPicker from "@/components/purchases/ProductPicker";
 import DiscountInput from "@/components/purchases/DiscountInput";
 import PrintDocument from "@/components/printing/PrintDocument";
-import { lineFromProduct } from "@/components/sales/SaleForm";
+import { bookingLines, lineFromProduct } from "@/components/sales/SaleForm";
+import { useModule, useModuleSettings } from "@/components/auth/AuthProvider";
+import LineSerials, {
+  serialInLines,
+  serialsShort,
+} from "@/components/serials/LineSerials";
 import SaleDocument from "@/components/sales/SaleDocument";
 import {
   CashMovementModal,
@@ -60,6 +73,26 @@ import {
   OpenShiftModal,
 } from "@/components/sales/ShiftModals";
 import PayModal from "./PayModal";
+import {
+  editLines,
+  isEditableOrder,
+  isLaundryLine,
+  orderLines,
+  useLaundryPos,
+} from "@/components/laundry/useLaundryPos";
+import { laundryCheckoutAction } from "@/actions/laundry-order.actions";
+import {
+  isFeeLine,
+  isRestaurantLine,
+  useRestaurantPos,
+} from "@/components/restaurant/useRestaurantPos";
+import { restaurantCheckoutAction } from "@/actions/restaurant-pos.actions";
+import LaundryReturnModal from "@/components/laundry/LaundryReturnModal";
+import { useWaMessages } from "@/components/laundry/WhatsAppSend";
+import { openWhatsApp } from "@/lib/whatsapp";
+
+// واتساب تلقائي (المغسلة): بيتحفظ على الجهاز
+const WA_AUTO_KEY = "laundry-wa-auto";
 import "@/components/purchases/purchases.css";
 import "./pos.css";
 import QuickAddParty from "@/components/parties/QuickAddParty";
@@ -67,6 +100,19 @@ import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import { previewItems, previewTotals } from "@/lib/preview-doc";
 import CustomerB2BAlert from "@/components/zatca/CustomerB2BAlert";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
+import { lineQtyProblem, qtyProblemKey } from "@/lib/unit-qty";
+import { LoyaltyHint, useLoyalty } from "@/components/promotions/useLoyalty";
+import PosSalesModal from "./PosSalesModal";
+import SizePickerModal from "@/components/products/SizePickerModal";
+import { ColorDot } from "@/components/products/VariantsFields";
+import LineConversion from "@/components/common/LineConversion";
+import PosBookingsModal, {
+  CustomerBookingHint,
+} from "@/components/bookings/PosBookingsModal";
+import StaffSelect, {
+  useStaffOnPos,
+} from "@/components/technicians/StaffSelect";
+import { C } from "@/lib/theme";
 
 const PAGE_SIZE = 60;
 
@@ -106,13 +152,27 @@ export default function PosScreen({
   promotions = [],
   company,
   printSettings,
+  // فاتورة من حجز (الخدمات بمقدم الخدمة + العميل)
+  booking = null,
+  // المغسلة (وحدة laundry): القطع والخدمات والإضافات + طلبات محمّلة للفوترة
+  laundry = null,
+  laundryOrders = [],
+  // طلب للتعديل (?editOrder=id من شاشة الطلبات)
+  laundryEdit = null,
+  // المطعم (وحدة restaurant): المنيو بأحجامه وإضافاته والتطبيقات والسائقين والرسوم
+  restaurant = null,
 }) {
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations("Pos");
   const tZ = useTranslations("Zatca");
   const tS = useTranslations("Sales");
+  const tB = useTranslations("Bookings");
   const tAlerts = useTranslations("Alerts");
+  const tSerial = useTranslations("Serials");
+  const tButtons = useTranslations("Buttons");
+  const tL = useTranslations("Laundry");
+  const tR = useTranslations("RestaurantPos");
   const { amount: money, decimals, symbol } = useCurrency();
   // بصمة الحفظ: الضغط على حفظ مرتين (أو بعد ما الرد يضيع) مايكررش المستند
   const saveKey = useSaveKey();
@@ -125,9 +185,32 @@ export default function PosScreen({
   const canDrawer = can("shifts.cashMovement");
 
   // ---------- السلة ----------
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() =>
+    booking
+      ? bookingLines(booking)
+      : laundryOrders.length
+        ? orderLines(laundryOrders, laundry)
+        : isEditableOrder(laundryEdit)
+          ? editLines(laundryEdit, laundry)
+          : [],
+  );
   const [lastKey, setLastKey] = useState(null);
-  const [customerId, setCustomerId] = useState(null);
+  const [customerId, setCustomerId] = useState(
+    booking?.customerId ??
+      laundryOrders[0]?.customerId ??
+      (isEditableOrder(laundryEdit) ? laundryEdit.customerId : null),
+  );
+  // الحجز اللي الفاتورة دي بتاعته (بيتمسح بعد الحفظ أو تفريغ السلة)
+  const [bookingId, setBookingId] = useState(booking?.id ?? null);
+  const [bookingNo, setBookingNo] = useState(booking?.number ?? null);
+  // البحث عن حجز وتحويله لفاتورة من الكاشير نفسه (F6)
+  const bookingsOn = useModule("bookings");
+  const [bookingsOpen, setBookingsOpen] = useState(false);
+  // فواتير سابقة: عرض وإعادة طباعة (في كل الأنشطة) - F7
+  const [salesOpen, setSalesOpen] = useState(false);
+  // مقدم الخدمة (العاملة / الحلاق): الافتراضي للأصناف الجديدة، ويتغير لكل سطر
+  const staffOn = useStaffOnPos();
+  const [staffId, setStaffId] = useState(booking?.technicianId ?? null);
   // الإضافة السريعة: الجديد بيظهر في القائمة على طول (قبل ما الصفحة تتحدث)
   const [addedParties, setAddedParties] = useState([]);
   const customers = useMemo(() => {
@@ -139,21 +222,124 @@ export default function PosScreen({
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [unitPick, setUnitPick] = useState(null);
+  // المقاسات (وحدة variants): رقم الموديل اللي شبكة مقاساته مفتوحة
+  const [sizePick, setSizePick] = useState(null);
+  // السطر اللي نافذة أرقامه التسلسلية مفتوحة (بتتفتح أول ما الصنف المتتبع يتضاف)
+  const [serialKey, setSerialKey] = useState(null);
+  const serialsOn = useModule("serials");
+  const { serialRequired = false } = useModuleSettings();
   const [held, setHeld] = useState([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [lastSale, setLastSale] = useState(null);
+  // المغسلة: مرتجع فاتورة من نفس الشاشة
+  const [returnOpen, setReturnOpen] = useState(false);
+  const waMsg = useWaMessages();
+  // الفاتورة اللي هتتبعت على واتساب بعد ما طباعتها تخلص
+  const waAfterPrint = useRef(null);
+  // واتساب تلقائي: بعد الفاتورة / الطلب محادثة العميل بتفتح لوحدها (بيتحفظ على الجهاز)
+  const [waAuto, setWaAuto] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setWaAuto(localStorage.getItem(WA_AUTO_KEY) === "1");
+    } catch {
+      /* المتصفح مانع التخزين */
+    }
+  }, []);
+  const toggleWaAuto = (on) => {
+    setWaAuto(on);
+    try {
+      localStorage.setItem(WA_AUTO_KEY, on ? "1" : "0");
+    } catch {
+      /* المتصفح مانع التخزين */
+    }
+  };
+  // بعد الطباعة (لو التلقائي شغال): محادثة العميل بتفتح بالرسالة
+  // (بعد ما نافذة الطباعة تتقفل، مش قبلها)
+  const sendWa = (target) => {
+    if (!waAuto || !target) return;
+    const phone =
+      target.kind === "sale" ? target.doc.customer?.phone : target.order.phone;
+    if (!phone) return;
+    const text =
+      target.kind === "sale" ? waMsg.invoice(target.doc) : waMsg.order(target.order);
+    if (!openWhatsApp(phone, text)) message.warning(tL("WaPopupBlocked"));
+  };
 
   useEffect(() => setHeld(readHeld(user.id)), [user.id]);
 
+  // وضع المغسلة: الكاشير بيبقى شاشة المغسلة (القطع، الطلبات، الجوال)
+  const lp = useLaundryPos({
+    laundry,
+    initialOrders: laundryOrders,
+    editOrder: laundryEdit,
+    items,
+    setItems,
+    setCustomerId,
+    setLastKey,
+    printSettings,
+    methods,
+    customers,
+  });
+
+  // وضع المطعم: نوع الطلب والمنيو والرسوم (كله على وردية الكاشير)
+  const rp = useRestaurantPos({
+    restaurant,
+    items,
+    setItems,
+    setLastKey,
+    customerId,
+    setCustomerId,
+    customers,
+    shift,
+    printSettings,
+    categories,
+    // عميل جديد من رأس سلة المطعم
+    onCustomerCreated: (c) => setAddedParties((prev) => [...prev, c]),
+    // طلب مدفوع: إعادة طباعة فاتورته من نافذة الطلبات
+    reprintSale: async (saleId) => {
+      const full = await getSaleAction(saleId);
+      if (!full.success || !full.data)
+        return showActionError(full, tAlerts, locale);
+      if (!printSettings) return message.warning(tR("NoPrintSettings"));
+      printSale(full.data);
+    },
+  });
+
+  // الفاتورة: المطعم على طابعة الكاشير عن طريق وسيط الطباعة (من غير نافذة)،
+  // ولو مفيش وسيط / طابعة: نافذة الطباعة زي الأول
+  const printSale = (doc) => {
+    if (!rp.on) return setReceipt(doc);
+    const viaAgent = rp.printReceipt({
+      title: `${tR("Invoice")} ${doc.number ?? ""}`.trim(),
+      render: (paper) => (
+        <SaleDocument
+          settings={{ ...printSettings, paperSize: paper }}
+          company={company}
+          doc={doc}
+          kind="sale"
+        />
+      ),
+      fallback: () => setReceipt(doc),
+    });
+    // الفاتورة راحت للوسيط ← تذاكر المطبخ على طول (من غير ما تستنى نافذة الطباعة)
+    if (viaAgent) rp.flushTicket();
+  };
+
+  // عروض الولاء للعميل (كل كام مرة ← مرة مجانية)
+  const loyalty = useLoyalty(customerId, promotions);
+
   // العروض الشغالة بتنزل لوحدها (نفس حساب السيرفر)
-  const { lines, totals, invoicePromo } = useMemo(() => {
+  const { lines, totals, invoicePromo, loyaltyInfo } = useMemo(() => {
     const applied = applyPromotions({
-      items,
+      // المطعم: سطور الرسوم (الخدمة / التوصيل / التبغ) محسوبة مع السلة
+      items: rp.feeLines.length ? [...items, ...rp.feeLines] : items,
       promos: promotions,
       discountType: discount.type,
       discountValue: discount.value,
       decimals,
+      loyalty,
     });
     return {
       ...calcInvoice({
@@ -164,45 +350,73 @@ export default function PosScreen({
         decimals,
       }),
       invoicePromo: applied.invoicePromo,
+      loyaltyInfo: applied.loyaltyInfo,
     };
-  }, [items, discount, decimals, promotions]);
+  }, [items, rp.feeLines, discount, decimals, promotions, loyalty]);
   const count = items.reduce((s, l) => s + Number(l.qty || 0), 0);
 
   const focusSearch = () =>
     setTimeout(() => document.querySelector(".pos-search input")?.focus(), 30);
 
-  const addLine = useCallback((product, unitId, qty = 1) => {
-    setItems((prev) => {
-      const found = prev.find(
-        (l) => l.productId === product.id && l.unitId === unitId,
-      );
-      if (found) {
-        setLastKey(found.key);
-        return prev.map((l) =>
-          l === found ? { ...l, qty: round(l.qty + qty, 3) } : l,
-        );
+  // serial: الرقم التسلسلي اللي اتمسح (القطعة بتتضاف برقمها من غير نافذة)
+  const addLine = useCallback(
+    (product, unitId, qty = 1, serial = null) => {
+      const tracked = serialsOn && product.serialCount > 0;
+      if (serial && serialInLines(items, product.id, serial.serial)) {
+        message.warning(tSerial("DuplicateInList"));
+        return;
       }
-      const line = lineFromProduct(product, unitId, qty);
-      setLastKey(line.key);
-      return [...prev, line];
-    });
-  }, []);
+      setItems((prev) => {
+        const found = prev.find(
+          (l) => l.productId === product.id && l.unitId === unitId,
+        );
+        if (found) {
+          setLastKey(found.key);
+          if (tracked && !serial) setSerialKey(found.key);
+          return prev.map((l) =>
+            l === found
+              ? {
+                  ...l,
+                  qty: round(l.qty + qty, 3),
+                  ...(serial
+                    ? { serials: [...(l.serials ?? []), serial] }
+                    : {}),
+                }
+              : l,
+          );
+        }
+        const line = lineFromProduct(product, unitId, qty);
+        if (serial) line.serials = [serial];
+        if (staffOn && staffId) line.job = { technicianId: staffId };
+        setLastKey(line.key);
+        if (tracked && !serial) setSerialKey(line.key);
+        return [...prev, line];
+      });
+    },
+    [serialsOn, items, tSerial, staffOn, staffId],
+  );
 
   // من الماسح/البحث: الوحدة معروفة (باركودها) أو الأولى
   // باركود الميزان: options.qty = الوزن من الباركود
   const addFromPicker = (product, unitId, options) =>
-    addLine(
-      product,
-      unitId ?? product.exactUnitId ?? product.units[0].unit.id,
-      options?.qty > 0 ? options.qty : 1,
-    );
+    product.sizePick
+      ? setSizePick(product.sizePick)
+      : addLine(
+          product,
+          unitId ?? product.exactUnitId ?? product.units[0].unit.id,
+          options?.qty > 0 ? options.qty : 1,
+          options?.serial ?? null,
+        );
 
   // من كارت الصنف: لو له أكثر من وحدة نسأل عن الوحدة
   const addFromTile = (product) => {
+    if (product.sizePick) return setSizePick(product.sizePick);
     if (product.units.length > 1) return setUnitPick(product);
     addLine(product, product.units[0].unit.id);
   };
 
+  const factorOfLine = (l) =>
+    l.units.find((u) => u.unit.id === l.unitId)?.factor ?? 1;
   const updateLine = (key, patch) =>
     setItems((prev) =>
       prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
@@ -216,9 +430,27 @@ export default function PosScreen({
 
   const clearCart = () => {
     setItems([]);
+    setBookingId(null);
+    setBookingNo(null);
     setCustomerId(null);
     setDiscount({ type: "amount", value: 0 });
     setLastKey(null);
+    lp.reset();
+    rp.reset();
+    focusSearch();
+  };
+
+  // ---------- الحجز ← السلة ----------
+  const pickBooking = (b) => {
+    setItems(bookingLines(b));
+    setCustomerId(b.customerId ?? null);
+    setBookingId(b.id);
+    setBookingNo(b.number);
+    if (b.technicianId) setStaffId(b.technicianId);
+    setDiscount({ type: "amount", value: 0 });
+    setLastKey(null);
+    setBookingsOpen(false);
+    message.success(tB("PosLoaded", { number: `BK-${b.number}` }));
     focusSearch();
   };
 
@@ -232,6 +464,9 @@ export default function PosScreen({
       discount,
       items,
       total: totals.total,
+      // الحجز يفضل مربوط بعد الاسترجاع
+      bookingId,
+      bookingNo,
     };
     const next = [entry, ...held].slice(0, 30);
     setHeld(next);
@@ -244,6 +479,8 @@ export default function PosScreen({
     setItems(entry.items);
     setCustomerId(entry.customerId ?? null);
     setDiscount(entry.discount ?? { type: "amount", value: 0 });
+    setBookingId(entry.bookingId ?? null);
+    setBookingNo(entry.bookingNo ?? null);
     const next = held.filter((h) => h.id !== entry.id);
     setHeld(next);
     writeHeld(user.id, next);
@@ -281,32 +518,105 @@ export default function PosScreen({
     };
   };
 
-  const openPay = () => {
+  const openPay = async () => {
     if (!items.length) return;
     if (!shift) return message.warning(t("OpenShiftFirst"));
+    // المغسلة: القطع الجديدة لازم لها جوال العميل
+    const laundryErr = lp.on ? lp.customerError() : null;
+    if (laundryErr) return message.warning(laundryErr);
+    // المطعم: نوع الطلب وبياناته (التطبيق / رقم الطاولة)
+    const restErr = rp.on ? rp.validate() : null;
+    if (restErr) return message.warning(restErr);
     if (items.some((l) => !(l.qty > 0)))
       return message.warning(t("QtyRequired"));
+    // الوحدة متقبلش كسور (حبة) والكمية فيها كسر
+    const badQty = items.find((l) => lineQtyProblem(l));
+    if (badQty)
+      return message.warning(
+        `${tAlerts(qtyProblemKey(lineQtyProblem(badQty)))}: ${nameOf(badQty)}`,
+      );
+    // الأرقام التسلسلية ناقصة (الإلزام مفعّل) ← نفتح نافذة أول سطر ناقص
+    const short = items.find((l) =>
+      serialsShort(l, factorOfLine(l), serialRequired),
+    );
+    if (short) {
+      message.warning(tSerial("MissingForItem", { name: nameOf(short) }));
+      return setSerialKey(short.key);
+    }
+    // المغسلة: العميل عنده رصيد اشتراك ← يتخصم تلقائي (والمكافأة خصم)
+    if (lp.on) {
+      const plan = await lp.prepareWallet({
+        discountType: discount.type,
+        discountValue: Number(discount.value) || 0,
+      });
+      // الرصيد مكفّي: الفاتورة على طول من غير نافذة الدفع
+      if (plan && plan.cashDue <= 0)
+        return pay({ payments: [], tendered: 0, useWallet: true });
+      if (plan)
+        message.info(
+          tL("WalletCoversN", {
+            paid: money(plan.walletPay),
+            due: money(plan.cashDue),
+          }),
+        );
+    }
     setPayOpen(true);
   };
 
-  const pay = async ({ payments, tendered }) => {
-    setPaying(true);
-    const res = await saveKey.send(createSaleAction, {
-      source: "pos",
-      customerId,
+  // المغسلة: القطع الجديدة طلب + الطلبات المحمّلة ← فاتورة واحدة
+  // (السيرفر بيبني السطور والأسعار من الطلبات، والشاشة بتبعت الدفع)
+  // وضع التعديل: التعديل يتحفظ الأول وبعدين الطلب يتفوتر
+  const payLaundry = async ({ payments, tendered, useWallet }) => {
+    if (lp.editing) {
+      const saved = await lp.saveEdit();
+      if (!saved.success) return saved;
+    }
+    return saveKey.send(laundryCheckoutAction, {
+      ...lp.checkoutPayload(),
       discountType: discount.type,
       discountValue: Number(discount.value) || 0,
-      items: items.map((l) => ({
-        productId: l.productId,
-        unitId: l.unitId,
-        qty: Number(l.qty),
-        price: Number(l.price) || 0,
-        discountType: l.discountType,
-        discountValue: Number(l.discountValue) || 0,
-      })),
       payments,
       tenderedAmount: tendered || undefined,
+      useWallet: useWallet ?? Boolean(lp.walletPlan),
     });
+  };
+
+  const pay = async ({ payments, tendered, useWallet }) => {
+    setPaying(true);
+    const res = lp.on
+      ? await payLaundry({ payments, tendered, useWallet })
+      : rp.on
+        ? await saveKey.send(restaurantCheckoutAction, {
+            ...rp.checkoutPayload(),
+            discountType: discount.type,
+            discountValue: Number(discount.value) || 0,
+            payments,
+            tenderedAmount: tendered || undefined,
+          })
+        : await saveKey.send(createSaleAction, {
+          source: "pos",
+          customerId,
+          bookingId: bookingId ?? undefined,
+          discountType: discount.type,
+          discountValue: Number(discount.value) || 0,
+          items: items.map((l) => ({
+            productId: l.productId,
+            unitId: l.unitId,
+            qty: Number(l.qty),
+            price: Number(l.price) || 0,
+            discountType: l.discountType,
+            discountValue: Number(l.discountValue) || 0,
+            serials: l.serials ?? [],
+            warrantyMonths: l.warrantyMonths ?? null,
+            // مقدم الخدمة على السطر (عمولته)
+            job:
+              staffOn && l.job?.technicianId
+                ? { technicianId: l.job.technicianId }
+                : null,
+          })),
+          payments,
+          tenderedAmount: tendered || undefined,
+        });
     setPaying(false);
     if (!res.success) {
       if (res.error === "ShiftRequired" || res.error === "ShiftOtherBranch")
@@ -315,6 +625,16 @@ export default function PosScreen({
     }
     setPayOpen(false);
     setLastSale(res.data);
+    // المطعم: رقم الطلب + تذكرة المطبخ بعد إيصال الفاتورة
+    if (rp.on) {
+      if (res.data.order)
+        message.success(tR("OrderNoIs", { n: res.data.order.dailyNo }));
+      rp.afterPaid(res.data);
+      if (!printSettings) setTimeout(rp.flushTicket, 0);
+    }
+    // المغسلة: اتخصم من الاشتراك
+    if (res.data.wallet)
+      message.success(tL("WalletPaidN", { n: money(res.data.wallet.credit) }));
     // الفاتورة الإلكترونية: التنبيه بس لو متوقعتش (الإرسال في الخلفية)
     if (res.data.zatca?.status === "unsigned")
       message.warning(tZ("result.unsigned"));
@@ -322,7 +642,10 @@ export default function PosScreen({
     // الإيصال
     if (printSettings) {
       const full = await getSaleAction(res.data.id);
-      if (full.success && full.data) setReceipt(full.data);
+      if (full.success && full.data) {
+        printSale(full.data);
+        if (lp.on) waAfterPrint.current = { kind: "sale", doc: full.data };
+      }
     }
   };
 
@@ -333,7 +656,11 @@ export default function PosScreen({
         payOpen ||
         discountOpen ||
         heldOpen ||
+        bookingsOpen ||
+        salesOpen ||
         unitPick ||
+        sizePick ||
+        serialKey ||
         closingShift ||
         drawerOpen
       )
@@ -341,12 +668,24 @@ export default function PosScreen({
       if (e.key === "F2") {
         e.preventDefault();
         focusSearch();
+      } else if (e.key === "F10" && rp.canSaveTable && items.length) {
+        e.preventDefault();
+        rp.saveTable(clearCart);
+      } else if (e.key === "F10" && lp.canSaveOrder) {
+        e.preventDefault();
+        lp.saveOrder(clearCart, (o) => sendWa({ kind: "order", order: o }));
       } else if (e.key === "F9") {
         e.preventDefault();
         openPay();
       } else if (e.key === "F4") {
         e.preventDefault();
         hold();
+      } else if (e.key === "F7") {
+        e.preventDefault();
+        setSalesOpen(true);
+      } else if (e.key === "F6" && bookingsOn) {
+        e.preventDefault();
+        setBookingsOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -363,7 +702,7 @@ export default function PosScreen({
   };
 
   return (
-    <div className="pos">
+    <div className={`pos${rp.on ? " pos--restaurant" : ""}`}>
       {/* ============ الشريط العلوي ============ */}
       <div className="pos-top">
         <ShoppingCartOutlined style={{ fontSize: 20 }} />
@@ -373,6 +712,8 @@ export default function PosScreen({
         {shift ? (
           <Tag color="green">
             {t("ShiftNo")} {formatDocNo("shift", shift.number)}
+            {/* ترتيب الوردية في يوم العمل */}
+            {shift.dayNo ? ` (${shift.dayNo})` : ""}
           </Tag>
         ) : (
           <Tag color="red">{t("NoShift")}</Tag>
@@ -387,6 +728,79 @@ export default function PosScreen({
                 ` — ${t("Change")} ${money(lastSale.changeAmount)}`}
             </Tag>
           </Link>
+        )}
+        <Tooltip title="F7">
+          <Button
+            ghost
+            icon={<HistoryOutlined />}
+            onClick={() => setSalesOpen(true)}
+          >
+            <span className="pos-top__label">{t("PrevSales")}</span>
+          </Button>
+        </Tooltip>
+        {bookingNo && (
+          <Tag color="purple">
+            {tB("FromBooking")} <bdi>BK-{bookingNo}</bdi>
+          </Tag>
+        )}
+        {/* المغسلة: كل الشغل من الشاشة دي (الطلبات، الاشتراكات، الإعداد) */}
+        {lp.on && can("laundryOrders.view") && (
+          <Link href="/laundry/orders">
+            <Button ghost icon={<UnorderedListOutlined />}>
+              <span className="pos-top__label">{tL("OrdersBoard")}</span>
+            </Button>
+          </Link>
+        )}
+        {lp.on && can("laundry.view") && (
+          <Link href="/laundry">
+            <Button ghost icon={<SettingOutlined />}>
+              <span className="pos-top__label">{tL("Setup")}</span>
+            </Button>
+          </Link>
+        )}
+        {lp.on && (
+          <Tooltip title={tL("WaAutoHint")}>
+            <span className={`pos-top__wa ${waAuto ? "is-on" : ""}`}>
+              <Switch size="small" checked={waAuto} onChange={toggleWaAuto} />
+              <span className="pos-top__label">{tL("WaAuto")}</span>
+            </span>
+          </Tooltip>
+        )}
+        {/* المطعم: طلبات اليوم (الطاولات المفتوحة + البحث برقم الطلب) والمنيو */}
+        {rp.on && (
+          <Badge count={rp.pending} size="small">
+            <Button ghost icon={<UnorderedListOutlined />} onClick={rp.openOrders}>
+              <span className="pos-top__label">{tR("Orders")}</span>
+            </Button>
+          </Badge>
+        )}
+        {rp.on && can("restaurant.view") && (
+          <Link href="/restaurant">
+            <Button ghost icon={<SettingOutlined />}>
+              <span className="pos-top__label">{tR("Menu")}</span>
+            </Button>
+          </Link>
+        )}
+        {(lp.on || rp.on) && can("salesReturns.create") && (
+          <Button ghost icon={<RollbackOutlined />} onClick={() => setReturnOpen(true)}>
+            <span className="pos-top__label">{tL("ReturnTitle")}</span>
+          </Button>
+        )}
+        {lp.on && can("laundrySubscriptions.view") && (
+          <Button ghost icon={<WalletOutlined />} onClick={lp.openWallets}>
+            <span className="pos-top__label">{tL("Subscriptions")}</span>
+          </Button>
+        )}
+        {bookingsOn && !lp.on && (
+          <Tooltip title="F6">
+            <Button
+              ghost
+              icon={<CalendarOutlined />}
+              onClick={() => setBookingsOpen(true)}
+            >
+              <span className="pos-top__label">{tB("Title")}</span>
+            </Button>
+          </Tooltip>
         )}
         <Badge count={held.length} size="small">
           <Button
@@ -416,7 +830,7 @@ export default function PosScreen({
           </Button>
         )}
         <Tooltip title={t("Fullscreen")}>
-          <Button ghost icon={<FullscreenOutlined />} onClick={fullscreen} />
+          <Button aria-label={t("Fullscreen")} title={t("Fullscreen")} ghost icon={<FullscreenOutlined />} onClick={fullscreen} />
         </Tooltip>
         <Link href="/invoices/sales">
           <Button ghost icon={<ArrowRightOutlined />}>
@@ -429,6 +843,12 @@ export default function PosScreen({
         {/* ============ السلة ============ */}
         <div className="pos-cart">
           <div className="pos-cart__head">
+            {lp.on ? (
+              lp.head
+            ) : rp.on ? (
+              rp.head
+            ) : (
+              <>
             <div className="pos-search">
               <ProductPicker
                 onAdd={addFromPicker}
@@ -458,32 +878,87 @@ export default function PosScreen({
                 }}
               />
             </Space.Compact>
+              </>
+            )}
           </div>
+          {!lp.on && !rp.on && (
+            <>
+          {/* مقدم الخدمة للأصناف اللي هتتضاف (ويتغير لكل سطر) */}
+          {staffOn && (
+            <div className="mt-2">
+              <StaffSelect
+                value={staffId}
+                onChange={setStaffId}
+                style={{ width: "100%" }}
+              />
+            </div>
+          )}
           <CustomerB2BAlert
             compact
             customer={customers.find((c) => c.id === customerId)}
           />
+          {/* العميل عنده حجز النهارده ولسه ما اتربطش بالفاتورة */}
+          {bookingsOn && !bookingId && (
+            <CustomerBookingHint
+              customerId={customerId}
+              hasItems={items.length > 0}
+              onPick={pickBooking}
+              onLink={(b) => {
+                setBookingId(b.id);
+                setBookingNo(b.number);
+                message.success(tB("Linked", { number: `BK-${b.number}` }));
+              }}
+            />
+          )}
+            </>
+          )}
+          {/* عروض الولاء: مجانية في الفاتورة دي / فاضل كام */}
+          <LoyaltyHint info={loyaltyInfo} />
 
           <div className="pos-cart__lines">
             {!lines.length ? (
               <div className="pos-cart__empty">
                 <ShoppingCartOutlined style={{ fontSize: 48 }} />
-                <div>{t("EmptyCart")}</div>
-                <div style={{ fontSize: 12 }}>{t("ShortcutsHint")}</div>
+                <div>{rp.on ? tR("EmptyCart") : t("EmptyCart")}</div>
+                <div style={{ fontSize: 12 }}>{rp.on ? tR("ShortcutsHint") : t("ShortcutsHint")}</div>
               </div>
             ) : (
               [...lines].reverse().map((l) => {
+                if (isRestaurantLine(l) || isFeeLine(l))
+                  return rp.renderLine(l, {
+                    lastKey,
+                    onQty: (key, qty) => updateLine(key, { qty }),
+                    onRemove: removeLine,
+                  });
+                if (isLaundryLine(l))
+                  return lp.renderLine(l, {
+                    lastKey,
+                    onQty: (key, qty) => updateLine(key, { qty }),
+                    onRemove: removeLine,
+                  });
                 const factor =
                   l.units.find((u) => u.unit.id === l.unitId)?.factor ?? 1;
                 const short =
                   l.stock != null && l.qty * factor > l.stock + 1e-9;
+                // الوحدة متقبلش كسور (حبة) والكمية فيها كسر
+                const qtyBad = lineQtyProblem(l);
                 return (
                   <div
                     key={l.key}
                     className={`pos-line ${l.key === lastKey ? "is-last" : ""}`}
                   >
                     <div>
-                      <div className="pos-line__name">{nameOf(l)}</div>
+                      <div className="pos-line__name">
+                        {l.color && (
+                          <ColorDot
+                            name={l.color}
+                            hex={l.colorHex}
+                            size={12}
+                            style={{ marginInlineEnd: 6 }}
+                          />
+                        )}
+                        {nameOf(l)}
+                      </div>
                       <div className="pos-line__meta">
                         <bdi>{l.code}</bdi> ·{" "}
                         {l.itemDiscount > 0 && l.qty > 0 ? (
@@ -511,7 +986,27 @@ export default function PosScreen({
                             {t("Stock")} {Number(l.stock.toFixed(3))}
                           </Tag>
                         )}
+                        {qtyBad && (
+                          <Tag color="red" className="ms-1">
+                            {tAlerts(qtyProblemKey(qtyBad))}
+                          </Tag>
+                        )}
                       </div>
+                      {/* م² ↔ كرتونة (السيراميك) + زرار التقريب */}
+                      <LineConversion
+                        line={l}
+                        onRound={(qty) => updateLine(l.key, { qty })}
+                      />
+                      <LineSerials
+                        line={l}
+                        factor={factor}
+                        open={serialKey === l.key}
+                        onOpenChange={(o) => {
+                          setSerialKey(o ? l.key : null);
+                          if (!o) focusSearch();
+                        }}
+                        onChange={(patch) => updateLine(l.key, patch)}
+                      />
                     </div>
                     <div className="pos-line__total">{money(l.total)}</div>
                     <div className="pos-line__controls">
@@ -530,6 +1025,7 @@ export default function PosScreen({
                           min={0}
                           precision={3}
                           controls={false}
+                          status={qtyBad ? "error" : undefined}
                           value={l.qty}
                           onFocus={(e) => e.target.select()}
                           formatter={(v) =>
@@ -571,6 +1067,18 @@ export default function PosScreen({
                           onChange={(v) => updateLine(l.key, { price: v ?? 0 })}
                         />
                       )}
+                      {staffOn && (
+                        <StaffSelect
+                          size="small"
+                          style={{ minWidth: 130 }}
+                          value={l.job?.technicianId}
+                          onChange={(id) =>
+                            updateLine(l.key, {
+                              job: id ? { technicianId: id } : null,
+                            })
+                          }
+                        />
+                      )}
                       <span style={{ flex: 1 }} />
                       <Tooltip title={t("RemoveItem")}>
                         <Button
@@ -598,7 +1106,7 @@ export default function PosScreen({
                 <bdi>{money(totals.subtotal)}</bdi>
               </div>
               {invoicePromo && (
-                <div style={{ color: "#c41d7f" }}>
+                <div style={{ color: C.magenta }}>
                   <span>
                     <GiftOutlined /> {nameOf(invoicePromo)}
                   </span>
@@ -610,7 +1118,7 @@ export default function PosScreen({
                 </div>
               )}
               {totals.itemsDiscount + totals.invoiceDiscount > 0 && (
-                <div style={{ color: "#cf1322" }}>
+                <div style={{ color: C.dangerText }}>
                   <span>{tS("Discount")}</span>
                   <bdi>
                     -{money(totals.itemsDiscount + totals.invoiceDiscount)}
@@ -635,7 +1143,7 @@ export default function PosScreen({
             <div className="pos-actions">
               <Button
                 icon={<PauseCircleOutlined />}
-                disabled={!items.length}
+                disabled={!items.length || lp.on}
                 onClick={hold}
               >
                 {t("Hold")} (F4)
@@ -668,6 +1176,50 @@ export default function PosScreen({
                 </Button>
               </Popconfirm>
             </div>
+            {/* المغسلة: طلب من غير فاتورة (العميل هيدفع وقت الاستلام) */}
+            {lp.on && (
+              <Button
+                block
+                size="large"
+                className="lp-save-order"
+                icon={<SaveOutlined />}
+                disabled={!lp.canSaveOrder}
+                title={
+                  lp.walletBalance > 0 ? tL("SubscriberMustInvoice") : undefined
+                }
+                loading={lp.savingOrder}
+                onClick={() =>
+                  lp.saveOrder(clearCart, (o) =>
+                    sendWa({ kind: "order", order: o }),
+                  )
+                }
+              >
+                {tL(lp.editing ? "SaveOrderChanges" : "SaveAsOrder")} (F10)
+              </Button>
+            )}
+            {/* المطعم (الصالة): الطلب يتحفظ على الطاولة + تذكرة المطبخ، والحساب بعدين */}
+            {rp.canSaveTable && (
+              <Button
+                block
+                size="large"
+                className="lp-save-order"
+                icon={<SaveOutlined />}
+                disabled={!items.length || !shift}
+                loading={rp.saving}
+                onClick={() => rp.saveTable(clearCart)}
+              >
+                {tR(
+                  rp.order.orderType === "dinein"
+                    ? rp.order.orderId
+                      ? "UpdateTable"
+                      : "SaveTable"
+                    : rp.order.orderId
+                      ? "UpdateOrder"
+                      : "SaveOrder",
+                )}{" "}
+                (F10)
+              </Button>
+            )}
             <Button
               type="primary"
               block
@@ -681,20 +1233,56 @@ export default function PosScreen({
         </div>
 
         {/* ============ الأقسام والأصناف ============ */}
-        <Catalog categories={categories} onPick={addFromTile} />
+        {lp.on ? (
+          lp.catalog
+        ) : rp.on ? (
+          rp.catalog
+        ) : (
+          <Catalog categories={categories} onPick={addFromTile} />
+        )}
       </div>
 
       {/* ============ النوافذ ============ */}
+      {lp.modals}
+      {rp.modals}
+      {returnOpen && (
+        <LaundryReturnModal
+          methods={methods}
+          printSettings={printSettings}
+          company={company}
+          onClose={() => setReturnOpen(false)}
+        />
+      )}
       <PayModal
         open={payOpen}
-        total={totals.total}
+        total={lp.walletPlan ? lp.walletPlan.cashDue : totals.total}
         methods={methods}
         creditMethod={perms.credit && customerId ? creditMethod : null}
         hasCustomer={Boolean(customerId)}
         loading={paying}
-        onCancel={() => setPayOpen(false)}
+        onCancel={() => {
+          setPayOpen(false);
+          lp.clearWalletPlan();
+        }}
         onPay={pay}
       />
+
+      {/* شبكة المقاسات: المقاس بوحدة واحدة بينزل على طول، وأكتر ← اختيار الوحدة */}
+      {sizePick && (
+        <SizePickerModal
+          modelId={sizePick}
+          onClose={() => {
+            setSizePick(null);
+            focusSearch();
+          }}
+          onPick={(v) => {
+            setSizePick(null);
+            if (v.units.length > 1) return setUnitPick(v);
+            addLine(v, v.units[0].unit.id);
+            focusSearch();
+          }}
+        />
+      )}
 
       <Modal
         open={Boolean(unitPick)}
@@ -717,7 +1305,7 @@ export default function PosScreen({
             >
               <div>
                 <div>{nameOf(u.unit)}</div>
-                <div style={{ color: "#006266" }}>{money(u.price)}</div>
+                <div style={{ color: C.primary }}>{money(u.price)}</div>
               </div>
             </Button>
           ))}
@@ -769,13 +1357,53 @@ export default function PosScreen({
                   title={t("DeleteHeld")}
                   onConfirm={() => dropHeld(h)}
                 >
-                  <Button danger size="small" icon={<DeleteOutlined />} />
+                  <Button aria-label={tButtons("Delete")} title={tButtons("Delete")} danger size="small" icon={<DeleteOutlined />} />
                 </Popconfirm>
               </div>
             </div>
           ))
         )}
       </Modal>
+
+      {salesOpen && (
+        <PosSalesModal
+          open
+          onClose={() => {
+            setSalesOpen(false);
+            focusSearch();
+          }}
+          company={company}
+          printSettings={printSettings}
+          onAgentPrint={
+            rp.on
+              ? (doc, fallback) =>
+                  rp.printReceipt({
+                    title: `${tR("Invoice")} ${doc.number ?? ""}`.trim(),
+                    render: (paper) => (
+                      <SaleDocument
+                        settings={{ ...printSettings, paperSize: paper }}
+                        company={company}
+                        doc={doc}
+                        kind="sale"
+                      />
+                    ),
+                    fallback,
+                  }) === true
+              : undefined
+          }
+        />
+      )}
+
+      {bookingsOn && bookingsOpen && (
+        <PosBookingsModal
+          open
+          customers={customers}
+          initialQ={customers.find((c) => c.id === customerId)?.phone ?? ""}
+          hasItems={items.length > 0}
+          onClose={() => setBookingsOpen(false)}
+          onPick={pickBooking}
+        />
+      )}
 
       {/* لا يوجد وردية: لازم يفتح وردية قبل البيع */}
       <OpenShiftModal
@@ -814,6 +1442,9 @@ export default function PosScreen({
           onDone={() => {
             setReceipt(null);
             focusSearch();
+            sendWa(waAfterPrint.current);
+            waAfterPrint.current = null;
+            rp.flushTicket();
           }}
         >
           <SaleDocument
@@ -954,6 +1585,19 @@ function Catalog({ categories, onPick }) {
                 )}
               </div>
               <div className="pos-tile__name">{nameOf(p)}</div>
+              {/* المقاسات: ألوان الموديل دواير */}
+              {p.modelColors?.length > 0 && (
+                <div className="pos-tile__colors">
+                  {p.modelColors.slice(0, 8).map((c) => (
+                    <ColorDot
+                      key={c.name}
+                      name={c.name}
+                      hex={c.hex}
+                      size={12}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="pos-tile__price">{money(p.units[0].price)}</div>
             </div>
           ))

@@ -23,6 +23,7 @@ import {
   expandSelection,
   requiredBy,
 } from "@/lib/data-reset";
+import { C } from "@/lib/theme";
 import "./admin.css";
 
 // ============================================================
@@ -79,7 +80,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
   const run = () =>
     modal.confirm({
       title: t("Title"),
-      icon: <WarningOutlined style={{ color: "#cf1322" }} />,
+      icon: <WarningOutlined style={{ color: C.dangerText }} />,
       content: (
         <div>
           <p>{t("LastConfirm")}</p>
@@ -260,9 +261,9 @@ export default function DataResetView({ initialCounts, canBackup }) {
 
         <Card
           size="small"
-          style={{ borderColor: "#ff4d4f" }}
+          style={{ borderColor: C.danger }}
           title={
-            <span style={{ color: "#cf1322" }}>
+            <span style={{ color: C.dangerText }}>
               <WarningOutlined /> {t("Confirm")}
             </span>
           }

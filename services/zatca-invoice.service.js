@@ -1,4 +1,6 @@
 import "server-only";
+import { listCompanyCodes, multiTenant, runWithCompany } from "@/lib/tenant";
+import { tenantKey } from "@/lib/tenant-state";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
@@ -531,15 +533,19 @@ export async function assertNotSigned(db, saleId) {
 // ------------------------------------------------------------
 // الطابور في الخلفية
 // ------------------------------------------------------------
+// running / lastRun لكل شركة لوحدها (وضع الشركات)، و "_" للقاعدة الواحدة
 const worker = (globalThis.__zatcaWorker ??= {
   timer: null,
-  running: false,
-  lastRun: 0,
+  running: new Set(),
+  lastRun: new Map(),
 });
+if (!(worker.running instanceof Set)) worker.running = new Set();
+if (!(worker.lastRun instanceof Map)) worker.lastRun = new Map();
 
 export async function runZatcaQueue({ force = false } = {}) {
-  if (worker.running) return { skipped: true };
-  worker.running = true;
+  const key = await tenantKey();
+  if (worker.running.has(key)) return { skipped: true };
+  worker.running.add(key);
   const result = { signed: 0, sent: 0, failed: 0 };
   try {
     const units = await prisma.zatcaUnit.findMany({
@@ -589,23 +595,50 @@ export async function runZatcaQueue({ force = false } = {}) {
       else result.failed++;
     }
   } finally {
-    worker.running = false;
-    worker.lastRun = Date.now();
+    worker.running.delete(key);
+    worker.lastRun.set(key, Date.now());
   }
   return result;
 }
 
-// تشغيل الطابور كل دقيقة (وبينفّذ فعلياً كل intervalMinutes)
+// تشغيل الطابور كل دقيقة (وبينفّذ فعلياً كل intervalMinutes من إعدادات كل شركة)
+// وضع الشركات: بيلف على الشركات واحدة واحدة، كل شركة بإعدادات الزكاة بتاعتها
+async function zatcaTickOne(key) {
+  const settings = await getZatcaSettings();
+  const every = Math.max(1, settings.intervalMinutes) * 60_000;
+  if (Date.now() - (worker.lastRun.get(key) ?? 0) < every) return;
+  await runZatcaQueue();
+}
+
 export function ensureZatcaWorker() {
   if (worker.timer) return;
   worker.timer = setInterval(async () => {
+    if (!multiTenant()) {
+      try {
+        await zatcaTickOne("_");
+      } catch (error) {
+        console.error("[zatca] queue:", error?.message ?? error);
+      }
+      return;
+    }
+    let codes = [];
     try {
-      const settings = await getZatcaSettings();
-      const every = Math.max(1, settings.intervalMinutes) * 60_000;
-      if (Date.now() - worker.lastRun < every) return;
-      await runZatcaQueue();
+      codes = await listCompanyCodes();
     } catch (error) {
-      console.error("[zatca] queue:", error?.message ?? error);
+      console.error("[zatca] companies:", error?.message ?? error);
+    }
+    for (const code of codes) {
+      try {
+        await runWithCompany(code, async () => {
+          // شركة مش مربوطة بالزكاة: مفيش حاجة تتعمل
+          const units = await prisma.zatcaUnit.count({
+            where: { status: "active" },
+          });
+          if (units) await zatcaTickOne(code);
+        });
+      } catch (error) {
+        console.error(`[zatca] queue (${code}):`, error?.message ?? error);
+      }
     }
   }, 60_000);
   worker.timer.unref?.();

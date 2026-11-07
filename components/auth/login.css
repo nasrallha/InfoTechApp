@@ -1,6 +1,6 @@
 /* ============================================================
    صفحة تسجيل الدخول (تصميم مستقل عن لوحة التحكم)
-   الألوان من نفس هوية النظام: #222f3e (داكن) و #006266 (أخضر مزرق)
+   الألوان من نفس هوية النظام: var(--c-header) (داكن) و var(--c-primary) (أخضر مزرق)
    الخصائص "المنطقية" (inset-inline / padding-inline) تعمل مع العربي والإنجليزي
    ============================================================ */
 
@@ -8,7 +8,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  background: #f1f5f9;
+  background: var(--c-bg);
 }
 
 @media (min-width: 1024px) {
@@ -24,7 +24,7 @@
   overflow: hidden;
   padding: 56px 64px;
   color: #fff;
-  background: linear-gradient(145deg, #1b2735 0%, #222f3e 45%, #00494c 100%);
+  background: linear-gradient(145deg, var(--c-ink) 0%, var(--c-header) 45%, var(--c-primary-active) 100%);
   flex-direction: column;
   justify-content: space-between;
 }
@@ -45,14 +45,14 @@
 .login-brand__glow--one {
   width: 420px;
   height: 420px;
-  background: #0aa2a8;
+  background: var(--c-accent);
   top: -120px;
   inset-inline-end: -140px;
 }
 .login-brand__glow--two {
   width: 360px;
   height: 360px;
-  background: #3b5b7d;
+  background: var(--c-header);
   bottom: -140px;
   inset-inline-start: -120px;
 }
@@ -72,8 +72,8 @@
   place-items: center;
   font-size: 30px;
   color: #fff;
-  background: linear-gradient(135deg, #00a8a8, #006266);
-  box-shadow: 0 12px 30px rgba(0, 98, 102, 0.45);
+  background: linear-gradient(135deg, var(--c-accent), var(--c-primary));
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--c-primary) 45%, transparent);
   margin-bottom: 28px;
 }
 
@@ -174,17 +174,17 @@
 .login-lang {
   padding: 6px 14px;
   border-radius: 9999px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-border-strong);
   background: #fff;
-  color: #334155;
+  color: var(--c-text2);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
 }
 .login-lang:hover {
-  border-color: #006266;
-  color: #006266;
+  border-color: var(--c-primary);
+  color: var(--c-primary);
 }
 
 .login-card {
@@ -197,7 +197,7 @@
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04),
     0 20px 45px -12px rgba(15, 23, 42, 0.15);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-border);
 }
 
 @media (max-width: 480px) {
@@ -209,28 +209,28 @@
 .login-card__title {
   font-size: 26px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--c-text);
   margin: 0 0 6px;
 }
 
 .login-card__subtitle {
-  color: #64748b;
+  color: var(--c-muted);
   font-size: 15px;
   margin: 0 0 26px;
 }
 
 .login-card .ant-form-item-label > label {
   font-weight: 600;
-  color: #334155;
+  color: var(--c-text2);
 }
 
 .login-input-icon {
-  color: #94a3b8;
+  color: var(--c-subtle);
   margin-inline-end: 4px;
 }
 
 .login-caps {
-  color: #d97706;
+  color: var(--c-warning);
   font-size: 13px;
 }
 
@@ -240,19 +240,52 @@
   font-size: 16px;
   font-weight: 700;
   border-radius: 10px;
-  background: linear-gradient(135deg, #00888c, #006266);
+  background: linear-gradient(135deg, var(--c-primary-hover), var(--c-primary));
   border: none;
-  box-shadow: 0 10px 24px -8px rgba(0, 98, 102, 0.6);
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--c-primary) 60%, transparent);
 }
 .login-submit.ant-btn:not(:disabled):hover {
-  background: linear-gradient(135deg, #009a9e, #00575a) !important;
+  background: linear-gradient(135deg, var(--c-primary-hover), var(--c-primary-active)) !important;
 }
 
 .login-panel__secure {
   margin-top: 20px;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--c-subtle);
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* الشركة الحالية (وضع الشركات) + "شركة تانية؟" */
+.login-company {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+  border: 1px solid var(--c-primary-border);
+  border-radius: 10px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
+.login-company__name {
+  flex: 1;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.login-company__switch {
+  border: 0;
+  background: none;
+  color: var(--c-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  padding: 0;
+}
+.login-company__switch:hover {
+  color: var(--c-primary);
 }
