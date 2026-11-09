@@ -2242,6 +2242,8 @@ model Subscription {
   vendor        Json?
   // اسم مقدم الخدمة (ثابت للنشاط من اللوحة) - null = من الإعدادات العامة
   staffTitle    String?   @db.VarChar(12)
+  // صلاحيات مقفولة على الشركة من اللوحة (حتى مدير النظام) ← لمالك البرنامج بس
+  blockedPermissions Json?
   // آخر مرة اللوحة كتبت هنا
   syncedAt      DateTime
 

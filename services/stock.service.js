@@ -701,3 +701,41 @@ export async function warehouseQtys(warehouseId, productIds) {
   for (const r of rows) out[r.productId] = round4(n(r.qty));
   return out;
 }
+
+// الصنف في المستودعات التانية (اللي فيها رصيد) - تنبيه البيع لما فرعك مفيهوش كفاية
+// ← [{ warehouseId, arName, enName, isMain, branches: [{arName, enName}], qty }]
+export async function stockElsewhere(productId, excludeWarehouseId) {
+  const rows = await prisma.stockBalance.findMany({
+    where: {
+      productId,
+      qty: { gt: 0 },
+      ...(excludeWarehouseId ? { warehouseId: { not: excludeWarehouseId } } : {}),
+      warehouse: { isActive: true },
+    },
+    orderBy: { qty: "desc" },
+    take: 20,
+    select: {
+      qty: true,
+      warehouse: {
+        select: {
+          id: true,
+          arName: true,
+          enName: true,
+          isMain: true,
+          branches: {
+            where: { isActive: true },
+            select: { arName: true, enName: true },
+          },
+        },
+      },
+    },
+  });
+  return rows.map((r) => ({
+    warehouseId: r.warehouse.id,
+    arName: r.warehouse.arName,
+    enName: r.warehouse.enName,
+    isMain: r.warehouse.isMain,
+    branches: r.warehouse.branches,
+    qty: round4(n(r.qty)),
+  }));
+}

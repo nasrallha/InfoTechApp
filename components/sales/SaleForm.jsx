@@ -88,10 +88,22 @@ import LineSerials, {
   serialsShort,
 } from "@/components/serials/LineSerials";
 import { listSep } from "@/lib/list-sep";
+import { useStockElsewhere } from "@/components/common/useStockElsewhere";
 
 let lineSeq = 0;
 
 // سطر جديد من صنف (بأسعار البيع)
+// الكمية المطلوبة من صنف في السطور كلها (بالوحدة الأساسية) + اللي هيتضاف
+const neededBase = (lines, product, unitId, addQty) => {
+  const f = (units, uid) => units?.find((u) => u.unit.id === uid)?.factor ?? 1;
+  return (
+    lines
+      .filter((l) => l.productId === product.id)
+      .reduce((s, l) => s + Number(l.qty || 0) * f(l.units, l.unitId), 0) +
+    addQty * f(product.units, unitId)
+  );
+};
+
 export function lineFromProduct(product, unitId, qty = 1, price) {
   const unit =
     product.units.find((u) => u.unit.id === unitId) ?? product.units[0];
@@ -270,6 +282,8 @@ export default function SaleForm({
   const locale = useLocale();
   const t = useTranslations("Sales");
   const tP = useTranslations("Purchases");
+  // رصيد فرعك مش كفاية ← تنبيه بالفروع اللي فيها الصنف (البيع وعرض السعر)
+  const stockElsewhere = useStockElsewhere();
   const tAlerts = useTranslations("Alerts");
   const tSerial = useTranslations("Serials");
   // الإلزام موجود بس لو الوحدة مفعّلة
@@ -366,6 +380,8 @@ export default function SaleForm({
     const serial = !isQuotation ? (options.serial ?? null) : null;
     if (serial && serialInLines(items, product.id, serial.serial))
       return message.warning(tSerial("DuplicateInList"));
+    // عرض السعر كمان: تنبيه بس (العرض بيتعمل عادي)
+    stockElsewhere.check(product, neededBase(items, product, uid, addQty));
     setItems((prev) => {
       const found =
         !allowDuplicateLines &&
@@ -461,6 +477,7 @@ export default function SaleForm({
     form.resetFields();
     setVehicle(null);
     setItems([]);
+    stockElsewhere.reset();
     setDiscount({ type: "amount", value: 0 });
     setPayments(null);
     setSaving(null);

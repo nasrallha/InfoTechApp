@@ -1611,6 +1611,10 @@
     "EditSale": "Edit"
   },
   "Sales": {
+    "StockNoneHere": "“{name}” is out of stock in your branch",
+    "StockLowHere": "Only {qty} {unit} of “{name}” in your branch",
+    "StockAvailableAt": "Available at:",
+    "StockNowhere": "Not available in any other branch or warehouse",
     "CashCustomer": "Cash customer",
     "Vehicle": "Vehicle",
     "Odometer": "Odometer",

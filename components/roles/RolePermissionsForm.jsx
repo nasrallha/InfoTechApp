@@ -9,6 +9,9 @@ import { roleGroups } from "@/lib/permissions";
 import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import { setRolePermissionsAction } from "@/actions/role.actions";
 
+// خانات الهيدر: ثابتة فوق وإنت نازل بالـ scroll
+const TH = "p-2.5 font-bold sticky top-0 z-10 bg-(--c-header)";
+
 // شاشة صلاحيات دور: جدول (المجموعات × العمليات) بـ checkboxes
 // role: الدور المختار { id, isSuper, permissions: ["products.view", ...] }
 // onSuccess, setLoading: يرسلها FormModal تلقائياً
@@ -22,7 +25,11 @@ export default function RolePermissionsForm({ role, onSuccess, setLoading }) {
   // صلاحيات مالك البرنامج مش بتظهر هنا (مش بتتدي لأي دور)
   // وصلاحيات وحدات النشاط المقفولة عند الشركة كمان
   const currentUser = useCurrentUser();
-  const groups = roleGroups(currentUser?.ownerMode, currentUser?.moduleBlocked);
+  // المقفول على الشركة (الوحدة / الباقة / من اللوحة) مبيظهرش ولا بيتدي
+  const groups = roleGroups(currentUser?.ownerMode, [
+    ...(currentUser?.moduleBlocked ?? []),
+    ...(currentUser?.planBlocked ?? []),
+  ]);
   // كل العمليات الموجودة في المجموعات (أعمدة الجدول): عرض، إضافة، تعديل، حذف، ...
   const ACTIONS = [...new Set(groups.flatMap((g) => g.actions))];
 
@@ -112,17 +119,21 @@ export default function RolePermissionsForm({ role, onSuccess, setLoading }) {
         </Checkbox>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
+      {/* الجدول ليه scroll جواه، والهيدر (العمليات) ثابت فوق وإنت نازل */}
+      <div
+        className="overflow-auto rounded-lg border border-slate-200"
+        style={{ maxHeight: "calc(100vh - 290px)" }}
+      >
         <table className="w-full text-center border-collapse">
           <thead>
             <tr className={"bg-(--c-header) text-white"}>
-              <th className="p-2.5 text-start font-bold">{t("Group")}</th>
+              <th className={`${TH} text-start`}>{t("Group")}</th>
               {ACTIONS.map((action) => (
-                <th key={action} className="p-2.5 font-bold whitespace-nowrap">
+                <th key={action} className={`${TH} whitespace-nowrap`}>
                   {t(`actions.${action}`)}
                 </th>
               ))}
-              <th className="p-2.5 font-bold">{t("All")}</th>
+              <th className={TH}>{t("All")}</th>
             </tr>
           </thead>
           <tbody>

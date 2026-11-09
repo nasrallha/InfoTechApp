@@ -73,8 +73,14 @@ async function canManageCustomRoles(currentUser) {
 
 async function assertEditable(role, currentUser) {
   // الأدوار الثابتة مقفولة في وضع الشركات بس (قاعدتك المرجعية بتعدّل فيها عادي)
-  // مالك البرنامج: يعدّل الدور الثابت (اسمه وصلاحياته) للشركة دي بالذات
-  if (role.templateKey && multiTenant() && !currentUser?.isOwner)
+  // مالك البرنامج ومدير النظام: يعدّلوا الدور الثابت (اسمه وصلاحياته) للشركة دي
+  // (بيتعلّم «معدَّل للشركة» واللوحة متكتبش فوقه، والمقفول من اللوحة ميتديش)
+  if (
+    role.templateKey &&
+    multiTenant() &&
+    !currentUser?.isOwner &&
+    !currentUser?.isSuper
+  )
     throw new AppError("TemplateRoleLocked");
   if (!(await canManageCustomRoles(currentUser)))
     throw new AppError("CustomRolesNotInPlan");

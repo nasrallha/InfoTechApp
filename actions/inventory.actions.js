@@ -39,6 +39,8 @@ import {
   getStockBalances,
   getStockMovementReport,
   getVisibleWarehouses,
+  stockElsewhere,
+  userWarehouseId,
   warehouseQtys,
 } from "@/services/stock.service";
 import {
@@ -265,5 +267,19 @@ export async function warehouseQtysAction(input) {
     if (!visible.some((w) => w.id === d.warehouseId))
       throw new AppError("Forbidden");
     return warehouseQtys(d.warehouseId, d.productIds);
+  });
+}
+
+// البيع: الصنف رصيده في فرعك مش كفاية ← فين موجود في الفروع / المستودعات التانية
+export async function stockElsewhereAction(productId) {
+  return runAction(idField, productId, async (id, user) => {
+    if (
+      !can(user, "sales.pos") &&
+      !can(user, "sales.create") &&
+      !can(user, "quotations.create") &&
+      !can(user, "stock.view")
+    )
+      throw new AppError("Forbidden");
+    return stockElsewhere(id, await userWarehouseId(user));
   });
 }

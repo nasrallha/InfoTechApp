@@ -113,6 +113,7 @@ import StaffSelect, {
   useStaffOnPos,
 } from "@/components/technicians/StaffSelect";
 import { C } from "@/lib/theme";
+import { useStockElsewhere } from "@/components/common/useStockElsewhere";
 
 const PAGE_SIZE = 60;
 
@@ -140,6 +141,17 @@ const writeHeld = (userId, list) => {
 // - تعليق الفاتورة واسترجاعها، خصم (بصلاحية)، دفع سريع بالباقي للعميل
 // - لازم وردية مفتوحة، والإيصال يُطبع تلقائياً بعد الدفع
 // ============================================================
+// الكمية المطلوبة من صنف في السطور كلها (بالوحدة الأساسية) + اللي هيتضاف
+const neededBase = (lines, product, unitId, addQty) => {
+  const f = (units, uid) => units?.find((u) => u.unit.id === uid)?.factor ?? 1;
+  return (
+    lines
+      .filter((l) => l.productId === product.id)
+      .reduce((s, l) => s + Number(l.qty || 0) * f(l.units, l.unitId), 0) +
+    addQty * f(product.units, unitId)
+  );
+};
+
 export default function PosScreen({
   user,
   branch,
@@ -168,6 +180,8 @@ export default function PosScreen({
   const tZ = useTranslations("Zatca");
   const tS = useTranslations("Sales");
   const tB = useTranslations("Bookings");
+  // رصيد فرعك مش كفاية ← تنبيه بالفروع اللي فيها الصنف
+  const stockElsewhere = useStockElsewhere();
   const tAlerts = useTranslations("Alerts");
   const tSerial = useTranslations("Serials");
   const tButtons = useTranslations("Buttons");
@@ -366,6 +380,7 @@ export default function PosScreen({
         message.warning(tSerial("DuplicateInList"));
         return;
       }
+      stockElsewhere.check(product, neededBase(items, product, unitId, qty));
       setItems((prev) => {
         const found = prev.find(
           (l) => l.productId === product.id && l.unitId === unitId,
@@ -393,7 +408,7 @@ export default function PosScreen({
         return [...prev, line];
       });
     },
-    [serialsOn, items, tSerial, staffOn, staffId],
+    [serialsOn, items, tSerial, staffOn, staffId, stockElsewhere],
   );
 
   // من الماسح/البحث: الوحدة معروفة (باركودها) أو الأولى
@@ -430,6 +445,7 @@ export default function PosScreen({
 
   const clearCart = () => {
     setItems([]);
+    stockElsewhere.reset();
     setBookingId(null);
     setBookingNo(null);
     setCustomerId(null);

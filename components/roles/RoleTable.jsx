@@ -57,7 +57,11 @@ const RoleTable = ({
   const currentUser = useCurrentUser();
   const currentUserOwnerMode = Boolean(currentUser?.ownerMode);
   // صلاحيات وحدات النشاط المقفولة عند الشركة مبتظهرش
-  const moduleHidden = currentUser?.moduleBlocked;
+  // + المقفول على الشركة (الباقة / من اللوحة) مبيظهرش
+  const moduleHidden = [
+    ...(currentUser?.moduleBlocked ?? []),
+    ...(currentUser?.planBlocked ?? []),
+  ];
   // الصلاحيات اللي تتدي للأدوار (من غير صلاحيات مالك البرنامج)
   const assignable = new Set(
     roleGroups(currentUserOwnerMode, moduleHidden).flatMap((g) =>
@@ -334,7 +338,7 @@ const RoleTable = ({
           setPermissionsModalOpen(false);
           setSelectedRole(null);
         }}
-        width={900}
+        width={1150}
         title={
           <Flex align="center" justify="center" gap="small">
             <KeyOutlined style={{ fontSize: 20 }} />

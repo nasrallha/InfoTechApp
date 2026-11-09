@@ -1611,6 +1611,10 @@
     "EditSale": "تعديل"
   },
   "Sales": {
+    "StockNoneHere": "الصنف «{name}» غير متوفر في فرعك",
+    "StockLowHere": "رصيد «{name}» في فرعك {qty} {unit} فقط",
+    "StockAvailableAt": "متوفر في:",
+    "StockNowhere": "غير متوفر في أي فرع أو مستودع آخر",
     "CashCustomer": "عميل نقدي",
     "Vehicle": "السيارة",
     "Odometer": "قراءة العداد",
