@@ -1,6 +1,7 @@
 "use server";
 
 // الطلب الأونلاين للمطعم: صفحة العميل (من غير دخول) + إعداداته + قبول/رفض الكاشير
+import { assertPhones } from "@/lib/phone-check";
 import { headers } from "next/headers";
 import { runAction } from "@/lib/action";
 import { AppError } from "@/lib/errors";
@@ -79,7 +80,11 @@ export const publicCreateOrderAction = async (input) =>
     input,
     async ({ code, ...d }) => {
       await limit("order", 8, 30 * 60_000);
-      return inCompany(code, () => publicCreateOrder(d));
+      // الجوال حسب بلد الشركة (العملة الأساسية)
+      return inCompany(code, async () => {
+        await assertPhones(d);
+        return publicCreateOrder(d);
+      });
     },
     { public: true },
   );

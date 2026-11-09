@@ -34,6 +34,9 @@ model Role {
   // دور ثابت من لوحة التحكم (قالب): مقفول، العميل يختاره للمستخدمين بس
   // (القيمة = رقم القالب في اللوحة، null = دور عادي)
   templateKey String? @unique @db.VarChar(40)
+  // الدور الثابت اتعدّل للشركة دي (مالك البرنامج غيّر اسمه أو صلاحياته):
+  // اللوحة متكتبش فوقه وهي بتطبّق القوالب (إلا لو اخترت «طبّق على الكل» أو «رجّع للقالب»)
+  isCustomized Boolean @default(false)
 
   users       User[]
   permissions RolePermission[]
@@ -57,7 +60,10 @@ model Branch {
 
   // بيانات الفرع في الفاتورة (لو فاضية تُؤخذ من بيانات الشركة)
   phone          String? @db.VarChar(20)
-  registrationNo String? @db.VarChar(10) // السجل التجاري الفرعي
+  // معرّف الفرع في الفاتورة: النوع (CRN سجل تجاري | 700 الرقم الموحد | MOM | MLS | SAG | OTH)
+  // + الرقم في registrationNo (فاضي = معرّف الشركة)
+  idScheme       String? @db.VarChar(3)
+  registrationNo String? @db.VarChar(30) // رقم المعرّف (السجل التجاري الفرعي...)
   city           String? @db.VarChar(100)
   district       String? @db.VarChar(100)
   street         String? @db.VarChar(100)
@@ -383,6 +389,12 @@ model Product {
   startStock Decimal @default(0) @db.Decimal(18, 3)
 
   isActive Boolean @default(true)
+
+  // المستودعات اللي الصنف متاح فيها (الفروع بتشوف أصناف مستودعها بس):
+  // true = كل المستودعات | false = المستودعات المسجلة في product_warehouses بس
+  // (المستودع الرئيسي فيه كل الأصناف دايماً)
+  allWarehouses Boolean @default(true)
+  warehouses    ProductWarehouse[]
 
   // خدمة (مصنعية، تركيب...): بتتباع عادي ومالهاش مخزون ولا حركات
   isService Boolean @default(false)
@@ -1141,6 +1153,8 @@ model Warehouse {
   branches     Branch[]
   purchases    Purchase[]
   balances     StockBalance[]
+  // الأصناف المتاحة في المستودع (للأصناف اللي مش متاحة في كل المستودعات)
+  products     ProductWarehouse[]
   movements    StockMovement[]
   transfersOut StockTransfer[]  @relation("TransferFrom")
   adjustments  StockAdjustment[]
@@ -1152,6 +1166,28 @@ model Warehouse {
   updatedAt DateTime @updatedAt
 
   @@map("warehouses")
+}
+
+// الصنف في مستودع: متاح فيه + رصيده الافتتاحي هناك
+// - الصف موجود = الصنف متاح في المستودع (لو الصنف مش متاح في كل المستودعات)
+// - الرصيد الافتتاحي بالوحدة اللي اتكتب بيها (openingUnitId فاضي = الأساسية)
+//   وبيتحول لحركة opening على المستودع ده (رصيد المستودع الرئيسي في الصنف نفسه)
+// - أي بضاعة بتدخل المستودع (تحويل / شراء...) بتعمل الصف لوحدها
+model ProductWarehouse {
+  id Int @id @default(autoincrement())
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  openingQty    Decimal @default(0) @db.Decimal(18, 3)
+  openingUnitId Int?
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+  @@map("product_warehouses")
 }
 
 // رصيد كل صنف في كل مستودع (بالوحدة الأساسية)

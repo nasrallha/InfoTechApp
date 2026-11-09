@@ -31,6 +31,7 @@ import {
   activeTechniciansAction,
   createTechnicianAction,
 } from "@/actions/technician.actions";
+import PhoneField from "@/components/common/PhoneField";
 
 // الفنيين النشطين (مرة واحدة لكل الصفحة)
 let cache = null;
@@ -277,9 +278,7 @@ export function QuickTechnician({ onClose, onAdded }) {
             </Form.Item>
           </Col>
           <Col xs={14}>
-            <Form.Item name="phone" label={t("Phone")}>
-              <Input dir="ltr" autoComplete="off" />
-            </Form.Item>
+            <PhoneField label={t("Phone")} />
           </Col>
           <Col xs={10}>
             <Form.Item name="commissionRate" label={t("Rate")}>

@@ -22,7 +22,10 @@ async function RolesContent() {
     <RolesView
       roles={roles}
       customAllowed={customAllowed}
-      lockFixed={multiTenant()}
+      // الأدوار الثابتة: مقفولة على العميل، ومالك البرنامج يعدّلها للشركة دي
+      lockFixed={multiTenant() && !user?.isOwner}
+      // الدور الثابت مبيتمسحش في وضع الشركات (حتى للمالك: اللوحة بترجّعه)
+      lockDelete={multiTenant()}
     />
   );
 }

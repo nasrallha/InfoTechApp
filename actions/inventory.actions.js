@@ -12,6 +12,7 @@ import {
 } from "@/validations/purchase.schema";
 import {
   createTransferSchema,
+  updateTransferSchema,
   receiveTransferSchema,
   createCountSchema,
   updateCountSchema,
@@ -21,6 +22,7 @@ import {
   createAdjustmentSchema,
   updateAdjustmentSchema,
   stockMovementReportSchema,
+  warehouseQtysSchema,
 } from "@/validations/inventory.schema";
 import {
   cancelAdjustment,
@@ -37,11 +39,13 @@ import {
   getStockBalances,
   getStockMovementReport,
   getVisibleWarehouses,
+  warehouseQtys,
 } from "@/services/stock.service";
 import {
   createTransfer,
   receiveTransfer,
   cancelTransfer,
+  updateTransfer,
   getCountSheet,
   createCount,
   updateCount,
@@ -135,6 +139,16 @@ export async function createTransferAction(input) {
     createTransferSchema,
     input,
     (d, user) => createTransfer(d, user),
+    { permission: "transfers.create" },
+  );
+}
+
+// تعديل تحويل لسه في الطريق (الأصناف والكميات والمستودعات)
+export async function updateTransferAction(input) {
+  return runAction(
+    updateTransferSchema,
+    input,
+    (d, user) => updateTransfer(d, user),
     { permission: "transfers.create" },
   );
 }
@@ -238,5 +252,18 @@ export async function cancelAdjustmentAction(id) {
   return runAction(idField, id, (d, user) => cancelAdjustment(d, user), {
     permission: "stockAdjustments.cancel",
     refresh: true,
+  });
+}
+
+// رصيد أصناف في مستودع (التحويل: المتاح في المستودع المُرسِل لكل صنف)
+// ← { [productId]: الكمية بالوحدة الأساسية }
+// المستودع لازم يكون من المستودعات اللي المستخدم يشوفها
+export async function warehouseQtysAction(input) {
+  return runAction(warehouseQtysSchema, input, async (d, user) => {
+    assertPicker(user);
+    const visible = await getVisibleWarehouses(user);
+    if (!visible.some((w) => w.id === d.warehouseId))
+      throw new AppError("Forbidden");
+    return warehouseQtys(d.warehouseId, d.productIds);
   });
 }

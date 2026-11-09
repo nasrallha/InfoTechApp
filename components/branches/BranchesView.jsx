@@ -42,6 +42,7 @@ export default function BranchesView({ branches, warehouses, priceLists }) {
           </>
         }
         formId="AddBranchForm"
+        width={1000}
       >
         <AddBranchForm warehouses={warehouses} priceLists={priceLists} />
       </FormModal>

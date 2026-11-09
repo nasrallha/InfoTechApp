@@ -1,6 +1,10 @@
 "use client";
-import { Col, Divider, Form, Input, Row, Select, Switch } from "antd";
+import { Col, Divider, Form, Input, Row, Select, Switch, Tooltip } from "antd";
+import { QuestionCircleOutlined } from "@ant-design/icons";
+import { C } from "@/lib/theme";
+import { SELLER_ID_SCHEMES, idValid } from "@/lib/zatca-tax";
 import { useLocale, useTranslations } from "next-intl";
+import PhoneField from "@/components/common/PhoneField";
 
 // القيم المرسلة للسيرفر من فورم الفرع (مشتركة بين الإضافة والتعديل)
 export const branchPayload = (values) => ({
@@ -9,6 +13,7 @@ export const branchPayload = (values) => ({
   address: values.address,
   isActive: values.isActive,
   phone: values.phone ?? "",
+  idScheme: values.idScheme ?? "CRN",
   registrationNo: values.registrationNo ?? "",
   city: values.city ?? "",
   district: values.district ?? "",
@@ -16,9 +21,14 @@ export const branchPayload = (values) => ({
   buildingNo: values.buildingNo ?? "",
   additionalNo: values.additionalNo ?? "",
   postalCode: values.postalCode ?? "",
-  warehouseId: values.warehouseId ?? null,
+  // «مستودع جديد باسم الفرع» ← السيرفر بيعمله ويربطه
+  warehouseId: values.warehouseId === NEW_WAREHOUSE ? null : (values.warehouseId ?? null),
+  newWarehouse: values.warehouseId === NEW_WAREHOUSE,
   priceListId: values.priceListId ?? null,
 });
+
+// اختيار «مستودع جديد باسم الفرع» في قائمة المستودعات
+export const NEW_WAREHOUSE = "new";
 
 // قيم الفورم من بيانات الفرع
 export const branchFormValues = (branch) => ({
@@ -27,6 +37,7 @@ export const branchFormValues = (branch) => ({
   address: branch?.address ?? "",
   isActive: branch?.isActive ?? true,
   phone: branch?.phone ?? "",
+  idScheme: branch?.idScheme ?? "CRN",
   registrationNo: branch?.registrationNo ?? "",
   city: branch?.city ?? "",
   district: branch?.district ?? "",
@@ -34,7 +45,8 @@ export const branchFormValues = (branch) => ({
   buildingNo: branch?.buildingNo ?? "",
   additionalNo: branch?.additionalNo ?? "",
   postalCode: branch?.postalCode ?? "",
-  warehouseId: branch?.warehouseId ?? undefined,
+  // الفرع الجديد: مستودع جديد باسمه (الافتراضي) | الموجود: مستودعه (فاضي = الرئيسي)
+  warehouseId: branch ? (branch.warehouseId ?? undefined) : NEW_WAREHOUSE,
   priceListId: branch?.priceListId ?? undefined,
 });
 
@@ -49,6 +61,7 @@ export default function BranchFormFields({
   const locale = useLocale();
   const t = useTranslations("Branches");
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
+  const idScheme = Form.useWatch("idScheme");
 
   const nameRules = [
     { required: true, whitespace: true, message: tAlerts("RequiredField") },
@@ -61,18 +74,19 @@ export default function BranchFormFields({
 
   return (
     <>
+      {/* الاسم والعنوان والحالة في سطر واحد */}
       <Row gutter={[12, 0]}>
-        <Col xs={24} sm={12}>
+        <Col xs={24} sm={12} lg={6}>
           <Form.Item label={tForm("ArName")} name="arName" rules={nameRules}>
             <Input />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12}>
+        <Col xs={24} sm={12} lg={6}>
           <Form.Item label={tForm("EnName")} name="enName" rules={nameRules}>
             <Input dir="ltr" />
           </Form.Item>
         </Col>
-        <Col xs={24}>
+        <Col xs={18} sm={18} lg={9}>
           <Form.Item
             label={tForm("Address")}
             name="address"
@@ -85,13 +99,22 @@ export default function BranchFormFields({
               { max: 255, message: tAlerts("TextTooLong") },
             ]}
           >
-            <Input.TextArea rows={1} autoSize={{ minRows: 1, maxRows: 3 }} />
+            <Input />
+          </Form.Item>
+        </Col>
+        <Col xs={6} sm={6} lg={3}>
+          <Form.Item
+            name="isActive"
+            label={tForm("Active")}
+            valuePropName="checked"
+          >
+            <Switch />
           </Form.Item>
         </Col>
       </Row>
 
       {/* ============ المستودع وقائمة الأسعار ============ */}
-      <Divider titlePlacement="start" plain>
+      <Divider titlePlacement="start" plain style={{ margin: "4px 0 12px" }}>
         {t("StockAndPrices")}
       </Divider>
       <Row gutter={[12, 0]}>
@@ -104,10 +127,13 @@ export default function BranchFormFields({
             <Select
               allowClear
               placeholder={t("MainWarehouseDefault")}
-              options={warehouses.map((w) => ({
-                value: w.id,
-                label: nameOf(w),
-              }))}
+              options={[
+                { value: NEW_WAREHOUSE, label: t("NewBranchWarehouse") },
+                ...warehouses.map((w) => ({
+                  value: w.id,
+                  label: nameOf(w),
+                })),
+              ]}
             />
           </Form.Item>
         </Col>
@@ -129,44 +155,75 @@ export default function BranchFormFields({
         </Col>
       </Row>
 
-      {/* ============ بيانات الفاتورة ============ */}
-      <Divider titlePlacement="start" plain>
-        {t("InvoiceData")}
+      {/* ============ بيانات الفاتورة (الشرح ❔) ============ */}
+      <Divider titlePlacement="start" plain style={{ margin: "4px 0 12px" }}>
+        <Tooltip title={t("InvoiceDataHint")}>
+          <span>
+            {t("InvoiceData")}{" "}
+            <QuestionCircleOutlined style={{ color: C.muted }} />
+          </span>
+        </Tooltip>
       </Divider>
-      <p className="text-gray-500 mb-3" style={{ fontSize: 13 }}>
-        {t("InvoiceDataHint")}
-      </p>
       <Row gutter={[12, 0]}>
-        <Col xs={24} sm={12}>
-          <Form.Item label={t("Phone")} name="phone">
-            <Input dir="ltr" maxLength={20} />
-          </Form.Item>
+        <Col xs={12} sm={12} lg={6}>
+          <PhoneField label={t("Phone")} />
         </Col>
-        <Col xs={24} sm={12}>
+        {/* معرّف الفرع: النوع + الرقم (زي بيانات الشركة) */}
+        <Col xs={12} sm={12} lg={6}>
           <Form.Item
-            label={t("RegistrationNo")}
-            name="registrationNo"
-            rules={digits(10, "RegistrationNoInvalid")}
+            label={tForm("SellerIdScheme")}
+            name="idScheme"
+            tooltip={t("IdSchemeHint")}
           >
-            <Input dir="ltr" maxLength={10} />
+            <Select
+              options={SELLER_ID_SCHEMES.map((code) => ({
+                value: code,
+                label: `${tForm(`idSchemes.${code}`)} (${code})`,
+              }))}
+            />
           </Form.Item>
         </Col>
-        <Col xs={12} sm={8}>
+        <Col xs={12} sm={12} lg={6}>
+          <Form.Item
+            label={t(idScheme === "CRN" ? "RegistrationNo" : "IdNumber")}
+            name="registrationNo"
+            dependencies={["idScheme"]}
+            rules={[
+              {
+                validator: (_, v) =>
+                  !v || idValid(idScheme ?? "CRN", v)
+                    ? Promise.resolve()
+                    : Promise.reject(
+                        new Error(
+                          tAlerts(
+                            idScheme === "CRN"
+                              ? "RegistrationNoInvalid"
+                              : "IdNumberInvalid",
+                          ),
+                        ),
+                      ),
+              },
+            ]}
+          >
+            <Input dir="ltr" maxLength={idScheme === "CRN" ? 10 : 30} />
+          </Form.Item>
+        </Col>
+        <Col xs={12} sm={12} lg={6}>
           <Form.Item label={t("City")} name="city">
             <Input maxLength={100} />
           </Form.Item>
         </Col>
-        <Col xs={12} sm={8}>
+        <Col xs={12} sm={12} lg={6}>
           <Form.Item label={t("District")} name="district">
             <Input maxLength={100} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} lg={6}>
           <Form.Item label={t("Street")} name="street">
             <Input maxLength={100} />
           </Form.Item>
         </Col>
-        <Col xs={8}>
+        <Col xs={8} sm={4} lg={4}>
           <Form.Item
             label={t("BuildingNo")}
             name="buildingNo"
@@ -175,7 +232,7 @@ export default function BranchFormFields({
             <Input dir="ltr" maxLength={4} />
           </Form.Item>
         </Col>
-        <Col xs={8}>
+        <Col xs={8} sm={4} lg={4}>
           <Form.Item
             label={t("AdditionalNo")}
             name="additionalNo"
@@ -184,7 +241,7 @@ export default function BranchFormFields({
             <Input dir="ltr" maxLength={4} />
           </Form.Item>
         </Col>
-        <Col xs={8}>
+        <Col xs={8} sm={4} lg={4}>
           <Form.Item
             label={t("PostalCode")}
             name="postalCode"
@@ -194,14 +251,6 @@ export default function BranchFormFields({
           </Form.Item>
         </Col>
       </Row>
-
-      <Form.Item
-        name="isActive"
-        label={tForm("Active")}
-        valuePropName="checked"
-      >
-        <Switch />
-      </Form.Item>
     </>
   );
 }

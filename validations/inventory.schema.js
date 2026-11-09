@@ -177,3 +177,14 @@ export const stockMovementReportSchema = z.object({
   page: pageField,
   all: z.boolean().default(false),
 });
+
+// تعديل تحويل لسه في الطريق = بيانات الإضافة + رقمه
+export const updateTransferSchema = createTransferSchema.extend({
+  id: idField,
+});
+
+// رصيد أصناف في مستودع (شاشة التحويل)
+export const warehouseQtysSchema = z.object({
+  warehouseId: idField,
+  productIds: z.array(idField).max(500),
+});

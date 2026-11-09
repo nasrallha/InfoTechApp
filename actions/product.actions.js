@@ -34,6 +34,16 @@ function readProductForm(formData) {
   } catch {
     units = null; // سيرفضها Zod برسالة واضحة
   }
+  // المستودعات (الفروع): متاح فين + الرصيد الافتتاحي في كل مستودع
+  // (الشاشة مبعتتش الجدول ← undefined: الإتاحة والأرصدة متتلمسش)
+  let stores;
+  try {
+    const raw = formData.get("stores");
+    stores = raw === null ? undefined : JSON.parse(raw || "[]");
+  } catch {
+    stores = null;
+  }
+  const allWarehouses = formData.get("allWarehouses");
 
   return {
     ...(formData.get("id") ? { id: num("id") } : {}),
@@ -56,6 +66,10 @@ function readProductForm(formData) {
     image: image instanceof File && image.size > 0 ? image : null,
     removeImage: bool("removeImage"),
     units,
+    ...(allWarehouses === null
+      ? {}
+      : { allWarehouses: allWarehouses === "true" }),
+    stores,
     // الأرقام التسلسلية والضمان (وحدة serials)
     serialCount: num("serialCount"),
     serialLabel1: formData.get("serialLabel1") || null,
@@ -87,7 +101,7 @@ export async function updateProductAction(formData) {
   return runAction(
     updateProductSchema,
     readProductForm(formData),
-    (data) => updateProduct(data),
+    (data, user) => updateProduct(data, user),
     {
       permission: "products.update",
     },

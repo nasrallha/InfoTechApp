@@ -34,7 +34,16 @@ const SortableItem = ({ id, children }) => {
 // الوحدات الإضافية للمنتج (علبة، كرتونة ...)
 // form: فورم المنتج (نقرأ منه الوحدة الأساسية حتى نستبعدها من القائمة)
 // units: كل الوحدات النشطة (من السيرفر)
-const AdditionalUnitsForm = ({ form, units = [] }) => {
+// hideStock: إخفاء الرصيد الافتتاحي (رصيد المستودع الرئيسي) لموظف الفرع
+// compact: في نص الشاشة (جنب الصورة) ← كل وحدة على سطرين في الشاشات الكبيرة
+const AdditionalUnitsForm = ({
+  form,
+  units = [],
+  hideStock = false,
+  compact = false,
+}) => {
+  // عرض الحقل: md زي ما هو، وlg في نص الشاشة
+  const sp = (md, lg) => (compact ? { md, lg } : { md });
   const locale = useLocale();
   const tButtons = useTranslations("Buttons");
   const tAlerts = useTranslations("Alerts");
@@ -93,7 +102,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     }}
                   >
                     {/* الوحدة */}
-                    <Col xs={24} md={4}>
+                    <Col xs={24} {...sp(4, 8)}>
                       <Form.Item
                         {...restField}
                         name={[name, "unitId"]}
@@ -110,7 +119,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     </Col>
 
                     {/* معامل التحويل: كم وحدة أساسية داخل هذه الوحدة */}
-                    <Col xs={12} md={3}>
+                    <Col xs={12} {...sp(3, 6)}>
                       <Form.Item
                         {...restField}
                         name={[name, "conversionFactor"]}
@@ -135,7 +144,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     </Col>
 
                     {/* باركود الوحدة (اختياري) */}
-                    <Col xs={12} md={4}>
+                    <Col xs={12} {...sp(4, 10)}>
                       <Form.Item
                         {...restField}
                         name={[name, "barcode"]}
@@ -146,7 +155,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     </Col>
 
                     {/* سعر الوحدة */}
-                    <Col xs={12} md={3}>
+                    <Col xs={12} {...sp(3, 7)}>
                       <Form.Item
                         {...restField}
                         name={[name, "price"]}
@@ -162,7 +171,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     </Col>
 
                     {/* تكلفة الوحدة */}
-                    <Col xs={12} md={3}>
+                    <Col xs={12} {...sp(3, 7)}>
                       <Form.Item
                         {...restField}
                         name={[name, "cost"]}
@@ -176,8 +185,13 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                       </Form.Item>
                     </Col>
 
-                    {/* الرصيد الافتتاحي بهذه الوحدة (10 كرتونة) - اختياري */}
-                    <Col xs={10} md={5}>
+                    {/* الرصيد الافتتاحي بهذه الوحدة (10 كرتونة) - اختياري
+                        (موظف الفرع: مخفي، رصيده في جدول المستودعات) */}
+                    <Col
+                      xs={10}
+                      {...sp(5, 8)}
+                      style={hideStock ? { display: "none" } : undefined}
+                    >
                       <Form.Item
                         {...restField}
                         name={[name, "startStock"]}
@@ -197,7 +211,7 @@ const AdditionalUnitsForm = ({ form, units = [] }) => {
                     </Col>
 
                     {/* حذف السطر */}
-                    <Col xs={2} md={2} className="flex items-center justify-center"
+                    <Col xs={2} {...sp(2, 2)} className="flex items-center justify-center"
                       style={{ paddingTop: 38 }}>
                       <MinusCircleOutlined
                         style={{ fontSize: 18, color: C.danger }}

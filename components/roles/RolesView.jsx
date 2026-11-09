@@ -17,6 +17,7 @@ export default function RolesView({
   roles,
   customAllowed = true,
   lockFixed = true,
+  lockDelete = true,
 }) {
   const [addRoleModalOpen, setAddRoleModalOpen] = useState(false);
   const tSidebar = useTranslations("Sidebar");
@@ -68,6 +69,7 @@ export default function RolesView({
         roles={roles}
         customAllowed={customAllowed}
         lockFixed={lockFixed}
+        lockDelete={lockDelete}
       />
     </>
   );

@@ -2,7 +2,14 @@ import "server-only";
 import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
-import { getVisibleWarehouses, syncOpeningStock } from "./stock.service";
+import {
+  availableInWhere,
+  getMainWarehouseId,
+  getVisibleWarehouses,
+  syncOpeningStock,
+  userWarehouseId,
+} from "./stock.service";
+import { can } from "@/lib/permissions";
 import { saveImage, deleteImage } from "@/lib/upload";
 import { hasModule } from "@/lib/modules";
 
@@ -63,6 +70,8 @@ const productSelect = {
   startStock: true,
   isActive: true,
   isService: true,
+  // المستودعات اللي الصنف متاح فيها (true = كلها)
+  allWarehouses: true,
   serialCount: true,
   serialLabel1: true,
   serialLabel2: true,
@@ -100,11 +109,18 @@ const sumQty = (balances) =>
 
 // كل المنتجات (لجدول المنتجات)
 // warehouseIds: المستودعات التي يراها المستخدم ← عمود "الرصيد" = مجموع رصيده فيها
-export async function getProducts({ warehouseIds = [] } = {}) {
+// onlyWarehouseId: موظف الفرع ← أصناف مستودع فرعه بس
+export async function getProducts({
+  warehouseIds = [],
+  onlyWarehouseId = null,
+} = {}) {
   const products = await prisma.product.findMany({
+    where: await availableInWhere(onlyWarehouseId),
     orderBy: { id: "desc" },
     select: {
       ...productSelect,
+      // المستودعات المتاح فيها (فلتر المستودع في الجدول)
+      warehouses: { select: { warehouseId: true } },
       _count: { select: { productUnits: true } },
       productUnits: {
         select: { conversionFactor: true, unit: { select: nameSelect } },
@@ -116,8 +132,9 @@ export async function getProducts({ warehouseIds = [] } = {}) {
     },
   });
 
-  return products.map(({ productUnits, stockBalances, ...p }) => ({
+  return products.map(({ productUnits, stockBalances, warehouses, ...p }) => ({
     ...toProductDTO(p),
+    warehouseIds: warehouses.map((w) => w.warehouseId),
     units: unitsList({ ...p, productUnits }),
     stock: sumQty(stockBalances),
   }));
@@ -183,6 +200,10 @@ export async function getProductById(id) {
     where: { id },
     select: {
       ...productSelect,
+      // المستودعات المتاح فيها + الرصيد الافتتاحي في كل واحد
+      warehouses: {
+        select: { warehouseId: true, openingQty: true, openingUnitId: true },
+      },
       productUnits: {
         orderBy: { id: "asc" },
         select: {
@@ -199,7 +220,36 @@ export async function getProductById(id) {
     },
   });
 
-  return product ? toProductDTO(product) : null;
+  if (!product) return null;
+  const { warehouses, ...rest } = product;
+  return {
+    ...toProductDTO(rest),
+    warehouses: warehouses.map((w) => ({
+      warehouseId: w.warehouseId,
+      openingQty: toNumber(w.openingQty),
+      openingUnitId: w.openingUnitId,
+    })),
+  };
+}
+
+// مستودعات شاشة الصنف (جدول «متاح فين + الرصيد الافتتاحي»):
+// المدير: كل المستودعات النشطة | موظف الفرع: مستودع فرعه بس
+// + اسم الفرع المربوط بكل مستودع
+export async function getProductWarehouseOptions(user) {
+  const all = can(user, "allBranches.view");
+  const own = all ? null : await userWarehouseId(user);
+  const warehouses = await prisma.warehouse.findMany({
+    where: { isActive: true, ...(all ? {} : { id: own ?? -1 }) },
+    orderBy: [{ isMain: "desc" }, { id: "asc" }],
+    select: {
+      id: true,
+      arName: true,
+      enName: true,
+      isMain: true,
+      branches: { select: { arName: true, enName: true } },
+    },
+  });
+  return { warehouses, all };
 }
 
 // القوائم التي يحتاجها فورم المنتج: الأقسام والوحدات النشطة
@@ -388,6 +438,124 @@ function handleUniqueError(error) {
   throw error;
 }
 
+// رصيد المستودع الرئيسي (خانات الرصيد الافتتاحي في الصنف): للمدير أو لفرع على الرئيسي
+// موظف فرع ليه مستودع تاني: رصيد فرعه في جدول المستودعات، والرئيسي متتلمسش
+async function ownsMainStock(user) {
+  if (can(user, "allBranches.view")) return true;
+  return (await userWarehouseId(user)) === (await getMainWarehouseId());
+}
+
+// ------------------------------------------------------------
+// المستودعات (الفروع) اللي الصنف متاح فيها + رصيده الافتتاحي في كل واحد
+// ------------------------------------------------------------
+// - المدير (عرض كل الفروع): «كل المستودعات» أو مستودعات محددة، ورصيد كل مستودع
+// - موظف الفرع: مستودع فرعه بس (الصنف الجديد بيتقفل على فرعه، والتعديل
+//   ميغيّرش إتاحة الفروع التانية)
+// - المستودع الرئيسي: فيه كل الأصناف، ورصيده الافتتاحي في خانات الصنف نفسه
+// - الصف موجود = الصنف متاح في المستودع، أو ليه رصيد افتتاحي فيه
+// - الخدمة: من غير رصيد
+async function saveProductWarehouses(productId, d, user, isCreate) {
+  const all = can(user, "allBranches.view");
+  // الشاشة مبعتتش جدول المستودعات (مستودع واحد / شاشة تانية زي المطعم):
+  // التعديل ← ولا حاجة تتغير | الإضافة ← موظف الفرع بس (يتقفل على فرعه)
+  if (d.stores === undefined && d.allWarehouses === undefined) {
+    if (!isCreate || all) return;
+  }
+  const mainId = await getMainWarehouseId();
+  const own = all ? null : await userWarehouseId(user);
+  // الوحدة اللي الرصيد اتكتب بيها ← معامل التحويل للأساسية
+  const factor = (unitId) => {
+    if (!unitId || unitId === d.baseUnitId) return 1;
+    const u = d.units.find((x) => x.unitId === unitId);
+    if (!u) throw new AppError("UnitNotFound");
+    return Number(u.conversionFactor) || 1;
+  };
+
+  // كل المستودعات ولا محددة: المدير بيختار | موظف الفرع: الجديد بيتقفل على فرعه
+  let flag;
+  if (all) flag = d.allWarehouses ?? (isCreate ? true : undefined);
+  else if (isCreate) flag = !own || own === mainId;
+  const limited =
+    flag === undefined
+      ? !(
+          await prisma.product.findUnique({
+            where: { id: productId },
+            select: { allWarehouses: true },
+          })
+        )?.allWarehouses
+      : !flag;
+
+  // الصفوف اللي المستخدم يقدر يغيّرها (الرئيسي برّه الجدول)
+  let rows = (d.stores ?? []).filter((s) => s.warehouseId !== mainId);
+  if (!all) {
+    rows = rows.filter((s) => s.warehouseId === own);
+    if (isCreate && own && own !== mainId && !rows.length)
+      rows = [{ warehouseId: own, available: true, openingQty: 0 }];
+  }
+  const keep = rows
+    .map((r) => ({
+      warehouseId: r.warehouseId,
+      openingQty: d.isService ? 0 : Number(r.openingQty) || 0,
+      openingUnitId: d.isService ? null : (r.openingUnitId ?? null),
+      // كل المستودعات: الصف بس للرصيد الافتتاحي
+      available: limited ? Boolean(r.available) : false,
+    }))
+    .filter((r) => r.available || r.openingQty > 0);
+  // الوحدة لازم تكون من وحدات الصنف (قبل أي حفظ)
+  for (const r of keep) factor(r.openingUnitId);
+
+  const existing = await prisma.productWarehouse.findMany({
+    where: { productId },
+    select: { warehouseId: true },
+  });
+  const scope = all
+    ? [
+        ...new Set([
+          ...existing.map((e) => e.warehouseId),
+          ...rows.map((r) => r.warehouseId),
+        ]),
+      ]
+    : own && own !== mainId
+      ? [own]
+      : [];
+  const keepIds = new Set(keep.map((r) => r.warehouseId));
+
+  await prisma.$transaction(async (tx) => {
+    if (flag !== undefined)
+      await tx.product.update({
+        where: { id: productId },
+        data: { allWarehouses: flag },
+      });
+    const drop = scope.filter((w) => !keepIds.has(w));
+    if (drop.length)
+      await tx.productWarehouse.deleteMany({
+        where: { productId, warehouseId: { in: drop } },
+      });
+    for (const r of keep)
+      await tx.productWarehouse.upsert({
+        where: {
+          productId_warehouseId: { productId, warehouseId: r.warehouseId },
+        },
+        create: {
+          productId,
+          warehouseId: r.warehouseId,
+          openingQty: r.openingQty,
+          openingUnitId: r.openingUnitId,
+        },
+        update: { openingQty: r.openingQty, openingUnitId: r.openingUnitId },
+      });
+  });
+
+  // الرصيد الافتتاحي لكل مستودع ← حركة opening عليه (بالوحدة الأساسية)
+  for (const w of scope) {
+    const r = keep.find((x) => x.warehouseId === w);
+    const qty = r
+      ? Math.round(r.openingQty * factor(r.openingUnitId) * 1000) / 1000
+      : 0;
+    await syncOpeningStock(productId, qty, d.cost ?? 0, w);
+  }
+}
+
 // ------------------------------------------------------------
 // الإضافة
 // ------------------------------------------------------------
@@ -411,7 +579,7 @@ export async function nextProductCode() {
 }
 
 export async function createProduct(
-  { image, units: rawUnits, ...input },
+  { image, units: rawUnits, allWarehouses, stores, ...input },
   user,
 ) {
   // الكود فاضي ← تلقائي (الرقم اللي بعد أكبر كود)
@@ -420,6 +588,11 @@ export async function createProduct(
     await withoutDisabledFields(input),
     rawUnits,
   );
+  // موظف فرع: الرصيد الافتتاحي في مستودع فرعه بس (مش الرئيسي)
+  if (!(await ownsMainStock(user))) {
+    data.startStock = 0;
+    for (const u of units) u.startStock = 0;
+  }
   // حد الأصناف في الباقة
   await assertPlanLimit("products", user);
   await assertReferences({ ...data, units });
@@ -445,6 +618,13 @@ export async function createProduct(
       openingTotal(data.startStock, units),
       data.cost ?? 0,
     );
+    // المستودعات (الفروع) المتاح فيها + رصيده الافتتاحي في كل واحد
+    await saveProductWarehouses(
+      product.id,
+      { allWarehouses, stores, ...data, units },
+      user,
+      true,
+    );
     return product;
   } catch (error) {
     await deleteImage(imagePath);
@@ -456,13 +636,10 @@ export async function createProduct(
 // التعديل
 // ------------------------------------------------------------
 
-export async function updateProduct({
-  id,
-  image,
-  removeImage,
-  units: rawUnits,
-  ...input
-}) {
+export async function updateProduct(
+  { id, image, removeImage, units: rawUnits, allWarehouses, stores, ...input },
+  user,
+) {
   const { data, units } = await serviceDefaults(
     await withoutDisabledFields(input),
     rawUnits,
@@ -497,6 +674,15 @@ export async function updateProduct({
   const imageChanged = newImagePath !== undefined;
 
   const unitIds = units.map((u) => u.unitId);
+  // موظف فرع: رصيد المستودع الرئيسي يفضل زي ما هو
+  const ownsMain = await ownsMainStock(user);
+  if (!ownsMain) delete data.startStock;
+  const unitUpdate = (u) => {
+    if (ownsMain) return u;
+    const { startStock: _keep, ...rest } = u;
+    void _keep;
+    return rest;
+  };
 
   try {
     const product = await prisma.product.update({
@@ -511,8 +697,8 @@ export async function updateProduct({
           //    (نحافظ على رقم الوحدة id لأن الفواتير ستشير إليه لاحقاً)
           upsert: units.map((u) => ({
             where: { productId_unitId: { productId: id, unitId: u.unitId } },
-            create: u,
-            update: u,
+            create: ownsMain ? u : { ...u, startStock: 0 },
+            update: unitUpdate(u),
           })),
         },
       },
@@ -520,11 +706,18 @@ export async function updateProduct({
     });
 
     if (imageChanged) await dropImage(current.image);
-    // تغيير الرصيد الافتتاحي ← تعديل حركته بالفرق
-    await syncOpeningStock(
+    // تغيير الرصيد الافتتاحي ← تعديل حركته بالفرق (الرئيسي)
+    if (ownsMain)
+      await syncOpeningStock(
+        id,
+        openingTotal(data.startStock, units),
+        data.cost ?? 0,
+      );
+    await saveProductWarehouses(
       id,
-      openingTotal(data.startStock, units),
-      data.cost ?? 0,
+      { allWarehouses, stores, ...data, units },
+      user,
+      false,
     );
     return product;
   } catch (error) {

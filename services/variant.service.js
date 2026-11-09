@@ -50,6 +50,8 @@ const COPY_FIELDS = [
   "changeMonths",
   "categoryId",
   "baseUnitId",
+  // المستودعات (الفروع) المتاح فيها: زي الصنف الأصلي
+  "allWarehouses",
 ];
 
 const sourceSelect = {
@@ -66,6 +68,7 @@ const sourceSelect = {
     select: { unitId: true, conversionFactor: true, cost: true, price: true },
   },
   prices: { select: { priceListId: true, unitId: true, price: true } },
+  warehouses: { select: { warehouseId: true } },
 };
 
 const clean = (list, max) =>
@@ -304,6 +307,16 @@ export async function generateVariants(
           select: { id: true },
         });
         ids.push(created.id);
+        // متاح في نفس مستودعات (فروع) الصنف الأصلي
+        if (!source.allWarehouses && source.warehouses.length) {
+          await tx.productWarehouse.createMany({
+            data: source.warehouses.map((w) => ({
+              productId: created.id,
+              warehouseId: w.warehouseId,
+            })),
+            skipDuplicates: true,
+          });
+        }
         // أسعار قوائم الأسعار زي الصنف الأصلي
         if (source.prices.length) {
           await tx.productPrice.createMany({

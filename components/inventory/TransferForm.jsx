@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { lineQtyProblem } from "@/lib/unit-qty";
 import {
   Alert,
@@ -26,6 +26,8 @@ import {
   browseStockProductsAction,
   createTransferAction,
   searchStockProductsAction,
+  updateTransferAction,
+  warehouseQtysAction,
 } from "@/actions/inventory.actions";
 import DayPicker from "@/components/common/DayPicker";
 import { showActionError } from "@/components/common/actionError";
@@ -33,6 +35,7 @@ import ProductPicker from "@/components/purchases/ProductPicker";
 import ProductBrowser from "@/components/purchases/ProductBrowser";
 import "@/components/purchases/purchases.css";
 import "@/components/common/table.css";
+import { C } from "@/lib/theme";
 
 let lineKey = 0;
 
@@ -42,6 +45,7 @@ let lineKey = 0;
 // - المستودع المستلِم يستلمها لاحقاً من شاشة التحويل
 // fromWarehouses: المستودعات التي يقدر يرسل منها
 // toWarehouses: كل المستودعات النشطة
+// transfer: تعديل تحويل لسه في الطريق (فاضي = تحويل جديد)
 // ============================================================
 export default function TransferForm({
   fromWarehouses = [],
@@ -49,9 +53,13 @@ export default function TransferForm({
   defaultFromId,
   categories = [],
   canChangeDate,
+  transfer = null,
 }) {
   const [form] = Form.useForm();
-  const [lines, setLines] = useState([]);
+  const isEdit = Boolean(transfer);
+  const [lines, setLines] = useState(() =>
+    (transfer?.lines ?? []).map((l) => ({ ...l, key: ++lineKey })),
+  );
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const locale = useLocale();
@@ -60,10 +68,68 @@ export default function TransferForm({
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
   const todayDay = today();
   const fromId = Form.useWatch("fromWarehouseId", form);
+  // المتاح في المستودع المُرسِل لكل صنف (بالوحدة الأساسية): { [productId]: qty }
+  const [avail, setAvail] = useState({});
+  // التعديل: الكمية اللي خرجت بالتحويل ده بترجع للمُرسِل قبل الحفظ ← بتتحسب في المتاح
+  const sentBack = (productId) =>
+    isEdit && fromId === transfer.fromWarehouseId
+      ? transfer.lines
+          .filter((l) => l.product.id === productId)
+          .reduce(
+            (s, l) =>
+              s +
+              l.qty *
+                (l.product.units.find((u) => u.unit.id === l.unitId)?.factor ??
+                  1),
+            0,
+          )
+      : 0;
+  const availOf = (productId) =>
+    avail[productId] === undefined
+      ? undefined
+      : avail[productId] + sentBack(productId);
+
+  // التعديل: رصيد أصناف التحويل في المستودع المُرسِل (مرة واحدة)
+  useEffect(() => {
+    if (!transfer) return;
+    let alive = true;
+    const ids = [...new Set(transfer.lines.map((l) => l.product.id))];
+    if (!ids.length) return;
+    warehouseQtysAction({
+      warehouseId: transfer.fromWarehouseId,
+      productIds: ids,
+    }).then((res) => {
+      if (alive && res.success) setAvail(res.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [transfer]);
+
+  // رصيد الأصناف في المستودع المُرسِل (عند إضافة صنف أو تغيير المستودع)
+  const loadAvail = async (warehouseId, productIds, replace = false) => {
+    if (!warehouseId || !productIds.length) {
+      if (replace) setAvail({});
+      return;
+    }
+    const res = await warehouseQtysAction({ warehouseId, productIds });
+    if (!res.success) return;
+    setAvail((prev) => (replace ? res.data : { ...prev, ...res.data }));
+  };
+
+  // معامل الوحدة المختارة للسطر (الأساسية = 1)
+  const factorOf = (l) =>
+    l.product.units.find((u) => u.unit.id === l.unitId)?.factor ?? 1;
+  // الكمية المطلوبة أكبر من المتاح؟
+  const overStock = (l) =>
+    availOf(l.product.id) !== undefined &&
+    l.qty * factorOf(l) > availOf(l.product.id) + 1e-9;
 
   // إضافة صنف (لو موجود بنفس الوحدة: نزود الكمية)
   const addProduct = (product, unitId, opts = {}) => {
     const add = opts.qty ?? 1;
+    if (avail[product.id] === undefined)
+      loadAvail(form.getFieldValue("fromWarehouseId"), [product.id]);
     setLines((prev) => {
       const i = prev.findIndex(
         (l) => l.product.id === product.id && l.unitId === unitId,
@@ -85,6 +151,7 @@ export default function TransferForm({
 
   const reset = () => {
     setLines([]);
+    setAvail({});
     form.resetFields();
   };
 
@@ -93,8 +160,14 @@ export default function TransferForm({
     if (lines.some((l) => !(l.qty > 0))) {
       return message.warning(tAlerts("MustBePositive"));
     }
+    // مينفعش يتحوّل أكتر من الموجود في المستودع المُرسِل
+    if (lines.some(overStock)) {
+      return message.warning(tAlerts("TransferOverStock"));
+    }
     setSaving(true);
-    const res = await createTransferAction({
+    const save = isEdit ? updateTransferAction : createTransferAction;
+    const res = await save({
+      ...(isEdit ? { id: transfer.id } : {}),
       ...values,
       date: canChangeDate ? values.date : undefined,
       items: lines.map((l) => ({
@@ -115,7 +188,9 @@ export default function TransferForm({
       return showActionError(res, tAlerts, locale);
     }
     message.success(
-      t("TransferSent", { number: formatDocNo("transfer", res.data.number) }),
+      t(isEdit ? "TransferUpdated" : "TransferSent", {
+        number: formatDocNo("transfer", res.data.number),
+      }),
     );
     router.push(`/inventory/transfers/${res.data.id}`);
     // الشاشة ترجع فاضية لتحويل جديد
@@ -159,6 +234,23 @@ export default function TransferForm({
       ),
     },
     {
+      title: t("AvailableQty"),
+      key: "available",
+      width: 140,
+      render: (_, l) => {
+        const base = availOf(l.product.id);
+        if (!fromId || base === undefined)
+          return <span style={{ color: C.muted }}>—</span>;
+        const inUnit = Math.round((base / factorOf(l)) * 1000) / 1000;
+        const unit = l.product.units.find((u) => u.unit.id === l.unitId)?.unit;
+        return (
+          <b style={{ color: base > 0 ? C.successText : C.danger }}>
+            {inUnit} <span style={{ fontWeight: 400 }}>{nameOf(unit)}</span>
+          </b>
+        );
+      },
+    },
+    {
       title: t("Qty"),
       key: "qty",
       width: 130,
@@ -170,7 +262,9 @@ export default function TransferForm({
           controls={false}
           value={l.qty}
           status={
-            l.qty > 0 && !lineQtyProblem({ ...l, units: l.product.units })
+            l.qty > 0 &&
+            !lineQtyProblem({ ...l, units: l.product.units }) &&
+            !overStock(l)
               ? undefined
               : "error"
           }
@@ -200,15 +294,35 @@ export default function TransferForm({
       form={form}
       layout="vertical"
       onFinish={submit}
-      initialValues={{
-        fromWarehouseId:
-          defaultFromId ??
-          (fromWarehouses.length === 1 ? fromWarehouses[0].id : undefined),
-        date: todayDay,
-      }}
+      initialValues={
+        isEdit
+          ? {
+              fromWarehouseId: transfer.fromWarehouseId,
+              toWarehouseId: transfer.toWarehouseId,
+              date: transfer.day,
+              notes: transfer.notes ?? "",
+            }
+          : {
+              fromWarehouseId:
+                defaultFromId ??
+                (fromWarehouses.length === 1
+                  ? fromWarehouses[0].id
+                  : undefined),
+              date: todayDay,
+            }
+      }
     >
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-        <h1 className="font-bold text-xl">{t("NewTransfer")}</h1>
+        <h1 className="font-bold text-xl">
+          {isEdit ? (
+            <>
+              {t("EditTransfer")}{" "}
+              <bdi>{formatDocNo("transfer", transfer.number)}</bdi>
+            </>
+          ) : (
+            t("NewTransfer")
+          )}
+        </h1>
         <Space>
           <Button size="large" icon={<UndoOutlined />} onClick={reset}>
             {t("Reset")}
@@ -220,7 +334,7 @@ export default function TransferForm({
             icon={<SendOutlined />}
             loading={saving}
           >
-            {t("SendTransfer")}
+            {isEdit ? t("SaveTransfer") : t("SendTransfer")}
           </Button>
         </Space>
       </div>
@@ -244,6 +358,12 @@ export default function TransferForm({
                   if (form.getFieldValue("toWarehouseId") === v) {
                     form.setFieldValue("toWarehouseId", undefined);
                   }
+                  // المتاح في المستودع الجديد لكل الأصناف اللي في التحويل
+                  loadAvail(
+                    v,
+                    [...new Set(lines.map((l) => l.product.id))],
+                    true,
+                  );
                 }}
               />
             </Form.Item>
@@ -280,6 +400,20 @@ export default function TransferForm({
             <ProductPicker
               onAdd={addProduct}
               searchAction={searchStockProductsAction}
+              // الرصيد في المستودع المُرسِل يظهر جنب كل صنف وإنت بتختار
+              stock={
+                fromId
+                  ? Object.fromEntries(
+                      Object.keys(avail).map((id) => [id, availOf(Number(id))]),
+                    )
+                  : null
+              }
+              onResults={(ids) =>
+                loadAvail(
+                  fromId,
+                  ids.filter((id) => avail[id] === undefined),
+                )
+              }
             />
           </div>
           <ProductBrowser
@@ -296,7 +430,7 @@ export default function TransferForm({
           columns={columns}
           dataSource={lines}
           tableLayout="fixed"
-          scroll={{ x: 640 }}
+          scroll={{ x: 780 }}
           pagination={false}
           locale={{
             emptyText: <Empty description={t("AddItemsHint")} />,

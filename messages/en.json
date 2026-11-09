@@ -115,6 +115,19 @@
     "More": "More actions"
   },
   "Form": {
+    "AvailableIn": "Available in",
+    "AllWarehouses": "Available in all warehouses",
+    "AllWarehousesHint": "When on, the item shows in every branch. When off, it shows only in the selected branches. The main warehouse always holds every item",
+    "WarehousesSection": "Warehouses and opening stock",
+    "WarehousesHint": "Choose the branches that see this item, and the opening stock in each branch warehouse. Any stock entering a warehouse by transfer or purchase makes the item available there automatically",
+    "OwnBranchOnlyHint": "A new item shows in your branch only; a manager can make it available to other branches",
+    "Warehouse": "Warehouse",
+    "Available": "Available",
+    "OpeningQty": "Opening stock",
+    "OpeningUnit": "Unit",
+    "MainAlways": "Always",
+    "MainOpeningHint": "In the opening stock field above",
+    "StartStockMain": "Opening stock (main)",
     "CodeAuto": "Auto: {code}",
     "CodeAutoHint": "Type the code or scan the barcode, or leave it empty to get the next number automatically",
     "Code": "Code",
@@ -244,6 +257,10 @@
     "AllowDecimalsHint": "Like kilogram and gram (0.250). Turn it off for units sold whole, like piece and pack, so fractional quantities are rejected."
   },
   "Alerts": {
+    "TransferOverStock": "Transfer quantity exceeds what is available in the source warehouse",
+    "PhoneInvalidSA": "Mobile number must be 10 digits starting with 05",
+    "PhoneInvalidEG": "Mobile number must be 11 digits starting with 010, 011, 012 or 015",
+    "WarehouseNameTaken": "Couldn't create a warehouse named after the branch; choose an existing warehouse",
     "TooLong": {
       "qty": "This number is too large for a quantity (7+ digits); it is probably a scanned barcode. The quantity was restored.",
       "price": "This number is too large for a price (7+ digits); it is probably a scanned barcode. The price was restored.",
@@ -320,7 +337,7 @@
     "TaxNoExists": "Tax number is already used",
     "RegistrationNoExists": "Commercial registration is already used",
     "DuplicateValue": "A duplicate value exists",
-    "PhoneInvalid": "Phone must be digits only (9 to 11)",
+    "PhoneInvalid": "Phone must be digits only (7 to 15 digits)",
     "TaxNoInvalid": "Tax number must be 15 digits",
     "RegistrationNoInvalid": "Commercial registration must be 10 digits",
     "BuildingNoInvalid": "Building no. must be 4 digits",
@@ -363,7 +380,7 @@
     "LabelDeleted": "Template deleted successfully",
     "LabelDefaultSet": "This template is now the default",
     "ValueOutOfRange": "Value is out of the allowed range",
-    "CompanyPhoneInvalid": "Phone must be 7 to 15 digits (may start with +)",
+    "CompanyPhoneInvalid": "Phone must be digits only (7 to 15 digits)",
     "EmailInvalid": "Invalid email address",
     "InvoicePrintSaved": "Invoice print settings saved",
     "BankAccountInvalid": "Account number must be 6 to 30 digits",
@@ -684,6 +701,7 @@
     "OpeningTotal": "Total opening stock"
   },
   "Table": {
+    "CustomizedRole": "Customized for this company",
     "ID": "Id",
     "ArUnitName": "Arabic unit name",
     "EnUnitName": "English unit name",
@@ -1070,6 +1088,7 @@
     }
   },
   "Purchases": {
+    "AvailableShort": "Available",
     "LineNoteAdd": "Add note",
     "LineNotePlaceholder": "Note or description for this item (printed under the item)",
     "AddPayment": "Add another payment method",
@@ -1314,6 +1333,9 @@
     }
   },
   "Branches": {
+    "IdNumber": "ID number",
+    "IdSchemeHint": "The branch ID type on e-invoices: commercial registration, unified number, or other. Leave the number empty to use the company ID",
+    "NewBranchWarehouse": "New warehouse named after the branch (automatic)",
     "StockAndPrices": "Stock & Prices",
     "Warehouse": "Warehouse",
     "WarehouseHint": "The warehouse this branch sells from and buys into. Several branches can share one",
@@ -1333,6 +1355,14 @@
     "PostalCode": "Postal code"
   },
   "Inventory": {
+    "EditTransfer": "Edit transfer",
+    "SaveTransfer": "Save changes",
+    "TransferUpdated": "Transfer {number} updated",
+    "Edit": "Edit",
+    "View": "View",
+    "Actions": "Actions",
+    "ReceiveOrCancel": "Receive / cancel",
+    "AvailableQty": "Available in source",
     "AddWarehouse": "Add warehouse",
     "EditWarehouse": "Edit warehouse",
     "LinkedBranches": "Linked branches",

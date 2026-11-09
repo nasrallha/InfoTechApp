@@ -73,6 +73,7 @@ const branchSelect = {
   arName: true,
   enName: true,
   isActive: true,
+  idScheme: true,
   registrationNo: true,
   phone: true,
   city: true,
@@ -96,7 +97,10 @@ function toPublic(u) {
 // ------------------------------------------------------------
 // بيانات البائع (من الشركة + الفرع)
 // ------------------------------------------------------------
-function sellerId(company, info) {
+function sellerId(company, info, branch) {
+  // الفرع ليه معرّف بنوع غير السجل التجاري (رقم موحد...) ← هو
+  if (branch?.registrationNo && branch.idScheme && branch.idScheme !== "CRN")
+    return { idScheme: branch.idScheme, idValue: branch.registrationNo };
   const scheme = company?.sellerIdScheme || "CRN";
   return scheme === "CRN"
     ? { idScheme: "CRN", idValue: info.registrationNo ?? "" }
@@ -110,7 +114,7 @@ export function sellerParty(company, branch) {
     name: company?.arName ?? "",
     vatNumber: company?.taxNo ?? "",
     // معرّف البائع: السجل التجاري (من الفرع أو الشركة)، أو النوع المختار في بيانات الشركة
-    ...sellerId(company, info),
+    ...sellerId(company, info, branch),
     address: {
       street: a.street ?? "",
       buildingNumber: a.buildingNo ?? "",

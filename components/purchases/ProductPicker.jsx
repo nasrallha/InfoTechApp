@@ -15,10 +15,14 @@ import { C } from "@/lib/theme";
 // onAdd(product, unitId): يضيف الصنف بالوحدة المحددة
 // ============================================================
 // searchAction: دالة البحث (افتراضياً بحث المشتريات؛ التحويل والجرد يمررون دالتهم)
+// stock + onResults (اختياري - التحويل): الرصيد المتاح لكل صنف في القائمة
+//   onResults(ids) ← الشاشة تجيب الرصيد، وstock = { [productId]: الكمية بالأساسية }
 export default function ProductPicker({
   onAdd,
   disabled,
   searchAction = searchPurchaseProductsAction,
+  stock = null,
+  onResults,
 }) {
   const [text, setText] = useState("");
   const [results, setResults] = useState([]);
@@ -64,6 +68,7 @@ export default function ProductPicker({
       if (data) {
         setResults(data);
         setOpen(true);
+        onResults?.(data.map((p) => p.id));
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -195,6 +200,18 @@ export default function ProductPicker({
                   <div className="pur-picker__name">{nameOf(p)}</div>
                   <div className="pur-picker__code">
                     <bdi>{p.code}</bdi>
+                    {/* الرصيد المتاح (التحويل: في المستودع المُرسِل) */}
+                    {stock && stock[p.id] !== undefined && (
+                      <b
+                        style={{
+                          marginInlineStart: 10,
+                          color: stock[p.id] > 0 ? C.successText : C.danger,
+                        }}
+                      >
+                        {t("AvailableShort")}: {Number(stock[p.id].toFixed(3))}{" "}
+                        {nameOf(p.units[0].unit)}
+                      </b>
+                    )}
                   </div>
                 </div>
                 <div className="pur-picker__units">

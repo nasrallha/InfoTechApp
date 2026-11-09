@@ -12,6 +12,7 @@ import {
   updateVehicleAction,
   vehicleTypesAction,
 } from "@/actions/vehicle.actions";
+import PhoneField from "@/components/common/PhoneField";
 
 // ============================================================
 // إضافة / تعديل سيارة (من شاشة السيارات أو من فاتورة البيع)
@@ -158,9 +159,7 @@ export default function VehicleFormModal({
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item name="phone" label={t("Phone")}>
-              <Input dir="ltr" maxLength={30} />
-            </Form.Item>
+            <PhoneField label={t("Phone")} />
           </Col>
           <Col xs={24}>
             <Form.Item name="notes" label={t("Notes")} className="mb-0">

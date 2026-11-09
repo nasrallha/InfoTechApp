@@ -3,7 +3,7 @@ import { productTax } from "@/lib/zatca-tax";
 import { prisma } from "@/lib/prisma";
 import { parseScaleBarcode, scaleQty } from "@/lib/scale-barcode";
 import { getScaleSettings } from "./system-settings.service";
-import { getMainWarehouseId } from "./stock.service";
+import { availableInWhere, getMainWarehouseId } from "./stock.service";
 import { hasModule } from "@/lib/modules";
 import {
   asModel,
@@ -27,16 +27,23 @@ const unitSelect = {
 };
 
 // مستودع الفرع وقائمة أسعاره (الفرع بدون مستودع ← الرئيسي)
+// + available: شرط الأصناف المتاحة في مستودع الفرع (الفرع بيشوف أصنافه بس)
 export async function getBranchSaleContext(branchId) {
   const branch = await prisma.branch.findUnique({
     where: { id: branchId },
     select: { warehouseId: true, priceListId: true },
   });
+  const warehouseId = branch?.warehouseId ?? (await getMainWarehouseId());
   return {
-    warehouseId: branch?.warehouseId ?? (await getMainWarehouseId()),
+    warehouseId,
     priceListId: branch?.priceListId ?? null,
+    available: await availableInWhere(warehouseId),
   };
 }
+
+// شرط البحث + أصناف الفرع بس
+export const inBranch = (ctx, where) =>
+  ctx.available?.OR ? { AND: [where, ctx.available] } : where;
 
 export const saleProductSelect = (ctx) => ({
   id: true,
@@ -174,7 +181,10 @@ export async function searchSaleProducts(query, user, { models = false } = {}) {
   if (scale) {
     const plain = String(Number(scale.itemCode)); // 000123 ← 123
     const product = await prisma.product.findFirst({
-      where: { isActive: true, code: { in: [scale.itemCode, plain] } },
+      where: inBranch(ctx, {
+        isActive: true,
+        code: { in: [scale.itemCode, plain] },
+      }),
       select: saleProductSelect(ctx),
     });
     if (product) {
@@ -192,7 +202,7 @@ export async function searchSaleProducts(query, user, { models = false } = {}) {
         // المباعة والتالفة متتباعش
         status: { notIn: ["sold", "damaged"] },
         OR: [{ serial: q }, { serial2: q }],
-        product: { isActive: true },
+        product: inBranch(ctx, { isActive: true }),
       },
       orderBy: { id: "desc" },
       select: {
@@ -219,7 +229,7 @@ export async function searchSaleProducts(query, user, { models = false } = {}) {
   }
 
   const products = await prisma.product.findMany({
-    where: { isActive: true, ...searchWhere(q) },
+    where: inBranch(ctx, { isActive: true, ...searchWhere(q) }),
     orderBy: { id: "desc" },
     take: 20,
     select: saleProductSelect(ctx),
@@ -253,6 +263,7 @@ export async function browseSaleProducts(
   // المقاسات: الموديل مرة واحدة (أول مقاس منه)
   const variantsOn = models && (await variantsEnabled());
   if (variantsOn) conditions.push(await modelHeadsWhere());
+  if (ctx.available?.OR) conditions.push(ctx.available);
   const where = {
     isActive: true,
     ...(conditions.length ? { AND: conditions } : {}),

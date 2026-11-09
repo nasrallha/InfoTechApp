@@ -11,6 +11,7 @@ const branchSelect = {
   address: true,
   isActive: true,
   phone: true,
+  idScheme: true,
   registrationNo: true,
   city: true,
   district: true,
@@ -59,17 +60,55 @@ function handleUniqueError(error) {
 // الإضافة والتعديل
 // ------------------------------------------------------------
 
-export async function createBranch(data, user) {
+// مستودع باسم الفرع: «مستودع الخبر» / «Al Khobar Warehouse»
+// (لو الاسم موجود: رقم في الآخر)
+// («فرع الخبر» ← «مستودع الخبر»، «Khobar Branch» ← «Khobar Warehouse»)
+const bareAr = (n) => n.trim().replace(/^فرع\s+/, "");
+const bareEn = (n) =>
+  n.trim().replace(/^branch\s+/i, "").replace(/\s+branch$/i, "");
+async function createBranchWarehouse(tx, branch) {
+  const arName = bareAr(branch.arName) || branch.arName;
+  const enName = bareEn(branch.enName) || branch.enName;
+  for (let i = 1; i <= 50; i++) {
+    const suffix = i === 1 ? "" : ` ${i}`;
+    const ar = `مستودع ${arName}${suffix}`.slice(0, 100);
+    const en = `${enName} Warehouse${suffix}`.slice(0, 100);
+    const taken = await tx.warehouse.findFirst({
+      where: { OR: [{ arName: ar }, { enName: en }] },
+      select: { id: true },
+    });
+    if (taken) continue;
+    const w = await tx.warehouse.create({
+      data: { arName: ar, enName: en, isMain: false, isActive: true },
+      select: { id: true },
+    });
+    return w.id;
+  }
+  throw new AppError("WarehouseNameTaken");
+}
+
+// الفرع + (اختياري) مستودع جديد باسمه في نفس العملية
+async function withNewWarehouse(tx, { newWarehouse, ...data }) {
+  if (!newWarehouse) return data;
+  return { ...data, warehouseId: await createBranchWarehouse(tx, data) };
+}
+
+export async function createBranch(input, user) {
   // حد الفروع في الباقة
   await assertPlanLimit("branches", user);
   try {
-    return await prisma.branch.create({ data, select: branchSelect });
+    return await prisma.$transaction(async (tx) =>
+      tx.branch.create({
+        data: await withNewWarehouse(tx, input),
+        select: branchSelect,
+      }),
+    );
   } catch (error) {
     handleUniqueError(error);
   }
 }
 
-export async function updateBranch({ id, ...data }) {
+export async function updateBranch({ id, ...input }) {
   const exists = await prisma.branch.findUnique({
     where: { id },
     select: { id: true },
@@ -77,11 +116,14 @@ export async function updateBranch({ id, ...data }) {
   if (!exists) throw new AppError("BranchNotFound");
 
   try {
-    return await prisma.branch.update({
-      where: { id },
-      data,
-      select: branchSelect,
-    });
+    // فرع موجود على الرئيسي: «مستودع جديد باسم الفرع» بيتعمل ويتربط
+    return await prisma.$transaction(async (tx) =>
+      tx.branch.update({
+        where: { id },
+        data: await withNewWarehouse(tx, input),
+        select: branchSelect,
+      }),
+    );
   } catch (error) {
     handleUniqueError(error);
   }

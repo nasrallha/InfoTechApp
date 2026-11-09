@@ -30,7 +30,13 @@ import "@/components/common/table.css";
 // بعد الحذف أو التعديل، الـ action يحدّث الصفحة فتصل roles الجديدة تلقائياً
 // customAllowed: الباقة بتسمح بتعديل الأدوار العادية
 // الأدوار الثابتة (templateKey) مقفولة دايماً
-const RoleTable = ({ roles = [], customAllowed = true, lockFixed = true }) => {
+// lockDelete: الأدوار الثابتة مبتتمسحش (وضع الشركات)
+const RoleTable = ({
+  roles = [],
+  customAllowed = true,
+  lockFixed = true,
+  lockDelete = true,
+}) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -67,6 +73,7 @@ const RoleTable = ({ roles = [], customAllowed = true, lockFixed = true }) => {
   // الدور ده ينفع يتعدّل؟ (مدير النظام دايماً، الثابت أبداً، العادي حسب الباقة)
   const locked = (r) => Boolean(r.templateKey) && lockFixed;
   const editable = (r) => !locked(r) && customAllowed;
+  const noDelete = (r) => locked(r) || (lockDelete && Boolean(r.templateKey));
 
   // حذف دور أو أكثر
   const deleteRoles = async (ids) => {
@@ -114,6 +121,12 @@ const RoleTable = ({ roles = [], customAllowed = true, lockFixed = true }) => {
               style={{ marginInlineStart: 6 }}
             >
               {tTable("FixedRole")}
+            </Tag>
+          )}
+          {/* الدور الثابت اتعدّل للشركة دي (اللوحة متكتبش فوقه) */}
+          {r.templateKey && r.isCustomized && (
+            <Tag color="orange" style={{ marginInlineStart: 6 }}>
+              {tTable("CustomizedRole")}
             </Tag>
           )}
         </span>
@@ -239,7 +252,7 @@ const RoleTable = ({ roles = [], customAllowed = true, lockFixed = true }) => {
           )}
 
           {/* حذف دور واحد */}
-          {canDelete && !locked(record) && customAllowed && (
+          {canDelete && !noDelete(record) && customAllowed && (
             <Popconfirm
               title={tAlerts("Confirm")}
               description={tAlerts("ConfirmDelete")}
@@ -290,7 +303,7 @@ const RoleTable = ({ roles = [], customAllowed = true, lockFixed = true }) => {
             ? {
                 selectedRowKeys: selectedRows,
                 onChange: (keys) => setSelectedRows(keys),
-                getCheckboxProps: (r) => ({ disabled: locked(r) }),
+                getCheckboxProps: (r) => ({ disabled: noDelete(r) }),
               }
             : undefined
         }

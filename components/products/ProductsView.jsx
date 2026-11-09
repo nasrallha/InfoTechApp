@@ -9,7 +9,8 @@ import ProductTable from "./ProductTable";
 
 // الجزء التفاعلي من صفحة المنتجات
 // products: تصل من page.jsx (السيرفر) جاهزة
-export default function ProductsView({ products }) {
+// warehouses: للمدير لو فيه أكتر من مستودع (عمود «المستودعات» وفلتره)
+export default function ProductsView({ products, warehouses = [] }) {
   const router = useRouter();
   // المحدد في الجدول (للتصدير)
   const [selectedIds, setSelectedIds] = useState([]);
@@ -27,7 +28,11 @@ export default function ProductsView({ products }) {
         buttonTitle={can("products.create") ? tButtons("AddNewProduct") : null}
         onButtonClick={() => router.push("/products/addproduct")}
       />
-      <ProductTable products={products} onSelectionChange={setSelectedIds} />
+      <ProductTable
+        products={products}
+        warehouses={warehouses}
+        onSelectionChange={setSelectedIds}
+      />
     </>
   );
 }

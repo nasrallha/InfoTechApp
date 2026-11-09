@@ -21,6 +21,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useModule } from "@/components/auth/AuthProvider";
 import { message } from "@/components/common/feedback";
+import PhoneField from "@/components/common/PhoneField";
 
 // لينك خرائط جوجل من إحداثيات
 export const mapsUrl = (lat, lng) =>
@@ -178,9 +179,7 @@ export function FollowUpModal({
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
-            <Form.Item name="phone" label={t("Phone")}>
-              <Input dir="ltr" maxLength={30} />
-            </Form.Item>
+            <PhoneField label={t("Phone")} />
           </Col>
         </Row>
         <Form.Item name="address" label={t("Address")}>

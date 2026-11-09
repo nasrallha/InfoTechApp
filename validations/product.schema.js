@@ -87,6 +87,29 @@ const productFields = {
 
   units: z.array(productUnitSchema).default([]),
 
+  // المستودعات (الفروع): الصنف متاح في كلها، ولا في المحددة بس (stores.available)
+  // + الرصيد الافتتاحي في كل مستودع بالوحدة المختارة (فاضية = الأساسية)
+  allWarehouses: z.boolean().optional(),
+  stores: z
+    .array(
+      z.object({
+        warehouseId: idField,
+        available: z.boolean().default(false),
+        openingQty: z
+          .number()
+          .min(0, "MustBePositive")
+          .max(1_000_000, "ValueOutOfRange")
+          .refine(
+            (v) => Math.abs(Math.round(v * 1000) - v * 1000) < 1e-6,
+            "QtyDecimals",
+          )
+          .default(0),
+        openingUnitId: idField.nullish(),
+      }),
+    )
+    .max(500)
+    .optional(),
+
   // الأرقام التسلسلية والضمان (وحدة serials)
   serialCount: z.number().int().min(0).max(2).default(0),
   serialLabel1: optionalText(40),

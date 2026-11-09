@@ -4,7 +4,7 @@ import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
-import { dayToDateTime, today } from "@/lib/dates";
+import { dayOf, dayToDateTime, today } from "@/lib/dates";
 import {
   applyMovements,
   isNegativeStockAllowed,
@@ -243,6 +243,141 @@ export async function receiveTransfer({ id, items }, user) {
     );
     return { id, number: transfer.number };
   }, TX_OPTIONS);
+}
+
+// ------------------------------------------------------------
+// تعديل تحويل لسه في الطريق (مش مستلم ولا ملغي)
+// - الخروج القديم بيرجع للمستودع المُرسِل، وبعدين الأصناف الجديدة بتخرج
+// - لازم المستخدم يقدر يرسل من المستودع القديم والجديد (المدير: أي مستودع)
+// ------------------------------------------------------------
+export async function updateTransfer({ id, ...data }, user) {
+  const current = await prisma.stockTransfer.findUnique({
+    where: { id },
+    select: { id: true, number: true, status: true, fromWarehouseId: true },
+  });
+  if (!current) throw new AppError("TransferNotFound");
+  if (current.status !== "sent") throw new AppError("TransferNotPending");
+  if (data.fromWarehouseId === data.toWarehouseId) {
+    throw new AppError("SameWarehouse", null, {
+      toWarehouseId: "SameWarehouse",
+    });
+  }
+  const ids = await userWarehouseIds(user);
+  if (
+    !allowed(ids, current.fromWarehouseId) ||
+    !allowed(ids, data.fromWarehouseId)
+  )
+    throw new AppError("Forbidden");
+
+  const warehouses = await prisma.warehouse.findMany({
+    where: {
+      id: { in: [data.fromWarehouseId, data.toWarehouseId] },
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  if (warehouses.length !== 2) throw new AppError("WarehouseNotFound");
+
+  const items = await resolveItems(data.items);
+  const allowNegative = await isNegativeStockAllowed();
+  const now = today();
+  const day = can(user, "transfers.changeDate") ? (data.date ?? now) : now;
+  if (day > now) throw new AppError("FutureDate", null, { date: "FutureDate" });
+  const date = dayToDateTime(day);
+
+  return runTx(async (tx) => {
+    // لسه في الطريق؟ (حد استلمه أو لغاه في نفس اللحظة ← مرفوض)
+    const { count } = await tx.stockTransfer.updateMany({
+      where: { id, status: "sent" },
+      data: {
+        fromWarehouseId: data.fromWarehouseId,
+        toWarehouseId: data.toWarehouseId,
+        date,
+        notes: data.notes,
+      },
+    });
+    if (!count) throw new AppError("TransferNotPending");
+    // الخروج القديم يرجع للمستودع المُرسِل
+    await reverseMovements(tx, "transfer", id, {
+      allowNegative: true,
+      types: ["transfer_out"],
+    });
+    await tx.stockTransferItem.deleteMany({ where: { transferId: id } });
+    await tx.stockTransferItem.createMany({
+      data: items.map((it) => ({
+        transferId: id,
+        productId: it.product.id,
+        code: it.product.code,
+        arName: it.product.arName,
+        enName: it.product.enName,
+        unitId: it.unitId,
+        factor: it.factor,
+        qty: it.qty,
+        baseQty: round(it.qty * it.factor, 4),
+        cost: n(it.product.cost),
+      })),
+    });
+    await applyMovements(
+      tx,
+      items.map((it) => ({
+        productId: it.product.id,
+        warehouseId: data.fromWarehouseId,
+        qty: -round(it.qty * it.factor, 4),
+        cost: n(it.product.cost),
+        type: "transfer_out",
+        refType: "transfer",
+        refId: id,
+        refNo: `${TR_PREFIX}-${current.number}`,
+        date,
+      })),
+      { allowNegative },
+    );
+    return { id, number: current.number };
+  }, TX_OPTIONS);
+}
+
+// تحويل للتعديل: بياناته + أصنافه بشكل شاشة الإضافة (وحدات كل صنف)
+export async function getTransferForEdit(id, user) {
+  const t = await prisma.stockTransfer.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      date: true,
+      notes: true,
+      fromWarehouseId: true,
+      toWarehouseId: true,
+      items: {
+        orderBy: { id: "asc" },
+        select: { productId: true, unitId: true, qty: true },
+      },
+    },
+  });
+  if (!t || t.status !== "sent") return null;
+  const ids = await userWarehouseIds(user);
+  if (!allowed(ids, t.fromWarehouseId)) return null;
+  const { pickerProductsByIds } = await import("./purchase.service");
+  const products = await pickerProductsByIds([
+    ...new Set(t.items.map((i) => i.productId)),
+  ]);
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return {
+    id: t.id,
+    number: t.number,
+    // اليوم (بتوقيت السعودية) لخانة التاريخ
+    day: dayOf(t.date),
+    notes: t.notes,
+    fromWarehouseId: t.fromWarehouseId,
+    toWarehouseId: t.toWarehouseId,
+    lines: t.items
+      .filter((i) => byId.has(i.productId))
+      .map((i) => ({
+        product: byId.get(i.productId),
+        unitId: i.unitId,
+        qty: n(i.qty),
+      })),
+  };
 }
 
 // إلغاء تحويل لم يُستلم: البضاعة ترجع للمستودع المُرسِل

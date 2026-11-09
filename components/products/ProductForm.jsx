@@ -25,6 +25,10 @@ import {
 import { applyFieldErrors } from "@/lib/form-errors";
 import { imageUrl } from "@/lib/image";
 import AdditionalUnitsForm from "./AdditionalUnitsForm";
+import ProductWarehousesFields, {
+  hasBranchStores,
+  initialStores,
+} from "./ProductWarehousesFields";
 import VariantsFields, {
   EMPTY_VARIANTS,
   variantsPayload,
@@ -44,12 +48,14 @@ import "./productForm.css";
 // product: المنتج المراد تعديله (في وضع التعديل فقط)
 // categories, units: قوائم الاختيار (تصل من السيرفر)
 // defaults: من الإعدادات العامة (نسبة الضريبة ووضع السعر للصنف الجديد)
+// stores: المستودعات (الفروع) ← جدول «متاح فين + الرصيد الافتتاحي»
 const ProductForm = ({
   mode = "add",
   product = null,
   categories: categoriesProp = [],
   units: unitsProp = [],
   defaults = null,
+  stores = null,
 }) => {
   const [form] = Form.useForm();
   // الإضافة السريعة: القسم/الوحدة الجديدة تظهر في القائمة على طول
@@ -118,6 +124,12 @@ const ProductForm = ({
   const warrantyMonths = Form.useWatch("warrantyMonths", form) ?? 0;
 
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
+  // المستودعات (الفروع): الجدول بيظهر لو فيه مستودعات فروع
+  const withStores = hasBranchStores(stores);
+  // موظف الفرع: رصيد المستودع الرئيسي مش بتاعه (رصيده في جدول المستودعات)
+  const branchOnly = withStores && !stores.all;
+  // العمود الجنبي (جنب الصورة والسويتشات): المستودعات + الوحدات الإضافية
+  const sideColumn = withStores || !isService;
 
   // الصنف بنسبة 0: لازم فئة وسبب إعفاء (الفوترة الإلكترونية)
   const taxRateValue = Form.useWatch("taxRate", form);
@@ -180,6 +192,8 @@ const ProductForm = ({
           cost: pu.cost,
           startStock: pu.startStock || null,
         })),
+        allWarehouses: product.allWarehouses ?? true,
+        stores: initialStores(stores, product),
       }
     : {
         code: "",
@@ -209,6 +223,8 @@ const ProductForm = ({
         changeMonths: 0,
         durationMin: 0,
         warrantyType: "store",
+        allWarehouses: true,
+        stores: initialStores(stores, null),
       };
 
   // التعديل: لما بيانات الصنف تتحدث من السيرفر الفورم يرجع لها
@@ -279,6 +295,23 @@ const ProductForm = ({
       startStock: u.startStock ?? 0,
     }));
     formData.append("units", JSON.stringify(productUnits));
+
+    // المستودعات (الفروع): متاح فين + الرصيد الافتتاحي في كل مستودع
+    if (withStores) {
+      if (stores.all)
+        formData.append("allWarehouses", String(values.allWarehouses ?? true));
+      formData.append(
+        "stores",
+        JSON.stringify(
+          (values.stores ?? []).map((r) => ({
+            warehouseId: r.warehouseId,
+            available: Boolean(r.available),
+            openingQty: isService ? 0 : Number(r.openingQty) || 0,
+            openingUnitId: isService ? null : (r.openingUnitId ?? null),
+          })),
+        ),
+      );
+    }
 
     // الصورة: جديدة، أو شال الحالية، أو كما هي
     const fileList = values.image ?? [];
@@ -530,9 +563,12 @@ const ProductForm = ({
             </Form.Item>
           </Col>
 
-          {!isService && (
+          {!isService && !branchOnly && (
             <Col xs={12} sm={12} md={6} lg={3}>
-              <Form.Item name="startStock" label={tForm("StartStock")}>
+              <Form.Item
+                name="startStock"
+                label={tForm(withStores ? "StartStockMain" : "StartStock")}
+              >
                 <InputNumber min={0} step={1} style={numberStyle} />
               </Form.Item>
             </Col>
@@ -601,187 +637,299 @@ const ProductForm = ({
             </>
           )}
 
-          {/* الصورة اختيارية */}
-          <Col xs={24} sm={24} md={6} lg={5}>
-            <ImageUploadItem name="image" label={tForm("Image")} />
-          </Col>
+          {/* العمود اليمين: الصورة والسويتشات + الأرقام التسلسلية والمتابعة والتغيير الدوري
+              (جنب عمود المستودعات والوحدات على نفس المستوى) */}
+          <Col xs={24} lg={sideColumn ? 12 : 24}>
+            <Row gutter={[16, 16]}>
+              {/* الصورة اختيارية */}
+              <Col xs={24} sm={24} md={6} lg={sideColumn ? 10 : 5}>
+                <ImageUploadItem name="image" label={tForm("Image")} />
+              </Col>
 
-          {/* السويتشات جنب بعض في سطر واحد: شامل الضريبة، نشط، قطعة مغسلة */}
-          <Col xs={24} md={18} lg={12} className="flex items-center">
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 w-full">
-              <Form.Item
-                name="isPriceIncludeTax"
-                valuePropName="checked"
-                label={tForm("PriceIncludeTax")}
-                layout="horizontal"
-                className="mb-0"
+              {/* السويتشات جنب بعض في سطر واحد: شامل الضريبة، نشط، قطعة مغسلة */}
+              <Col
+                xs={24}
+                md={18}
+                lg={sideColumn ? 14 : 12}
+                className="flex items-center"
               >
-                <Switch />
-              </Form.Item>
-              <Form.Item
-                name="isActive"
-                label={tForm("Active")}
-                valuePropName="checked"
-                layout="horizontal"
-                className="mb-0"
-              >
-                <Switch />
-              </Form.Item>
-              {/* المغسلة (وحدة laundry): الخدمة قطعة مغسلة (أسعارها تحت) */}
-              {laundryOn && isService && (
-                <Form.Item
-                  name="laundryItem"
-                  label={tLaundry("IsLaundryItem")}
-                  tooltip={tLaundry("IsLaundryItemHint")}
-                  valuePropName="checked"
-                  layout="horizontal"
-                  className="mb-0"
-                >
-                  <Switch />
-                </Form.Item>
-              )}
-            </div>
-          </Col>
-
-          {/* الأرقام التسلسلية والضمان (وحدة serials) */}
-          {serialsOn && !isService && (
-            <Col xs={24}>
-              <h3 className="font-bold mb-3">{tSerial("SectionTitle")}</h3>
-              <Row gutter={[16, 0]}>
-                <Col xs={24} sm={12} md={6} lg={4}>
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-2 w-full">
                   <Form.Item
-                    name="serialCount"
-                    label={tSerial("TrackSerial")}
-                    tooltip={tSerial("TrackSerialHint")}
+                    name="isPriceIncludeTax"
+                    valuePropName="checked"
+                    label={tForm("PriceIncludeTax")}
+                    layout="horizontal"
+                    className="mb-0"
                   >
-                    <Select
-                      options={[0, 1, 2].map((v) => ({
-                        value: v,
-                        label: tSerial(`Count${v}`),
-                      }))}
-                    />
+                    <Switch />
                   </Form.Item>
-                </Col>
-                {serialCount >= 1 && (
-                  <Col xs={24} sm={12} md={6} lg={4}>
-                    <Form.Item
-                      name="serialLabel1"
-                      label={tSerial("Label1")}
-                      rules={[{ max: 40, message: tAlerts("TextTooLong") }]}
-                    >
-                      <Input placeholder={tSerial("Label1Placeholder")} />
-                    </Form.Item>
-                  </Col>
-                )}
-                {serialCount === 2 && (
-                  <Col xs={24} sm={12} md={6} lg={4}>
-                    <Form.Item
-                      name="serialLabel2"
-                      label={tSerial("Label2")}
-                      rules={[{ max: 40, message: tAlerts("TextTooLong") }]}
-                    >
-                      <Input placeholder={tSerial("Label2Placeholder")} />
-                    </Form.Item>
-                  </Col>
-                )}
-                <Col xs={12} sm={12} md={6} lg={4}>
                   <Form.Item
-                    name="warrantyMonths"
-                    label={tSerial("WarrantyMonths")}
-                    tooltip={tSerial("WarrantyMonthsHint")}
+                    name="isActive"
+                    label={tForm("Active")}
+                    valuePropName="checked"
+                    layout="horizontal"
+                    className="mb-0"
+                  >
+                    <Switch />
+                  </Form.Item>
+                  {/* المغسلة (وحدة laundry): الخدمة قطعة مغسلة (أسعارها تحت) */}
+                  {laundryOn && isService && (
+                    <Form.Item
+                      name="laundryItem"
+                      label={tLaundry("IsLaundryItem")}
+                      tooltip={tLaundry("IsLaundryItemHint")}
+                      valuePropName="checked"
+                      layout="horizontal"
+                      className="mb-0"
+                    >
+                      <Switch />
+                    </Form.Item>
+                  )}
+                </div>
+              </Col>
+
+              {/* الأرقام التسلسلية والضمان (وحدة serials) */}
+              {serialsOn && !isService && (
+                <Col xs={24}>
+                  <h3 className="font-bold mb-3">{tSerial("SectionTitle")}</h3>
+                  <Row gutter={[16, 0]}>
+                    <Col xs={24} sm={12} md={6} lg={sideColumn ? 8 : 4}>
+                      <Form.Item
+                        name="serialCount"
+                        label={tSerial("TrackSerial")}
+                        tooltip={tSerial("TrackSerialHint")}
+                      >
+                        <Select
+                          options={[0, 1, 2].map((v) => ({
+                            value: v,
+                            label: tSerial(`Count${v}`),
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
+                    {serialCount >= 1 && (
+                      <Col xs={24} sm={12} md={6} lg={sideColumn ? 8 : 4}>
+                        <Form.Item
+                          name="serialLabel1"
+                          label={tSerial("Label1")}
+                          rules={[{ max: 40, message: tAlerts("TextTooLong") }]}
+                        >
+                          <Input placeholder={tSerial("Label1Placeholder")} />
+                        </Form.Item>
+                      </Col>
+                    )}
+                    {serialCount === 2 && (
+                      <Col xs={24} sm={12} md={6} lg={sideColumn ? 8 : 4}>
+                        <Form.Item
+                          name="serialLabel2"
+                          label={tSerial("Label2")}
+                          rules={[{ max: 40, message: tAlerts("TextTooLong") }]}
+                        >
+                          <Input placeholder={tSerial("Label2Placeholder")} />
+                        </Form.Item>
+                      </Col>
+                    )}
+                    <Col xs={12} sm={12} md={6} lg={sideColumn ? 8 : 4}>
+                      <Form.Item
+                        name="warrantyMonths"
+                        label={tSerial("WarrantyMonths")}
+                        tooltip={tSerial("WarrantyMonthsHint")}
+                      >
+                        <InputNumber
+                          min={0}
+                          max={600}
+                          precision={0}
+                          style={numberStyle}
+                        />
+                      </Form.Item>
+                    </Col>
+                    {warrantyMonths > 0 && (
+                      <Col xs={12} sm={12} md={6} lg={sideColumn ? 8 : 4}>
+                        <Form.Item
+                          name="warrantyType"
+                          label={tSerial("WarrantyType")}
+                        >
+                          <Select
+                            options={["agent", "store"].map((v) => ({
+                              value: v,
+                              label: tSerial(`WarrantyType_${v}`),
+                            }))}
+                          />
+                        </Form.Item>
+                      </Col>
+                    )}
+                  </Row>
+                </Col>
+              )}
+
+              {/* المتابعة الدورية (وحدة followUps): الصنف عليه متابعة كل كام يوم */}
+              {followUpsOn && !isService && (
+                <Col xs={24}>
+                  <h3 className="font-bold mb-3">{tForm("FollowUpSection")}</h3>
+                  <Row gutter={[16, 0]} align="middle">
+                    <Col xs={24} sm={12} md={8} lg={sideColumn ? 12 : 6}>
+                      <Form.Item
+                        label={tForm("HasFollowUp")}
+                        tooltip={tForm("HasFollowUpHint")}
+                      >
+                        <Switch
+                          checked={followUpDays > 0}
+                          onChange={(on) =>
+                            form.setFieldValue("followUpDays", on ? 90 : 0)
+                          }
+                        />
+                      </Form.Item>
+                    </Col>
+                    {followUpDays > 0 && (
+                      <Col xs={24} sm={12} md={8} lg={sideColumn ? 12 : 6}>
+                        <Form.Item
+                          name="followUpDays"
+                          label={tForm("FollowUpDays")}
+                          extra={tForm("FollowUpDaysHint")}
+                          rules={[
+                            { required: true, message: tAlerts("RequiredField") },
+                          ]}
+                        >
+                          <InputNumber
+                            min={1}
+                            max={3650}
+                            precision={0}
+                            suffix={tForm("Days")}
+                            style={numberStyle}
+                          />
+                        </Form.Item>
+                      </Col>
+                    )}
+                    {/* الحقل موجود دايمًا (حتى لو مخفي) عشان القيمة 0 تتبعت */}
+                    {!(followUpDays > 0) && (
+                      <Form.Item name="followUpDays" hidden>
+                        <InputNumber />
+                      </Form.Item>
+                    )}
+                  </Row>
+                </Col>
+              )}
+
+              {/* مدة الخدمة (وحدة bookings): الحجز بيحسب منها ميعاد الانتهاء */}
+              {bookingsOn && isService && (
+                <Col xs={24} sm={12} md={8} lg={sideColumn ? 12 : 6}>
+                  <Form.Item
+                    name="durationMin"
+                    label={tForm("DurationMin")}
+                    extra={tForm("DurationMinHint")}
                   >
                     <InputNumber
                       min={0}
-                      max={600}
+                      max={1440}
                       precision={0}
+                      step={5}
+                      suffix={tForm("Minutes")}
                       style={numberStyle}
                     />
                   </Form.Item>
                 </Col>
-                {warrantyMonths > 0 && (
-                  <Col xs={12} sm={12} md={6} lg={4}>
-                    <Form.Item
-                      name="warrantyType"
-                      label={tSerial("WarrantyType")}
-                    >
-                      <Select
-                        options={["agent", "store"].map((v) => ({
-                          value: v,
-                          label: tSerial(`WarrantyType_${v}`),
-                        }))}
-                      />
-                    </Form.Item>
-                  </Col>
-                )}
-              </Row>
-            </Col>
-          )}
+              )}
 
-          {/* المتابعة الدورية (وحدة followUps): الصنف عليه متابعة كل كام يوم */}
-          {followUpsOn && !isService && (
-            <Col xs={24}>
-              <h3 className="font-bold mb-3">{tForm("FollowUpSection")}</h3>
-              <Row gutter={[16, 0]} align="middle">
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item
-                    label={tForm("HasFollowUp")}
-                    tooltip={tForm("HasFollowUpHint")}
-                  >
-                    <Switch
-                      checked={followUpDays > 0}
-                      onChange={(on) =>
-                        form.setFieldValue("followUpDays", on ? 90 : 0)
-                      }
-                    />
-                  </Form.Item>
+              {/* التغيير الدوري للسيارات (وحدة vehicles): زيت، فلتر... (صنف أو خدمة) */}
+              {vehiclesOn && (
+                <Col xs={24}>
+                  <h3 className="font-bold mb-3">{tForm("ChangeSection")}</h3>
+                  <Row gutter={[16, 0]} align="middle">
+                    <Col xs={24} sm={12} md={8} lg={sideColumn ? 8 : 6}>
+                      <Form.Item
+                        label={tForm("HasChange")}
+                        tooltip={tForm("HasChangeHint")}
+                      >
+                        <Switch
+                          checked={hasChange}
+                          onChange={(on) =>
+                            form.setFieldsValue(
+                              on
+                                ? { changeKm: 5000, changeMonths: 3 }
+                                : { changeKm: 0, changeMonths: 0 },
+                            )
+                          }
+                        />
+                      </Form.Item>
+                    </Col>
+                    {/* الحقول موجودة دايمًا (حتى لو مخفية) عشان القيمة 0 تتبعت */}
+                    <Col
+                      xs={24}
+                      sm={12}
+                      md={8}
+                      lg={sideColumn ? 8 : 6}
+                      style={hasChange ? undefined : { display: "none" }}
+                    >
+                      <Form.Item
+                        name="changeKm"
+                        label={tForm("ChangeKm")}
+                        extra={tForm("ChangeKmHint")}
+                      >
+                        <InputNumber
+                          min={0}
+                          max={1000000}
+                          precision={0}
+                          step={1000}
+                          suffix={tForm("Km")}
+                          style={numberStyle}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col
+                      xs={24}
+                      sm={12}
+                      md={8}
+                      lg={sideColumn ? 8 : 6}
+                      style={hasChange ? undefined : { display: "none" }}
+                    >
+                      <Form.Item
+                        name="changeMonths"
+                        label={tForm("ChangeMonths")}
+                        extra={tForm("ChangeMonthsHint")}
+                      >
+                        <InputNumber
+                          min={0}
+                          max={120}
+                          precision={0}
+                          suffix={tForm("Months")}
+                          style={numberStyle}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
                 </Col>
-                {followUpDays > 0 && (
-                  <Col xs={24} sm={12} md={8} lg={6}>
-                    <Form.Item
-                      name="followUpDays"
-                      label={tForm("FollowUpDays")}
-                      extra={tForm("FollowUpDaysHint")}
-                      rules={[
-                        { required: true, message: tAlerts("RequiredField") },
-                      ]}
-                    >
-                      <InputNumber
-                        min={1}
-                        max={3650}
-                        precision={0}
-                        suffix={tForm("Days")}
-                        style={numberStyle}
-                      />
-                    </Form.Item>
-                  </Col>
-                )}
-                {/* الحقل موجود دايمًا (حتى لو مخفي) عشان القيمة 0 تتبعت */}
-                {!(followUpDays > 0) && (
-                  <Form.Item name="followUpDays" hidden>
-                    <InputNumber />
-                  </Form.Item>
-                )}
-              </Row>
-            </Col>
-          )}
+              )}
 
-          {/* مدة الخدمة (وحدة bookings): الحجز بيحسب منها ميعاد الانتهاء */}
-          {bookingsOn && isService && (
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Form.Item
-                name="durationMin"
-                label={tForm("DurationMin")}
-                extra={tForm("DurationMinHint")}
-              >
-                <InputNumber
-                  min={0}
-                  max={1440}
-                  precision={0}
-                  step={5}
-                  suffix={tForm("Minutes")}
-                  style={numberStyle}
+            </Row>
+          </Col>
+
+          {/* العمود الجنبي (جنب الصورة والسويتشات في المكان الفاضي):
+              المستودعات (الفروع) + الوحدات الإضافية تحتها */}
+          {sideColumn && (
+            <Col xs={24} lg={12}>
+              {withStores && (
+                <ProductWarehousesFields
+                  form={form}
+                  stores={stores}
+                  units={units}
+                  isService={isService}
                 />
-              </Form.Item>
+              )}
+              {/* الوحدات الإضافية (علبة، كرتونة ...) - الخدمة مالهاش */}
+              {!isService && (
+                <div style={withStores ? { marginTop: 48 } : undefined}>
+                  <b className="block mb-2">{tHeadings("MoreUnitsHeading")}</b>
+                  <AdditionalUnitsForm
+                    form={form}
+                    units={units}
+                    hideStock={branchOnly}
+                    compact
+                  />
+                  {!branchOnly && (
+                    <OpeningSummary form={form} units={units} nameOf={nameOf} />
+                  )}
+                </div>
+              )}
             </Col>
           )}
 
@@ -793,87 +941,6 @@ const ProductForm = ({
               productId={product?.id}
               reloadKey={productKey}
             />
-          )}
-
-          {/* التغيير الدوري للسيارات (وحدة vehicles): زيت، فلتر... (صنف أو خدمة) */}
-          {vehiclesOn && (
-            <Col xs={24}>
-              <h3 className="font-bold mb-3">{tForm("ChangeSection")}</h3>
-              <Row gutter={[16, 0]} align="middle">
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item
-                    label={tForm("HasChange")}
-                    tooltip={tForm("HasChangeHint")}
-                  >
-                    <Switch
-                      checked={hasChange}
-                      onChange={(on) =>
-                        form.setFieldsValue(
-                          on
-                            ? { changeKm: 5000, changeMonths: 3 }
-                            : { changeKm: 0, changeMonths: 0 },
-                        )
-                      }
-                    />
-                  </Form.Item>
-                </Col>
-                {/* الحقول موجودة دايمًا (حتى لو مخفية) عشان القيمة 0 تتبعت */}
-                <Col
-                  xs={24}
-                  sm={12}
-                  md={8}
-                  lg={6}
-                  style={hasChange ? undefined : { display: "none" }}
-                >
-                  <Form.Item
-                    name="changeKm"
-                    label={tForm("ChangeKm")}
-                    extra={tForm("ChangeKmHint")}
-                  >
-                    <InputNumber
-                      min={0}
-                      max={1000000}
-                      precision={0}
-                      step={1000}
-                      suffix={tForm("Km")}
-                      style={numberStyle}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col
-                  xs={24}
-                  sm={12}
-                  md={8}
-                  lg={6}
-                  style={hasChange ? undefined : { display: "none" }}
-                >
-                  <Form.Item
-                    name="changeMonths"
-                    label={tForm("ChangeMonths")}
-                    extra={tForm("ChangeMonthsHint")}
-                  >
-                    <InputNumber
-                      min={0}
-                      max={120}
-                      precision={0}
-                      suffix={tForm("Months")}
-                      style={numberStyle}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Col>
-          )}
-
-          {/* الوحدات الإضافية (علبة، كرتونة ...) - الخدمة مالهاش */}
-          {!isService && (
-            <Col xs={24}>
-              <h3 className="font-bold mb-3">
-                {tHeadings("MoreUnitsHeading")}
-              </h3>
-              <AdditionalUnitsForm form={form} units={units} />
-              <OpeningSummary form={form} units={units} nameOf={nameOf} />
-            </Col>
           )}
 
           {/* المقاسات والألوان (وحدة variants): الإضافة بس */}

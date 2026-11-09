@@ -30,6 +30,7 @@ import {
   createBookingAction,
   updateBookingAction,
 } from "@/actions/booking.actions";
+import PhoneField from "@/components/common/PhoneField";
 
 // ============================================================
 // حجز جديد / تعديل حجز (من البرنامج)
@@ -206,8 +207,7 @@ export default function BookingFormModal({
             </Form.Item>
           </Col>
           <Col xs={12} md={6}>
-            <Form.Item
-              name="phone"
+            <PhoneField
               label={t("Phone")}
               rules={[
                 {
@@ -216,9 +216,7 @@ export default function BookingFormModal({
                   message: tAlerts("RequiredField"),
                 },
               ]}
-            >
-              <Input dir="ltr" maxLength={30} />
-            </Form.Item>
+            />
           </Col>
           <Col xs={24}>
             <Form.Item

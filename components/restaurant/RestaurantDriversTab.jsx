@@ -28,6 +28,7 @@ import {
 } from "@/actions/restaurant.actions";
 import { C } from "@/lib/theme";
 import EntityModal from "./EntityModal";
+import PhoneField from "@/components/common/PhoneField";
 
 // ============================================================
 // السائقين (التوصيل): مين وصّل الطلب، وعمولته
@@ -172,9 +173,7 @@ function DriverFields({ req }) {
         </Form.Item>
       </Col>
       <Col xs={24} md={12}>
-        <Form.Item name="phone" label={t("Phone")}>
-          <Input dir="ltr" inputMode="tel" autoComplete="off" />
-        </Form.Item>
+        <PhoneField label={t("Phone")} />
       </Col>
       <Col xs={12} md={8}>
         <Form.Item

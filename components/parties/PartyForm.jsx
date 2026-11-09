@@ -16,6 +16,7 @@ import { message } from "@/components/common/feedback";
 import { useLocale, useTranslations } from "next-intl";
 import { BUYER_ID_SCHEMES, COUNTRIES } from "@/lib/zatca-tax";
 import { applyFieldErrors } from "@/lib/form-errors";
+import PhoneField from "@/components/common/PhoneField";
 
 // فورم العميل أو المورد (نفس الفورم للإضافة والتعديل)
 // party: البيانات الحالية في التعديل (أو null في الإضافة)
@@ -172,13 +173,7 @@ const PartyForm = ({
         </Col>
 
         <Col xs={24} md={8}>
-          <Form.Item
-            name="phone"
-            label={tForm("Phone")}
-            rules={digits(/^\d{9,11}$/, "PhoneInvalid")}
-          >
-            <Input inputMode="numeric" />
-          </Form.Item>
+          <PhoneField label={tForm("Phone")} />
         </Col>
         <Col xs={24} md={8}>
           <Form.Item

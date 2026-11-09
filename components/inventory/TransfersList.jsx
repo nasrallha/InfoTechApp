@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Segmented, Space, Table, Tag } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { EditOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
 import { formatDateTime } from "@/lib/dates";
@@ -92,6 +92,28 @@ export default function TransfersList({ data, q, status, canCreate }) {
       width: 150,
       render: (_, r) =>
         r.receivedAt ? <bdi>{formatDateTime(r.receivedAt)}</bdi> : "—",
+    },
+    // عرض (الاستلام والإلغاء من جوه) + تعديل للتحويل اللي لسه في الطريق
+    {
+      title: t("Actions"),
+      key: "actions",
+      width: 200,
+      render: (_, r) => (
+        <Space size={4} wrap>
+          <Link href={`/inventory/transfers/${r.id}`}>
+            <Button size="small" icon={<EyeOutlined />}>
+              {r.status === "sent" ? t("ReceiveOrCancel") : t("View")}
+            </Button>
+          </Link>
+          {r.status === "sent" && canCreate && (
+            <Link href={`/inventory/transfers/${r.id}/edit`}>
+              <Button size="small" icon={<EditOutlined />}>
+                {t("Edit")}
+              </Button>
+            </Link>
+          )}
+        </Space>
+      ),
     },
   ];
   const width = columns.reduce((s, c) => s + c.width, 0);

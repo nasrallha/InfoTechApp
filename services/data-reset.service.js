@@ -326,6 +326,8 @@ export async function resetData({ keys, resetNumbers }, user) {
         await tx.stockMovement.deleteMany({ where: { type: "opening" } });
         await tx.product.updateMany({ data: { startStock: 0 } });
         await tx.productUnit.updateMany({ data: { startStock: 0 } });
+        // الرصيد الافتتاحي في مستودعات الفروع (الإتاحة بتفضل)
+        await tx.productWarehouse.updateMany({ data: { openingQty: 0 } });
       }
 
       // طلبات الضمان والصيانة: مربوطة بالعملاء والأصناف والموردين والفواتير

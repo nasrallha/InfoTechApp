@@ -43,7 +43,8 @@ const formatMoney = (v) =>
   });
 
 // products: المنتجات من قاعدة البيانات (تتحدث تلقائياً بعد الحذف)
-const ProductTable = ({ products = [], onSelectionChange }) => {
+// warehouses: (المدير + أكتر من مستودع) عمود المستودعات المتاح فيها الصنف وفلتره
+const ProductTable = ({ products = [], warehouses = [], onSelectionChange }) => {
   const [selectedRows, setSelectedRows] = useState([]);
   // التحديد يُستخدم كمان في التصدير (Excel / طباعة / PDF): المحدد فقط أو الكل
   useEffect(() => {
@@ -166,6 +167,35 @@ const ProductTable = ({ products = [], onSelectionChange }) => {
         tButtons,
       }),
     },
+    // المستودعات (الفروع) اللي الصنف متاح فيها - الرئيسي فيه كل الأصناف
+    ...(warehouses.length
+      ? [
+          {
+            title: tForm("AvailableIn"),
+            key: "warehouses",
+            width: 200,
+            ellipsis: true,
+            align: "center",
+            filters: warehouses.map((w) => ({ text: nameOf(w), value: w.id })),
+            onFilter: (id, r) =>
+              r.allWarehouses ||
+              warehouses.find((w) => w.id === id)?.isMain ||
+              r.warehouseIds.includes(id),
+            render: (_, r) =>
+              r.allWarehouses ? (
+                <span style={{ color: C.muted }}>{tForm("AllWarehouses")}</span>
+              ) : (
+                warehouses
+                  .filter((w) => w.isMain || r.warehouseIds.includes(w.id))
+                  .map((w) => (
+                    <Tag key={w.id}>
+                      {nameOf(w)}
+                    </Tag>
+                  ))
+              ),
+          },
+        ]
+      : []),
     {
       title: tTable("BaseUnit"),
       key: "baseUnit",

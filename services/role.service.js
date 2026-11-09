@@ -13,6 +13,7 @@ const roleSelect = {
   isActive: true,
   isSuper: true,
   templateKey: true,
+  isCustomized: true,
   permissions: { select: { permission: true } },
   _count: { select: { users: true } },
 };
@@ -72,7 +73,9 @@ async function canManageCustomRoles(currentUser) {
 
 async function assertEditable(role, currentUser) {
   // الأدوار الثابتة مقفولة في وضع الشركات بس (قاعدتك المرجعية بتعدّل فيها عادي)
-  if (role.templateKey && multiTenant()) throw new AppError("TemplateRoleLocked");
+  // مالك البرنامج: يعدّل الدور الثابت (اسمه وصلاحياته) للشركة دي بالذات
+  if (role.templateKey && multiTenant() && !currentUser?.isOwner)
+    throw new AppError("TemplateRoleLocked");
   if (!(await canManageCustomRoles(currentUser)))
     throw new AppError("CustomRolesNotInPlan");
 }
@@ -126,11 +129,22 @@ export async function updateRole({ id, ...data }, currentUser) {
   }
 
   try {
-    return toDTO(await prisma.role.update({ where: { id }, data, select: roleSelect }));
+    return toDTO(
+      await prisma.role.update({
+        where: { id },
+        // دور ثابت اتعدّل للشركة دي ← اللوحة متكتبش فوقه
+        data: { ...data, ...customizedMark(current) },
+        select: roleSelect,
+      }),
+    );
   } catch (error) {
     handleUniqueError(error);
   }
 }
+
+// الدور الثابت (قالب من اللوحة) في وضع الشركات: علامة «متعدّل للشركة»
+const customizedMark = (role) =>
+  role.templateKey && multiTenant() ? { isCustomized: true } : {};
 
 // ------------------------------------------------------------
 // الصلاحيات
@@ -171,6 +185,15 @@ export async function setRolePermissions({ roleId, permissions }, currentUser) {
     prisma.rolePermission.createMany({
       data: unique.map((permission) => ({ roleId, permission })),
     }),
+    // دور ثابت اتعدّلت صلاحياته للشركة دي ← اللوحة متكتبش فوقه
+    ...(role.templateKey && multiTenant()
+      ? [
+          prisma.role.update({
+            where: { id: roleId },
+            data: { isCustomized: true },
+          }),
+        ]
+      : []),
   ]);
 
   return { roleId, permissions: unique };

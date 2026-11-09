@@ -158,6 +158,69 @@ export async function applyMovements(tx, movements, { allowNegative }) {
     })),
   });
   await changeBalances(tx, rows, allowNegative);
+  // البضاعة اللي دخلت مستودع ← الصنف بقى متاح فيه (يظهر في كاشير الفرع)
+  await makeAvailable(
+    tx,
+    rows.filter((m) => n(m.qty) > EPS),
+  );
+}
+
+// ------------------------------------------------------------
+// الأصناف حسب المستودعات (الفروع)
+// - الصنف allWarehouses = متاح في كل المستودعات
+// - غير كده: متاح في المستودعات اللي ليه فيها صف في product_warehouses
+// - المستودع الرئيسي فيه كل الأصناف دايماً
+// ------------------------------------------------------------
+
+// الصنف يبقى متاح في المستودعات دي (لو مش متاح في كل المستودعات)
+// pairs: [{ productId, warehouseId }]
+export async function makeAvailable(db, pairs) {
+  if (!pairs.length) return;
+  const limited = new Set(
+    (
+      await db.product.findMany({
+        where: {
+          id: { in: [...new Set(pairs.map((p) => p.productId))] },
+          allWarehouses: false,
+        },
+        select: { id: true },
+      })
+    ).map((p) => p.id),
+  );
+  if (!limited.size) return;
+  const seen = new Set();
+  const data = [];
+  for (const p of pairs) {
+    const key = `${p.productId}:${p.warehouseId}`;
+    if (!limited.has(p.productId) || seen.has(key)) continue;
+    seen.add(key);
+    data.push({ productId: p.productId, warehouseId: p.warehouseId });
+  }
+  if (data.length)
+    await db.productWarehouse.createMany({ data, skipDuplicates: true });
+}
+
+// شرط «الأصناف المتاحة في المستودع ده» لاستعلامات الأصناف
+// (المستودع الرئيسي أو من غير مستودع ← كل الأصناف: {})
+export async function availableInWhere(warehouseId, db = prisma) {
+  if (!warehouseId) return {};
+  const w = await db.warehouse.findUnique({
+    where: { id: warehouseId },
+    select: { isMain: true },
+  });
+  if (!w || w.isMain) return {};
+  return {
+    OR: [{ allWarehouses: true }, { warehouses: { some: { warehouseId } } }],
+  };
+}
+
+// مستودع فرع المستخدم (الفرع من غير مستودع ← الرئيسي)
+export async function userWarehouseId(user, db = prisma) {
+  const branch = await db.branch.findUnique({
+    where: { id: user.branch.id },
+    select: { warehouseId: true },
+  });
+  return branch?.warehouseId ?? (await getMainWarehouseId(db));
 }
 
 // ------------------------------------------------------------
@@ -185,18 +248,42 @@ export async function reverseMovements(
 }
 
 // ------------------------------------------------------------
-// الرصيد الافتتاحي للصنف (من شاشة الصنف) على المستودع الرئيسي
-// حركة واحدة من نوع opening لكل صنف، تتعدل بالفرق عند تغيير الرقم
+// الرصيد الافتتاحي للصنف (من شاشة الصنف)
+// - warehouseId فاضي = المستودع الرئيسي (خانات الرصيد الافتتاحي في الصنف)
+// - غير كده: مستودع فرع (جدول المستودعات في شاشة الصنف)
+// حركة واحدة من نوع opening لكل صنف في كل مستودع، تتعدل بالفرق عند تغيير الرقم
 // ------------------------------------------------------------
-export async function syncOpeningStock(productId, qty, cost = 0) {
+export async function syncOpeningStock(
+  productId,
+  qty,
+  cost = 0,
+  targetWarehouseId = null,
+) {
   return prisma.$transaction(async (tx) => {
-    const warehouseId = await getMainWarehouseId(tx);
+    const mainId = await getMainWarehouseId(tx);
+    const warehouseId = targetWarehouseId ?? mainId;
     if (!warehouseId) return;
 
-    const existing = await tx.stockMovement.findFirst({
-      where: { refType: "product", refId: productId, type: "opening" },
+    // الرئيسي: حركته على الرئيسي، أو (بيانات قديمة) أي حركة افتتاحي مش لمستودع فرع
+    let existing = await tx.stockMovement.findFirst({
+      where: { refType: "product", refId: productId, type: "opening", warehouseId },
       select: { id: true, qty: true, warehouseId: true },
     });
+    if (!existing && !targetWarehouseId) {
+      const branchRows = await tx.productWarehouse.findMany({
+        where: { productId },
+        select: { warehouseId: true },
+      });
+      existing = await tx.stockMovement.findFirst({
+        where: {
+          refType: "product",
+          refId: productId,
+          type: "opening",
+          warehouseId: { notIn: branchRows.map((r) => r.warehouseId) },
+        },
+        select: { id: true, qty: true, warehouseId: true },
+      });
+    }
     const oldQty = n(existing?.qty);
     const newQty = n(qty);
     if (Math.abs(newQty - oldQty) < EPS && existing) return;
@@ -601,4 +688,16 @@ export async function getStockMovementReport({
     totals,
     rows: all ? rows : rows.slice((page - 1) * pageSize, page * pageSize),
   };
+}
+
+// رصيد أصناف في مستودع واحد (بالوحدة الأساسية) ← { [productId]: qty }
+export async function warehouseQtys(warehouseId, productIds) {
+  if (!productIds.length) return {};
+  const rows = await prisma.stockBalance.findMany({
+    where: { warehouseId, productId: { in: productIds } },
+    select: { productId: true, qty: true },
+  });
+  const out = Object.fromEntries(productIds.map((id) => [id, 0]));
+  for (const r of rows) out[r.productId] = round4(n(r.qty));
+  return out;
 }

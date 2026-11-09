@@ -191,6 +191,7 @@ function LoginForm({
 }) {
   const [form] = Form.useForm();
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations("Auth");
   const tAlerts = useTranslations("Alerts");
   const [loading, setLoading] = useState(false);
@@ -240,8 +241,10 @@ function LoginForm({
     }
 
     // نجاح: نبقي زر التحميل حتى تفتح الصفحة الرئيسية
-    router.replace("/");
-    router.refresh();
+    // تحميل كامل (مش تنقل داخلي): الهيدر وقائمة الحساب (تسجيل الخروج) يشتغلوا
+    // ببيانات المستخدم الجديد على طول من غير Refresh
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- تحميل كامل مقصود
+    window.location.href = `/${locale}`;
   };
 
   return (
@@ -382,7 +385,6 @@ function LoginForm({
 function SetupForm({ currencies }) {
   const [form] = Form.useForm();
   const locale = useLocale();
-  const router = useRouter();
   const t = useTranslations("Auth");
   const tForm = useTranslations("Form");
   const tAlerts = useTranslations("Alerts");
@@ -405,7 +407,9 @@ function SetupForm({ currencies }) {
       return;
     }
 
-    router.replace("/");
+    // تحميل كامل للصفحة الرئيسية (زي الدخول)
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- تحميل كامل مقصود
+    window.location.href = `/${locale}`;
   };
 
   const nameRules = [

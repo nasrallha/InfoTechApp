@@ -29,6 +29,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { saveCompanyAction } from "@/actions/company.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import { IMAGE_TYPES, MAX_IMAGE_SIZE_MB, imageUrl } from "@/lib/image";
+import PhoneField from "@/components/common/PhoneField";
 import "./settings.css";
 
 // يحوّل حدث الـ Upload إلى قائمة ملفات يحفظها الفورم
@@ -337,24 +338,13 @@ export default function CompanyForm({ company, canEdit }) {
                   </Col>
                 )}
                 <Col xs={24} md={12}>
-                  <Form.Item
-                    name="phone"
+                  <PhoneField
                     label={tForm("Phone")}
-                    rules={[
-                      {
-                        pattern: /^\+?\d{7,15}$/,
-                        message: tAlerts("CompanyPhoneInvalid"),
-                      },
-                    ]}
-                  >
-                    <Input
-                      size="large"
-                      inputMode="tel"
-                      maxLength={16}
-                      dir="ltr"
-                      prefix={<PhoneOutlined className="text-slate-400" />}
-                    />
-                  </Form.Item>
+                    inputProps={{
+                      size: "large",
+                      prefix: <PhoneOutlined className="text-slate-400" />,
+                    }}
+                  />
                 </Col>
                 <Col xs={24} md={12}>
                   <Form.Item

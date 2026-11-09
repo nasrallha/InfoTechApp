@@ -14,6 +14,7 @@ import {
 } from "@/lib/restaurant-calc";
 import {
   getBranchSaleContext,
+  inBranch,
   saleProductSelect,
   toSaleProduct,
 } from "./sale-catalog.service";
@@ -41,7 +42,8 @@ export async function getRestaurantPosCatalog(user) {
   const [items, sizes, groups, channels, drivers, settings, printers, tables] =
     await Promise.all([
     prisma.restaurantItem.findMany({
-      where: { product: { isActive: true } },
+      // منيو الفرع: الأصناف المتاحة في مستودعه بس
+      where: { product: inBranch(ctx, { isActive: true }) },
       orderBy: [{ sortOrder: "asc" }, { productId: "asc" }],
       select: {
         productId: true,

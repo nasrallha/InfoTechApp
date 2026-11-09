@@ -1,6 +1,7 @@
 "use server";
 
 // الحجوزات (وحدة bookings) + لينك الحجز للعملاء
+import { assertPhones } from "@/lib/phone-check";
 import { headers } from "next/headers";
 import { runAction } from "@/lib/action";
 import { AppError } from "@/lib/errors";
@@ -146,7 +147,11 @@ export const publicCreateBookingAction = async (input) =>
     input,
     async ({ code, ...d }) => {
       await limit("book", 6, 30 * 60_000);
-      return inCompany(code, () => publicCreateBooking(d));
+      // الجوال حسب بلد الشركة (العملة الأساسية)
+      return inCompany(code, async () => {
+        await assertPhones(d);
+        return publicCreateBooking(d);
+      });
     },
     { public: true },
   );

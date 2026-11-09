@@ -233,6 +233,7 @@ const BranchTable = ({ branches = [], warehouses = [], priceLists = [] }) => {
           </Flex>
         }
         formId="EditBranchForm"
+        width={1000}
       >
         <EditBranchForm
           branch={selectedBranch}

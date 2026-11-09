@@ -18,6 +18,7 @@ import {
   CheckOutlined,
   CloseCircleOutlined,
   DownloadOutlined,
+  EditOutlined,
   PrinterOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
@@ -224,6 +225,14 @@ export default function TransferDetails({
           >
             {t("Print")}
           </Button>
+          {/* تعديل تحويل لسه في الطريق (من مستودع المستخدم / المدير: أي تحويل) */}
+          {pending && canCreate && transfer.canCancelHere && !receiving && (
+            <Link href={`/inventory/transfers/${transfer.id}/edit`}>
+              <Button size="large" icon={<EditOutlined />}>
+                {t("Edit")}
+              </Button>
+            </Link>
+          )}
           {canCreate && (
             <Link href="/inventory/transfers/new">
               <Button size="large">{t("NewTransfer")}</Button>

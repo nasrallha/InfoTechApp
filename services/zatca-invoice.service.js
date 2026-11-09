@@ -134,6 +134,7 @@ const saleForZatcaSelect = {
   branch: {
     select: {
       id: true,
+      idScheme: true,
       registrationNo: true,
       phone: true,
       city: true,
