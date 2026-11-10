@@ -39,7 +39,8 @@ export async function VoucherListContent({ type, searchParams }) {
       type={type}
       data={data}
       q={query}
-      canCreate={can(user, `${perm}.create`)}
+      // المقاصة بتتعمل من الكشف المشترك
+      canCreate={type !== "offset" && can(user, `${perm}.create`)}
     />
   );
 }
@@ -51,7 +52,7 @@ export async function VoucherNewContent({ type, searchParams }) {
   await connection();
   const sp = (await searchParams) ?? {};
   const [options, printSettings] = await Promise.all([
-    getVoucherOptions(),
+    getVoucherOptions(user),
     getInvoicePrintSettings(),
   ]);
   // فتح السند لعميل/مورد معيّن (?customer=5 / ?supplier=3)
@@ -65,6 +66,33 @@ export async function VoucherNewContent({ type, searchParams }) {
       type={type}
       options={options}
       preset={preset}
+      canChangeDate={can(user, `${perm}.changeDate`)}
+      printSettings={printSettings}
+    />
+  );
+}
+
+// تعديل سند: نفس شاشة السند الجديد ومعاها السند
+export async function VoucherEditContent({ params }) {
+  const { user } = await getPageAccess();
+  await connection();
+  const { id } = await params;
+  const voucherId = parseId(id);
+  if (!voucherId) notFound();
+  const voucher = await getVoucher(voucherId, user);
+  if (!voucher) notFound();
+  const perm = VOUCHER_PERM[voucher.type];
+  if (!can(user, `${perm}.update`)) return <NoAccess />;
+  const [options, printSettings] = await Promise.all([
+    getVoucherOptions(user),
+    getInvoicePrintSettings(),
+  ]);
+  return (
+    <VoucherForm
+      key={voucher.id}
+      type={voucher.type}
+      options={options}
+      voucher={voucher}
       canChangeDate={can(user, `${perm}.changeDate`)}
       printSettings={printSettings}
     />
@@ -86,7 +114,8 @@ export async function VoucherViewContent({ params, searchParams }) {
     <VoucherDetails
       voucher={voucher}
       printSettings={printSettings}
-      canCreate={can(user, `${perm}.create`)}
+      canCreate={voucher.type !== "offset" && can(user, `${perm}.create`)}
+      canUpdate={voucher.type !== "offset" && can(user, `${perm}.update`)}
       canDelete={can(user, `${perm}.delete`)}
       autoPrint={sp?.print === "1"}
     />

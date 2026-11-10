@@ -32,6 +32,7 @@ import {
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
+import { saleDocHref } from "@/lib/doc-number";
 import { formatDateTime } from "@/lib/dates";
 import { useBizToday } from "@/components/common/useBusinessDay";
 import { useCurrency } from "@/components/common/CurrencyProvider";
@@ -515,7 +516,7 @@ export default function Dashboard({ data }) {
                 {data.recentSales.map((s) => (
                   <li key={s.id}>
                     <Link
-                      href={`/invoices/${s.type === "return" ? "sales-returns" : "sales"}/${s.id}`}
+                      href={saleDocHref(s.type, s.id)}
                       className="dash-list__row"
                     >
                       <span className="dash-list__main">

@@ -18,7 +18,7 @@ async function Content() {
 
   await connection();
   const [customers, categories, promotions] = await Promise.all([
-    getSaleCustomers(),
+    getSaleCustomers(user),
     getSaleCategories(),
     getActivePromotions(user.branch.id),
   ]);

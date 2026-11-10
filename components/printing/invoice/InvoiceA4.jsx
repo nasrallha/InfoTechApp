@@ -6,7 +6,7 @@ import { qrDataUrl } from "@/lib/qr";
 import { imageUrl } from "@/lib/image";
 import { zatcaQrValue } from "@/lib/zatca";
 import { formatDateTime, formatDay } from "@/lib/dates";
-import { formatDocNo, saleDocNo } from "@/lib/doc-number";
+import { formatDocNo, purchaseDocNo, saleDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
 import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
@@ -25,7 +25,15 @@ const ACCENT = {
   quotation: "#57606f",
   purchase: "#57606f",
   purchaseReturn: "#57606f",
+  // الإشعارات (للعميل / من المورد)
+  credit: "#57606f",
+  debit: "#57606f",
+  purchaseCredit: "#57606f",
+  purchaseDebit: "#57606f",
 };
+
+// الإشعار: الفاتورة الأصلية أو المرجع، والسبب
+const NOTE_KINDS = ["credit", "debit", "purchaseCredit", "purchaseDebit"];
 
 // ============================================================
 // فاتورة A4 احترافية (مبيعات / مرتجع / عرض سعر / مشتريات / مرتجع مشتريات)
@@ -34,6 +42,7 @@ const ACCENT = {
 // - جدول الأصناف (صفوف ملونة بالتبادل)
 // - المبلغ بالحروف، الحساب البنكي، الشروط، الإجماليات، التوقيعات
 // kind: "sale" | "return" | "quotation" | "purchase" | "purchaseReturn"
+//       | "credit" | "debit" (إشعار للعميل) | "purchaseCredit" | "purchaseDebit"
 // settings: إعدادات طباعة الفواتير (اللغة، الشعار، الكود، البنك، النص السفلي)
 // ============================================================
 export default function InvoiceA4({ kind, doc, company, settings }) {
@@ -41,10 +50,19 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
   const lang = settings.language;
   const dir = lang === "en" ? "ltr" : "rtl";
   const accent = ACCENT[kind];
-  const isSale = kind === "sale" || kind === "return" || kind === "quotation";
+  const isSale = ["sale", "return", "quotation", "credit", "debit"].includes(
+    kind,
+  );
   const isQuotation = kind === "quotation";
-  const isPurchase = kind === "purchase" || kind === "purchaseReturn";
-  const isReturn = kind === "return" || kind === "purchaseReturn";
+  const isPurchase = !isSale;
+  const isNote = NOTE_KINDS.includes(kind);
+  // المرتجع والإشعار الدائن: المبلغ "على الحساب" مش "آجل"
+  const isReturn = [
+    "return",
+    "purchaseReturn",
+    "credit",
+    "purchaseCredit",
+  ].includes(kind);
 
   const L = (ar, en) =>
     lang === "ar" ? ar : lang === "en" ? en : `${ar} / ${en}`;
@@ -83,16 +101,20 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
         ? ["فاتورة ضريبية", "Tax Invoice"]
         : ["فاتورة ضريبية مبسطة", "Simplified Tax Invoice"],
     return: ["إشعار دائن", "Credit Note"],
+    credit: ["إشعار دائن", "Credit Note"],
+    debit: ["إشعار مدين", "Debit Note"],
     quotation: ["عرض سعر", "Quotation"],
     purchase: ["فاتورة مشتريات", "Purchase Invoice"],
     purchaseReturn: ["مرتجع مشتريات", "Purchase Return"],
+    purchaseCredit: ["إشعار دائن من المورد", "Supplier Credit Note"],
+    purchaseDebit: ["إشعار مدين من المورد", "Supplier Debit Note"],
   }[kind];
 
   const number = isQuotation
     ? formatDocNo("quotation", doc.number)
     : isSale
       ? saleDocNo(doc.type, doc.number)
-      : formatDocNo(doc.type, doc.number);
+      : purchaseDocNo(doc.type, doc.number);
 
   // QR الزكاة لفواتير البيع والإشعارات
   const [qr, setQr] = useState(null);
@@ -137,7 +159,10 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
   const wc = wordsCurrency(currency);
 
   const meta = [
-    [L("رقم الفاتورة", "Invoice No"), <bdi key="n">{number}</bdi>],
+    [
+      isNote ? L("رقم الإشعار", "Note No") : L("رقم الفاتورة", "Invoice No"),
+      <bdi key="n">{number}</bdi>,
+    ],
     [L("التاريخ", "Date"), <bdi key="d">{formatDateTime(doc.date)}</bdi>],
     isQuotation &&
       doc.validUntil && [
@@ -154,14 +179,35 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
         L("فاتورة الشراء", "Purchase invoice"),
         <bdi key="o">{formatDocNo("purchase", doc.returnOf.number)}</bdi>,
       ],
+    // الإشعار: الفاتورة الأصلية (أو المرجع) والسبب
+    isNote &&
+      (doc.returnOf || doc.billingRef) && [
+        L("الفاتورة الأصلية", "Original invoice"),
+        <bdi key="ref">
+          {doc.returnOf
+            ? isSale
+              ? saleDocNo("sale", doc.returnOf.number)
+              : purchaseDocNo("purchase", doc.returnOf.number)
+            : doc.billingRef}
+        </bdi>,
+      ],
+    isNote &&
+      doc.noteReason && [
+        L("سبب الإشعار", "Reason"),
+        N(doc.noteReason, doc.noteReasonEn || doc.noteReason),
+      ],
     isPurchase &&
       doc.supplierInvoiceNo && [
-        L("رقم فاتورة المورد", "Supplier invoice"),
+        isNote
+          ? L("رقم إشعار المورد", "Supplier note No")
+          : L("رقم فاتورة المورد", "Supplier invoice"),
         <bdi key="s">{doc.supplierInvoiceNo}</bdi>,
       ],
     isPurchase &&
       doc.supplierInvoiceDate && [
-        L("تاريخ فاتورة المورد", "Supplier inv. date"),
+        isNote
+          ? L("تاريخ إشعار المورد", "Supplier note date")
+          : L("تاريخ فاتورة المورد", "Supplier inv. date"),
         <bdi key="sd">{formatDay(doc.supplierInvoiceDate)}</bdi>,
       ],
     doc.branch && [

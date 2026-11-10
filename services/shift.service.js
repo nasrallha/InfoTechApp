@@ -1,4 +1,5 @@
 import "server-only";
+import { docSign } from "@/lib/doc-number";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
@@ -195,13 +196,14 @@ export async function shiftSummary(shiftId, db = prisma) {
   };
   const byMethod = new Map();
   for (const s of sales) {
-    const sign = s.type === "return" ? -1 : 1;
+    // الإشعار الدائن زي المرتجع (فلوس بترجع)، والمدين زي البيع
+    const sign = docSign(s.type);
     if (sign > 0) {
       sum.sales += n(s.totalAmount);
-      sum.salesCount++;
+      if (s.type === "sale") sum.salesCount++;
     } else {
       sum.returns += n(s.totalAmount);
-      sum.returnsCount++;
+      if (s.type === "return") sum.returnsCount++;
     }
     sum.tax += sign * n(s.taxAmount);
     sum.credit += sign * n(s.remainingAmount);

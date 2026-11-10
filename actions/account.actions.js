@@ -6,22 +6,32 @@ import { runAction } from "@/lib/action";
 import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { dayStart, dayEnd } from "@/lib/dates";
+import { statementBranch } from "@/lib/party-scope";
 import { idField } from "@/validations/common.schema";
 import {
   createVoucherSchema,
   expenseCategorySchema,
   partyAccountSchema,
   statementSchema,
+  updateVoucherSchema,
+  linkPartiesSchema,
+  createOffsetSchema,
 } from "@/validations/account.schema";
 import {
   createVoucher,
+  createOffset,
   deleteVoucher,
+  updateVoucher,
   getVoucher,
   deleteExpenseCategory,
   saveExpenseCategory,
   VOUCHER_PERM,
 } from "@/services/voucher.service";
-import { getPartyAccount, getStatement } from "@/services/account.service";
+import {
+  getPartyAccount,
+  getStatement,
+  linkCustomerSupplier,
+} from "@/services/account.service";
 
 const STATEMENT_PERM = {
   customer: "statements.customers",
@@ -45,6 +55,19 @@ export async function createVoucherAction(input) {
   );
 }
 
+// تعديل سند (الصلاحية تُفحص في الـ service حسب نوع السند)
+export async function updateVoucherAction(input) {
+  return runAction(
+    updateVoucherSchema,
+    input,
+    async (d, user) => {
+      const updated = await updateVoucher(d, user);
+      return getVoucher(updated.id, user);
+    },
+    { refresh: true },
+  );
+}
+
 // حذف سند (الصلاحية تُفحص في الـ service حسب نوع السند)
 export async function deleteVoucherAction(id) {
   return runAction(idField, id, (d, user) => deleteVoucher(d, user), {
@@ -58,13 +81,19 @@ export async function getPartyAccountAction(input) {
     const allowed =
       d.kind === "customer"
         ? can(user, "receipts.create") ||
+          can(user, "receipts.update") ||
           can(user, "settlements.create") ||
+          can(user, "settlements.update") ||
           can(user, STATEMENT_PERM.customer)
         : can(user, "paymentVouchers.create") ||
+          can(user, "paymentVouchers.update") ||
           can(user, "settlements.create") ||
+          can(user, "settlements.update") ||
           can(user, STATEMENT_PERM.supplier);
     if (!allowed) throw new AppError("Forbidden");
-    return getPartyAccount(d.kind, d.id);
+    return getPartyAccount(d.kind, d.id, {
+      excludeVoucherId: d.excludeVoucherId ?? null,
+    });
   });
 }
 
@@ -75,6 +104,9 @@ export async function getStatementAction(input) {
     const res = await getStatement(d.kind, d.id, {
       from: d.from ? dayStart(d.from) : undefined,
       to: d.to ? dayEnd(d.to) : undefined,
+      // موظف الفرع: حركات فرعه بس
+      branchId: statementBranch(user),
+      user,
     });
     if (!res) throw new AppError("PartyNotFound");
     return res;
@@ -108,4 +140,24 @@ export async function deleteExpenseCategoryAction(id) {
     permission: "expenseCategories.delete",
     refresh: true,
   });
+}
+
+// ربط عميل بمورد (الكشف المشترك)
+export async function linkPartiesAction(input) {
+  return runAction(
+    linkPartiesSchema,
+    input,
+    (d) => linkCustomerSupplier(d.customerId, d.supplierId ?? null),
+    { permission: "statements.combined" },
+  );
+}
+
+// سند مقاصة (من الكشف المشترك)
+export async function createOffsetAction(input) {
+  return runAction(
+    createOffsetSchema,
+    input,
+    (d, user) => createOffset(d, user),
+    { permission: "offsets.create", refresh: true },
+  );
 }

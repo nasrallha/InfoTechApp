@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { companyZatcaActiveAction } from "@/actions/customer.actions";
 import {
   Alert,
   Form,
@@ -11,11 +12,13 @@ import {
   Row,
   Col,
   Divider,
+  Radio,
 } from "antd";
 import { message } from "@/components/common/feedback";
 import { useLocale, useTranslations } from "next-intl";
 import { BUYER_ID_SCHEMES, COUNTRIES } from "@/lib/zatca-tax";
 import { applyFieldErrors } from "@/lib/form-errors";
+import { listSep } from "@/lib/list-sep";
 import PhoneField from "@/components/common/PhoneField";
 
 // فورم العميل أو المورد (نفس الفورم للإضافة والتعديل)
@@ -33,6 +36,8 @@ const ID_EXAMPLES = {
   PAS: "A12345678",
 };
 
+// branches: الفروع (لصاحب "عرض كل الفروع" بس) ← يظهر اختيار الإتاحة
+// (من غيرها: الطرف الجديد بيتاح لفرع المستخدم، والتعديل مبيغيرش الإتاحة)
 const PartyForm = ({
   formId,
   party = null,
@@ -40,6 +45,7 @@ const PartyForm = ({
   nextCode,
   onSuccess,
   setLoading,
+  branches = null,
 }) => {
   const [form] = Form.useForm();
   const isEdit = Boolean(party);
@@ -71,6 +77,21 @@ const PartyForm = ({
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
+      // مسجّل قبل كده: اسمه وفروعه (عشان تطلب من المدير يضيف فرعك لإتاحته)
+      const dup = res.details;
+      if (dup?.arName) {
+        const name = locale === "ar" ? dup.arName : dup.enName || dup.arName;
+        const where = dup.allBranches
+          ? tForm("AllBranches")
+          : (dup.branches ?? [])
+              .map((b) => (locale === "ar" ? b.arName : b.enName))
+              .join(listSep(locale)) || "—";
+        message.error({
+          duration: 8,
+          content: `${tAlerts(res.error)} - ${tAlerts("PartyRegisteredIn", { name, branches: where })}`,
+        });
+        return;
+      }
       message.error(tAlerts(res.error));
       return;
     }
@@ -89,13 +110,30 @@ const PartyForm = ({
   // - عميل برّه المملكة: من غير رقم ضريبي سعودي والعنوان بشكل حر
   // - عميل محلي له رقم ضريبي أو معرّف = شركة (فاتورته ضريبية): العنوان الوطني كله إجباري
   const taxNoValue = Form.useWatch("taxNo", form);
+  // الإتاحة: كل الفروع / فروع محددة
+  const allBranchesValue = Form.useWatch("allBranches", form);
   const countryCode = Form.useWatch("countryCode", form) ?? "SA";
   const idScheme = Form.useWatch("idScheme", form);
   const idNumber = Form.useWatch("idNumber", form);
   const foreign = Boolean(config.b2b && countryCode !== "SA");
   const has = (v) => Boolean(v && String(v).trim());
+  // العنوان الوطني كامل إجباري للشركة بس لو فرع المستخدم مربوط بالزكاة
+  const [zatcaOn, setZatcaOn] = useState(false);
+  useEffect(() => {
+    if (!config.b2b) return;
+    let alive = true;
+    companyZatcaActiveAction().then((res) => {
+      if (alive && res.success) setZatcaOn(Boolean(res.data));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [config.b2b]);
   const b2b = Boolean(
-    config.b2b && !foreign && (has(taxNoValue) || (idScheme && has(idNumber))),
+    zatcaOn &&
+    config.b2b &&
+    !foreign &&
+    (has(taxNoValue) || (idScheme && has(idNumber))),
   );
   // العميل الأجنبي: الشارع والمدينة إجباريين (بيانات فاتورة التصدير)
   const foreignRequired = foreign
@@ -136,6 +174,8 @@ const PartyForm = ({
         openingBalance: 0,
         isActive: true,
         countryCode: "SA",
+        allBranches: true,
+        branchIds: [],
       }}
       style={{ padding: "10px 10px 0 10px" }}
     >
@@ -348,19 +388,19 @@ const PartyForm = ({
         </Col>
       </Row>
 
-      {/* الرصيد والحالة */}
+      {/* الرصيد والحالة والإتاحة في الفروع */}
       <Divider />
       <Row gutter={[16, 0]} align="middle">
-        <Col xs={24} md={12}>
+        <Col xs={24} md={branches ? 6 : 12}>
           <Form.Item
             name="openingBalance"
             label={tForm("OpeningBalance")}
-            extra={tForm(config.balanceHint)}
+            tooltip={tForm(config.balanceHint)}
           >
             <InputNumber style={{ width: "100%" }} />
           </Form.Item>
         </Col>
-        <Col xs={24} md={12}>
+        <Col xs={24} md={branches ? 4 : 12}>
           <Form.Item
             name="isActive"
             label={tForm("Active")}
@@ -369,6 +409,51 @@ const PartyForm = ({
             <Switch />
           </Form.Item>
         </Col>
+        {branches && (
+          <>
+            <Col xs={24} md={6}>
+              <Form.Item
+                name="allBranches"
+                label={tForm("PartyBranches")}
+                tooltip={tForm("PartyBranchesHint")}
+              >
+                <Radio.Group
+                  optionType="button"
+                  buttonStyle="solid"
+                  options={[
+                    { value: true, label: tForm("AllBranches") },
+                    { value: false, label: tForm("SomeBranches") },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              {allBranchesValue === false && (
+                <Form.Item
+                  name="branchIds"
+                  label={tForm("ChooseBranches")}
+                  rules={[
+                    {
+                      required: true,
+                      type: "array",
+                      min: 1,
+                      message: tAlerts("RequiredField"),
+                    },
+                  ]}
+                >
+                  <Select
+                    mode="multiple"
+                    optionFilterProp="label"
+                    options={branches.map((b) => ({
+                      value: b.id,
+                      label: locale === "ar" ? b.arName : b.enName,
+                    }))}
+                  />
+                </Form.Item>
+              )}
+            </Col>
+          </>
+        )}
       </Row>
     </Form>
   );

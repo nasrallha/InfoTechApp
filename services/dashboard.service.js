@@ -6,7 +6,7 @@ import { can } from "@/lib/permissions";
 import { round } from "@/lib/invoice-calc";
 import { bizDayOf, bizRange, bizToday } from "@/lib/business-day";
 import { getDayStartHour } from "@/lib/business-day-server";
-import { saleDocNo, formatDocNo } from "@/lib/doc-number";
+import { docSign, saleDocNo, formatDocNo } from "@/lib/doc-number";
 import { dailyReport, reportBranch, topProducts } from "./report.service";
 import { shiftSummary } from "./shift.service";
 import { getZatcaAlerts } from "./zatca-invoice.service";
@@ -297,7 +297,7 @@ async function salesFigures(branch, now, h) {
   };
 
   for (const s of sales) {
-    const sign = s.type === "return" ? -1 : 1;
+    const sign = docSign(s.type);
     const day = bizDayOf(s.date, h);
     const total = sign * n(s.totalAmount);
     const net = sign * n(s.netAmount);

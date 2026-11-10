@@ -21,7 +21,7 @@ async function Content({ params, searchParams }) {
   if (!claimId) notFound();
   const [claim, suppliers, printSettings] = await Promise.all([
     getClaim(claimId, user),
-    getPurchaseSuppliers(),
+    getPurchaseSuppliers(user),
     getInvoicePrintSettings(),
   ]);
   if (!claim) notFound();

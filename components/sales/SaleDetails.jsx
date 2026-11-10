@@ -42,6 +42,7 @@ import ZatcaStatusBox from "@/components/zatca/ZatcaStatusBox";
 import TotalsSummary from "@/components/purchases/TotalsSummary";
 import { returnStatus } from "@/components/purchases/PurchaseDetails";
 import SaleDocument from "./SaleDocument";
+import { LinkedNotes, NoteButton } from "@/components/notes/LinkedNotes";
 import { LineNoteText } from "@/components/purchases/LineNote";
 import "@/components/purchases/purchases.css";
 import SerialPrintLines from "@/components/serials/SerialPrintLines";
@@ -56,6 +57,8 @@ export default function SaleDetails({
   printSettings,
   canCreate,
   canReturn,
+  // إشعار دائن / مدين على الفاتورة
+  canNote = false,
   canUpdate,
   canDelete,
   productionLive = false,
@@ -76,7 +79,9 @@ export default function SaleDetails({
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
   const isReturn = sale.type === "return";
-  const hasReturns = !isReturn && sale.returns.length > 0;
+  // مرتجعات أو إشعارات على الفاتورة ← مقفولة (لا تعديل ولا حذف)
+  const hasReturns =
+    !isReturn && sale.returns.length + (sale.notes?.length ?? 0) > 0;
   const shiftClosed = sale.shift && sale.shift.status !== "open";
   // اتوقّعت للزكاة: مقفولة (التصحيح بمرتجع / إشعار دائن)
   const zdoc = sale.zatcaDocument;
@@ -309,6 +314,9 @@ export default function SaleDetails({
             <Link href={`/invoices/sales-returns/new?sale=${sale.id}`}>
               <Button icon={<RollbackOutlined />}>{tP("MakeReturn")}</Button>
             </Link>
+          )}
+          {!isReturn && canNote && (
+            <NoteButton side="sale" invoiceId={sale.id} />
           )}
           {canCreate && (
             <Link
@@ -558,6 +566,7 @@ export default function SaleDetails({
                 ))}
               </div>
             )}
+            {!isReturn && <LinkedNotes side="sale" notes={sale.notes} />}
           </Card>
         </Col>
         <Col xs={24} lg={10}>

@@ -1,4 +1,5 @@
 import "server-only";
+import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
@@ -25,12 +26,13 @@ const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 };
 const EPS = 0.0001;
 const n = (v) => (v == null ? 0 : Number(v));
 
-export const VOUCHER_TYPES = ["receipt", "payment", "settlement"];
+export const VOUCHER_TYPES = ["receipt", "payment", "settlement", "offset"];
 // صلاحية كل نوع
 export const VOUCHER_PERM = {
   receipt: "receipts",
   payment: "paymentVouchers",
   settlement: "settlements",
+  offset: "offsets",
 };
 // الأطراف المسموحة لكل نوع
 const PARTIES = {
@@ -68,7 +70,11 @@ export function createVoucher(data, user) {
   );
 }
 
-async function createVoucherNow(data, user) {
+// ------------------------------------------------------------
+// تجهيز السند (الإضافة والتعديل): الطرف، طريقة الدفع، التاريخ، الوردية
+// existing: السند الحالي في التعديل (تاريخه ووردية درجه)
+// ------------------------------------------------------------
+async function prepareVoucher(data, user, existing = null) {
   const { type, partyType } = data;
   if (!PARTIES[type]?.includes(partyType))
     throw new AppError("ValidationError");
@@ -80,13 +86,15 @@ async function createVoucherNow(data, user) {
   // ---------- الطرف ----------
   let party = { arName: null, enName: null };
   let partyKind = null;
+  let partyId = null;
   if (partyType === "customer" || partyType === "supplier") {
     partyKind = partyType;
-    const id = partyType === "customer" ? data.customerId : data.supplierId;
-    if (!id)
+    partyId = partyType === "customer" ? data.customerId : data.supplierId;
+    if (!partyId)
       throw new AppError("RequiredField", null, { partyId: "RequiredField" });
-    const row = await prisma[partyType].findUnique({
-      where: { id },
+    const row = await prisma[partyType].findFirst({
+      // الطرف لازم يكون متاح في فرع السند
+      where: { id: partyId, ...partyInBranch(user.branch.id) },
       select: { arName: true, enName: true },
     });
     if (!row) throw new AppError("PartyNotFound");
@@ -128,92 +136,186 @@ async function createVoucherNow(data, user) {
     }
   }
 
-  // ---------- التاريخ: الآن، أو يوم سابق بصلاحية "تغيير التاريخ" ----------
+  // ---------- التاريخ: الآن (أو تاريخ السند في التعديل)، أو يوم سابق بالصلاحية ----------
   const now = today();
+  const keep = existing ? dayOf(existing.date) : now;
   const day =
     data.date && can(user, `${VOUCHER_PERM[type]}.changeDate`)
       ? data.date
-      : now;
+      : keep;
   if (day > now) throw new AppError("FutureDate", null, { date: "FutureDate" });
-  const date = day === now ? new Date() : dayToDateTime(day);
+  const date = existing
+    ? day === keep
+      ? existing.date
+      : dayToDateTime(day)
+    : day === now
+      ? new Date()
+      : dayToDateTime(day);
 
   // ---------- الوردية: النقدي من كاشير عنده وردية مفتوحة على نفس الفرع ----------
+  // (التعديل: لو السند كان على وردية ولسه نقدي، بيفضل عليها)
   let shiftId = null;
   if (method?.type === "cash") {
-    const shift = await prisma.shift.findFirst({
-      where: { userId: user.id, status: "open", branchId: user.branch.id },
-      select: { id: true },
-    });
-    shiftId = shift?.id ?? null;
+    if (existing?.shiftId) shiftId = existing.shiftId;
+    else {
+      const shift = await prisma.shift.findFirst({
+        where: { userId: user.id, status: "open", branchId: user.branch.id },
+        select: { id: true },
+      });
+      shiftId = shift?.id ?? null;
+    }
   }
 
-  return runTx(async (tx) => {
-    // المبلغ لا يتجاوز الرصيد (داخل العملية حتى لا يسبق سند آخر في نفس اللحظة)
-    if (partyKind) {
-      const id = partyKind === "customer" ? data.customerId : data.supplierId;
-      // نقفل صف الطرف حتى نهاية العملية (سندين في نفس اللحظة لا يتجاوزان الرصيد)
-      await tx[partyKind].update({
-        where: { id },
-        data: { updatedAt: new Date() },
-      });
-      const balance = await partyBalance(partyKind, id, { db: tx });
-      // سند القبض من عميل مسموح يزيد عن مديونيته (دفعة مقدمة): الزيادة تبقى رصيد له
-      // الصرف للمورد والتسوية: لا يتجاوزان الرصيد
-      if (type !== "receipt" && amount > balance + EPS) {
-        throw new AppError(
-          "AmountExceedsBalance",
-          { balance: round(balance, decimals) },
-          {
-            amount: "AmountExceedsBalance",
-          },
-        );
-      }
-    }
+  return {
+    type,
+    partyType,
+    amount,
+    decimals,
+    party,
+    partyKind,
+    partyId,
+    method,
+    date,
+    shiftId,
+  };
+}
 
-    const number = await nextNumber(tx, type);
+// المبلغ لا يتجاوز الرصيد (داخل العملية)، والقبض من عميل مسموح بزيادة (دفعة مقدمة)
+async function assertWithinBalance(tx, v) {
+  if (!v.partyKind) return;
+  // نقفل صف الطرف حتى نهاية العملية (سندين في نفس اللحظة لا يتجاوزان الرصيد)
+  await tx[v.partyKind].update({
+    where: { id: v.partyId },
+    data: { updatedAt: new Date() },
+  });
+  const balance = await partyBalance(v.partyKind, v.partyId, { db: tx });
+  if (v.type !== "receipt" && v.amount > balance + EPS) {
+    throw new AppError(
+      "AmountExceedsBalance",
+      { balance: round(balance, v.decimals) },
+      { amount: "AmountExceedsBalance" },
+    );
+  }
+}
+
+// توزيع السند على الأقدم (الافتتاحي ثم الفواتير)
+async function allocate(tx, voucherId, v) {
+  if (!v.partyKind) return;
+  const rows = await allocateFifo(v.partyKind, v.partyId, v.amount, tx);
+  const docKey = v.partyKind === "customer" ? "saleId" : "purchaseId";
+  const docModel = v.partyKind === "customer" ? "sale" : "purchase";
+  for (const r of rows) {
+    await tx.voucherAllocation.create({
+      data: { voucherId, [docKey]: r.docId, amount: r.amount },
+    });
+    if (r.docId) {
+      await tx[docModel].update({
+        where: { id: r.docId },
+        data: { settledAmount: { increment: r.amount } },
+      });
+    }
+  }
+}
+
+// إلغاء توزيع السند (المسدد على الفواتير يرجع)
+async function unallocate(tx, voucherId) {
+  const rows = await tx.voucherAllocation.findMany({
+    where: { voucherId },
+    select: { saleId: true, purchaseId: true, amount: true },
+  });
+  for (const a of rows) {
+    if (a.saleId)
+      await tx.sale.update({
+        where: { id: a.saleId },
+        data: { settledAmount: { decrement: a.amount } },
+      });
+    if (a.purchaseId)
+      await tx.purchase.update({
+        where: { id: a.purchaseId },
+        data: { settledAmount: { decrement: a.amount } },
+      });
+  }
+  await tx.voucherAllocation.deleteMany({ where: { voucherId } });
+}
+
+const voucherRow = (v, data) => ({
+  partyType: v.partyType,
+  shiftId: v.shiftId,
+  customerId: v.partyType === "customer" ? data.customerId : null,
+  supplierId: v.partyType === "supplier" ? data.supplierId : null,
+  expenseCategoryId: v.partyType === "expense" ? data.expenseCategoryId : null,
+  partyArName: v.party.arName,
+  partyEnName: v.party.enName,
+  paymentMethodId: v.method?.id ?? null,
+  amount: v.amount,
+  reference: data.reference ?? null,
+  date: v.date,
+  notes: data.notes ?? null,
+});
+
+async function createVoucherNow(data, user) {
+  const v = await prepareVoucher(data, user);
+  return runTx(async (tx) => {
+    await assertWithinBalance(tx, v);
+    const number = await nextNumber(tx, v.type);
     const created = await tx.voucher.create({
       data: {
-        type,
+        type: v.type,
         number,
-        partyType,
         branchId: user.branch.id,
-        shiftId,
-        customerId: partyType === "customer" ? data.customerId : null,
-        supplierId: partyType === "supplier" ? data.supplierId : null,
-        expenseCategoryId:
-          partyType === "expense" ? data.expenseCategoryId : null,
-        partyArName: party.arName,
-        partyEnName: party.enName,
-        paymentMethodId: method?.id ?? null,
-        amount,
-        reference: data.reference ?? null,
-        date,
-        notes: data.notes ?? null,
+        ...voucherRow(v, data),
         createdById: user.id,
         requestId: data.requestId ?? null,
       },
       select: { id: true, number: true },
     });
-
-    // التوزيع على الأقدم
-    if (partyKind) {
-      const id = partyKind === "customer" ? data.customerId : data.supplierId;
-      const rows = await allocateFifo(partyKind, id, amount, tx);
-      const docKey = partyKind === "customer" ? "saleId" : "purchaseId";
-      const docModel = partyKind === "customer" ? "sale" : "purchase";
-      for (const r of rows) {
-        await tx.voucherAllocation.create({
-          data: { voucherId: created.id, [docKey]: r.docId, amount: r.amount },
-        });
-        if (r.docId) {
-          await tx[docModel].update({
-            where: { id: r.docId },
-            data: { settledAmount: { increment: r.amount } },
-          });
-        }
-      }
-    }
+    await allocate(tx, created.id, v);
     return created;
+  }, TX_OPTIONS);
+}
+
+// ------------------------------------------------------------
+// تعديل سند (بصلاحية "تعديل" لنوعه): نفس النوع والرقم
+// - التوزيع القديم على الفواتير بيرجع، والمبلغ الجديد يتوزع من الأقدم تاني
+// - ممنوع لو ورديته اتقفلت، أو لو السند مربوط باشتراك مغسلة
+// ------------------------------------------------------------
+export async function updateVoucher({ id, ...data }, user) {
+  const existing = await prisma.voucher.findFirst({
+    where: { id, ...branchScope(user) },
+    select: {
+      id: true,
+      type: true,
+      date: true,
+      shiftId: true,
+      shift: { select: { status: true } },
+      laundryWallet: { select: { id: true } },
+    },
+  });
+  if (!existing) throw new AppError("VoucherNotFound");
+  if (!can(user, `${VOUCHER_PERM[existing.type]}.update`))
+    throw new AppError("Forbidden");
+  if (existing.shift && existing.shift.status !== "open")
+    throw new AppError("VoucherShiftClosed");
+  if (existing.laundryWallet) throw new AppError("VoucherLinkedLaundry");
+
+  // النوع مبيتغيرش في التعديل
+  const v = await prepareVoucher(
+    { ...data, type: existing.type },
+    user,
+    existing,
+  );
+  return runTx(async (tx) => {
+    await unallocate(tx, id);
+    // الرصيد من غير السند ده: نصفّر مبلغه مؤقتاً قبل الفحص
+    await tx.voucher.update({ where: { id }, data: { amount: 0 } });
+    await assertWithinBalance(tx, v);
+    const updated = await tx.voucher.update({
+      where: { id },
+      data: voucherRow(v, data),
+      select: { id: true, number: true, type: true },
+    });
+    await allocate(tx, id, v);
+    return updated;
   }, TX_OPTIONS);
 }
 
@@ -314,6 +416,10 @@ export async function getVoucher(id, user) {
       ...listSelect,
       customerId: true,
       supplierId: true,
+      // للتعديل
+      expenseCategoryId: true,
+      paymentMethodId: true,
+      laundryWallet: { select: { id: true } },
       expenseCategory: { select: { arName: true, enName: true } },
       shift: { select: { id: true, number: true, status: true } },
       branch: {
@@ -335,8 +441,9 @@ export async function getVoucher(id, user) {
         select: {
           id: true,
           amount: true,
-          sale: { select: { id: true, number: true } },
-          purchase: { select: { id: true, number: true } },
+          // النوع: فاتورة أو إشعار مدين (السند ممكن يسدد الاتنين)
+          sale: { select: { id: true, type: true, number: true } },
+          purchase: { select: { id: true, type: true, number: true } },
         },
       },
     },
@@ -398,15 +505,17 @@ export async function deleteExpenseCategory(id) {
 }
 
 // الأطراف لشاشة السند
-export async function getVoucherOptions() {
+// الأطراف المتاحة في فرع المستخدم (فرع السند)
+export async function getVoucherOptions(user) {
+  const inBranch = user?.branch?.id ? partyInBranch(user.branch.id) : {};
   const [customers, suppliers, categories, methods] = await Promise.all([
     prisma.customer.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...inBranch },
       orderBy: { code: "asc" },
       select: { id: true, code: true, arName: true, enName: true, phone: true },
     }),
     prisma.supplier.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...inBranch },
       orderBy: { code: "asc" },
       select: { id: true, code: true, arName: true, enName: true, phone: true },
     }),
@@ -427,3 +536,104 @@ export async function getVoucherOptions() {
 }
 
 export { n as toNumber };
+
+// ============================================================
+// سند مقاصة (عميل هو مورد): بيقفل جزء من رصيد العميل في رصيد المورد
+// - مفيش فلوس بتتحرك، والمبلغ ميعدّيش رصيد العميل (عليه) ولا رصيد المورد (له)
+// - بيتوزع على أقدم فواتير العميل وأقدم فواتير المورد
+// ============================================================
+export async function createOffset(data, user) {
+  const currency = await getBaseCurrency();
+  const decimals = currency.decimals ?? 2;
+  const amount = round(data.amount, decimals);
+  if (!(amount > 0)) throw new AppError("MustBePositive");
+  const [customer, supplier] = await Promise.all([
+    prisma.customer.findFirst({
+      where: { id: data.customerId, ...partyInBranch(user.branch.id) },
+      select: { arName: true, enName: true },
+    }),
+    prisma.supplier.findFirst({
+      where: { id: data.supplierId, ...partyInBranch(user.branch.id) },
+      select: { arName: true, enName: true },
+    }),
+  ]);
+  if (!customer || !supplier) throw new AppError("PartyNotFound");
+
+  const now = today();
+  const day = data.date && can(user, "offsets.changeDate") ? data.date : now;
+  if (day > now) throw new AppError("FutureDate", null, { date: "FutureDate" });
+  const date = day === now ? new Date() : dayToDateTime(day);
+
+  return saveOnce(
+    "voucher",
+    data.requestId,
+    user,
+    { id: true, number: true },
+    () =>
+      runTx(async (tx) => {
+        // نقفل الطرفين، والمبلغ ميعدّيش أي رصيد منهم
+        await tx.customer.update({
+          where: { id: data.customerId },
+          data: { updatedAt: new Date() },
+        });
+        await tx.supplier.update({
+          where: { id: data.supplierId },
+          data: { updatedAt: new Date() },
+        });
+        const [cb, sb] = await Promise.all([
+          partyBalance("customer", data.customerId, { db: tx }),
+          partyBalance("supplier", data.supplierId, { db: tx }),
+        ]);
+        const max = Math.min(cb, sb);
+        if (amount > max + EPS)
+          throw new AppError(
+            "OffsetExceedsBalance",
+            { balance: round(Math.max(max, 0), decimals) },
+            { amount: "OffsetExceedsBalance" },
+          );
+
+        const number = await nextNumber(tx, "offset");
+        const created = await tx.voucher.create({
+          data: {
+            type: "offset",
+            number,
+            partyType: "offset",
+            branchId: user.branch.id,
+            customerId: data.customerId,
+            supplierId: data.supplierId,
+            partyArName: `${customer.arName} / ${supplier.arName}`,
+            partyEnName: `${customer.enName} / ${supplier.enName}`,
+            amount,
+            date,
+            notes: data.notes ?? null,
+            createdById: user.id,
+            requestId: data.requestId ?? null,
+          },
+          select: { id: true, number: true },
+        });
+        // التوزيع على الطرفين (كل طرف بعلامته)
+        for (const [kind, partyId, docKey, docModel] of [
+          ["customer", data.customerId, "saleId", "sale"],
+          ["supplier", data.supplierId, "purchaseId", "purchase"],
+        ]) {
+          const rows = await allocateFifo(kind, partyId, amount, tx);
+          for (const r of rows) {
+            await tx.voucherAllocation.create({
+              data: {
+                voucherId: created.id,
+                [docKey]: r.docId,
+                amount: r.amount,
+                partySide: kind,
+              },
+            });
+            if (r.docId)
+              await tx[docModel].update({
+                where: { id: r.docId },
+                data: { settledAmount: { increment: r.amount } },
+              });
+          }
+        }
+        return created;
+      }, TX_OPTIONS),
+  );
+}

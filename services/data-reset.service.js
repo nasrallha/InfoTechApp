@@ -49,12 +49,12 @@ export async function getResetCounts() {
     expenseCategories,
   ] = await Promise.all([
     prisma.sale.count({ where: { type: "sale" } }),
-    prisma.sale.count({ where: { type: "return" } }),
+    prisma.sale.count({ where: { type: { in: ["return", "credit", "debit"] } } }),
     prisma.zatcaDocument.count({ where: { sale: { type: "sale" } } }),
-    prisma.zatcaDocument.count({ where: { sale: { type: "return" } } }),
+    prisma.zatcaDocument.count({ where: { sale: { type: { in: ["return", "credit", "debit"] } } } }),
     prisma.quotation.count(),
     prisma.purchase.count({ where: { type: "purchase" } }),
-    prisma.purchase.count({ where: { type: "return" } }),
+    prisma.purchase.count({ where: { type: { in: ["return", "credit", "debit"] } } }),
     prisma.voucher.count(),
     prisma.shift.count(),
     prisma.stockTransfer.count(),
@@ -206,7 +206,8 @@ export async function resetData({ keys, resetNumbers }, user) {
 
       // ---------- 3) مرتجعات المبيعات ----------
       if (has("saleReturns")) {
-        const ret = await ids(tx.sale, { type: "return" });
+        // المرتجعات + الإشعارات الدائنة والمدينة
+        const ret = await ids(tx.sale, { type: { in: ["return", "credit", "debit"] } });
         if (ret.length) {
           await tx.voucherAllocation.deleteMany({
             where: { saleId: { in: ret } },
@@ -263,7 +264,8 @@ export async function resetData({ keys, resetNumbers }, user) {
           where: { status: "returned" },
           data: { status: IN_STOCK, purchaseReturnItemId: null },
         });
-        const ret = await ids(tx.purchase, { type: "return" });
+        // المرتجعات + إشعارات الموردين
+        const ret = await ids(tx.purchase, { type: { in: ["return", "credit", "debit"] } });
         if (ret.length) {
           await tx.voucherAllocation.deleteMany({
             where: { purchaseId: { in: ret } },

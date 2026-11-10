@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Select, Tooltip } from "antd";
+import { Button, Dropdown, Grid, Select, Tooltip } from "antd";
 import { message } from "@/components/common/feedback";
 import { ShopOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
@@ -16,6 +16,9 @@ export default function BranchSwitcher({ branches = [] }) {
   const t = useTranslations("Auth");
   const tAlerts = useTranslations("Alerts");
   const [loading, setLoading] = useState(false);
+  // الموبايل: أيقونة صغيرة بتفتح قائمة الفروع (عشان متغطيش على زر القائمة)
+  const screens = Grid.useBreakpoint();
+  const isMobile = screens.md === false;
 
   const nameOf = (b) => (locale === "ar" ? b.arName : b.enName);
 
@@ -37,6 +40,32 @@ export default function BranchSwitcher({ branches = [] }) {
     }
     message.success(t("BranchSwitched"));
   };
+
+  if (isMobile)
+    return (
+      <Dropdown
+        trigger={["click"]}
+        menu={{
+          selectable: true,
+          selectedKeys: [String(user.branch.id)],
+          items: branches.map((b) => ({
+            key: String(b.id),
+            label: nameOf(b),
+          })),
+          onClick: ({ key }) =>
+            Number(key) !== user.branch.id && onChange(Number(key)),
+        }}
+      >
+        <Button
+          type="text"
+          shape="circle"
+          size="large"
+          loading={loading}
+          aria-label={t("CurrentBranch")}
+          icon={<ShopOutlined style={{ fontSize: 20 }} />}
+        />
+      </Dropdown>
+    );
 
   return (
     <Tooltip title={t("CurrentBranch")}>

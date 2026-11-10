@@ -1,4 +1,5 @@
 import "server-only";
+import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
@@ -205,7 +206,13 @@ async function preparePurchase(data, user, existing = null) {
   const supplier = await prisma.supplier.findFirst({
     where: {
       id: data.supplierId,
-      ...(existing?.supplierId === data.supplierId ? {} : { isActive: true }),
+      ...(existing?.supplierId === data.supplierId
+        ? {}
+        : {
+            isActive: true,
+            // المورد لازم يكون متاح في فرع الفاتورة
+            ...partyInBranch(existing?.branchId ?? user.branch.id),
+          }),
     },
     select: { id: true, arName: true, enName: true, taxNo: true },
   });
@@ -1027,7 +1034,8 @@ export async function listPurchases({
         remainingAmount: true,
         settledAmount: true,
         returnOf: { select: { id: true, number: true } },
-        _count: { select: { returns: true } },
+        // المرتجعات بس (الإشعارات مربوطة بنفس العلاقة)
+        _count: { select: { returns: { where: { type: PURCHASE_RETURN } } } },
       },
     }),
   ]);
@@ -1085,9 +1093,16 @@ export async function getPurchase(id, type, user) {
       returnOf: {
         select: { id: true, number: true, supplierInvoiceNo: true, date: true },
       },
+      // المرتجعات والإشعارات على الفاتورة (بتتفصل تحت)
       returns: {
         orderBy: { id: "asc" },
-        select: { id: true, number: true, date: true, totalAmount: true },
+        select: {
+          id: true,
+          type: true,
+          number: true,
+          date: true,
+          totalAmount: true,
+        },
       },
       items: {
         orderBy: { id: "asc" },
@@ -1135,7 +1150,14 @@ export async function getPurchase(id, type, user) {
       },
     },
   });
-  return p ? toPurchaseDTO(p) : null;
+  if (!p) return null;
+  const dto = toPurchaseDTO(p);
+  const linked = dto.returns ?? [];
+  return {
+    ...dto,
+    returns: linked.filter((r) => r.type === PURCHASE_RETURN),
+    notes: linked.filter((r) => r.type !== PURCHASE_RETURN),
+  };
 }
 
 // البحث عن فاتورة شراء لعمل مرتجع: برقمنا أو برقم فاتورة المورد
@@ -1201,9 +1223,13 @@ export async function getPurchaseForReturn(id, user) {
 // ============================================================
 
 // الموردون النشطون (لاختيار المورد)
-export async function getPurchaseSuppliers() {
+// الموردين النشطين المتاحين في فرع المستخدم
+export async function getPurchaseSuppliers(user) {
   return prisma.supplier.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(user?.branch?.id ? partyInBranch(user.branch.id) : {}),
+    },
     orderBy: { code: "asc" },
     select: { id: true, code: true, arName: true, enName: true, taxNo: true },
   });

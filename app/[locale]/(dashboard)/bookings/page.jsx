@@ -13,7 +13,7 @@ import TableSkeleton from "@/components/common/TableSkeleton";
 import BookingsView from "@/components/bookings/BookingsView";
 
 async function Content({ searchParams }) {
-  const { allowed } = await getPageAccess("bookings.view");
+  const { user, allowed } = await getPageAccess("bookings.view");
   if (!allowed) return <NoAccess />;
   await connection();
   const sp = await searchParams;
@@ -21,7 +21,7 @@ async function Content({ searchParams }) {
   const [services, staff, customers, settings] = await Promise.all([
     bookableServices(),
     bookingStaff(),
-    getSaleCustomers(),
+    getSaleCustomers(user),
     bookingSettings(),
   ]);
   return (

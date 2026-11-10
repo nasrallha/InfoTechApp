@@ -25,6 +25,19 @@ export default function ProfitReportView({ data, filters, options }) {
   const statement = [
     { key: "sales", label: t("SalesNetOfTax"), value: D.salesNet },
     { key: "returns", label: t("SalesReturns"), value: -D.returnsNet },
+    // الإشعارات (بتظهر لو فيه حركة)
+    ...(D.creditNotesNet
+      ? [
+          {
+            key: "cn",
+            label: t("SalesCreditNotes"),
+            value: -D.creditNotesNet,
+          },
+        ]
+      : []),
+    ...(D.debitNotesNet
+      ? [{ key: "dn", label: t("SalesDebitNotes"), value: D.debitNotesNet }]
+      : []),
     { key: "revenue", label: t("NetRevenue"), value: D.revenue, strong: true },
     { key: "cost", label: t("CostOfSales"), value: -D.cost },
     {
@@ -40,6 +53,24 @@ export default function ProfitReportView({ data, filters, options }) {
       label: t("DiscountReceived"),
       value: D.discountReceived,
     },
+    ...(D.supplierCredits
+      ? [
+          {
+            key: "pc",
+            label: t("PurchaseCreditNotes"),
+            value: D.supplierCredits,
+          },
+        ]
+      : []),
+    ...(D.supplierDebits
+      ? [
+          {
+            key: "pd",
+            label: t("PurchaseDebitNotes"),
+            value: -D.supplierDebits,
+          },
+        ]
+      : []),
     ...D.expenses.map((e) => ({
       key: `e${e.id}`,
       label: `${t("Expense")}: ${nm(e)}`,

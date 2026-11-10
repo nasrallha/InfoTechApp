@@ -3,6 +3,7 @@
 import { Card, Table, Tag } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
+import { purchaseDocHref } from "@/lib/doc-number";
 import { formatDateTime } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
@@ -29,9 +30,7 @@ export default function PurchasesReportView({ data, filters, options }) {
       key: "doc",
       width: 100,
       render: (_, r) => (
-        <Link
-          href={`/invoices/${r.type === "return" ? "purchase-returns" : "purchases"}/${r.id}`}
-        >
+        <Link href={purchaseDocHref(r.type, r.id)}>
           <bdi>{r.docNo}</bdi>
         </Link>
       ),
@@ -49,6 +48,10 @@ export default function PurchasesReportView({ data, filters, options }) {
       render: (_, r) =>
         r.type === "return" ? (
           <Tag color="red">{t("Return")}</Tag>
+        ) : r.type === "credit" ? (
+          <Tag color="gold">{t("CreditNote")}</Tag>
+        ) : r.type === "debit" ? (
+          <Tag color="cyan">{t("DebitNote")}</Tag>
         ) : (
           <Tag color="blue">{t("Invoice")}</Tag>
         ),
@@ -109,6 +112,17 @@ export default function PurchasesReportView({ data, filters, options }) {
       [t("PurchasesCount"), String(T.purchasesCount)],
       [t("Purchases"), money(T.purchases)],
       [`${t("Returns")} (${T.returnsCount})`, money(T.returns)],
+      ...(T.creditNotesCount
+        ? [
+            [
+              `${t("CreditNotes")} (${T.creditNotesCount})`,
+              money(-T.creditNotes),
+            ],
+          ]
+        : []),
+      ...(T.debitNotesCount
+        ? [[`${t("DebitNotes")} (${T.debitNotesCount})`, money(T.debitNotes)]]
+        : []),
       [t("NetBeforeTax"), money(T.net)],
       [t("Tax"), money(T.tax)],
       [t("NetPurchases"), money(T.total), true],
@@ -169,6 +183,18 @@ export default function PurchasesReportView({ data, filters, options }) {
             value: money(T.returns),
             hint: `${T.returnsCount} ${t("Invoices")}`,
             color: C.dangerText,
+          },
+          T.creditNotesCount > 0 && {
+            title: t("CreditNotes"),
+            value: money(T.creditNotes),
+            hint: `${T.creditNotesCount} ${t("Notes")}`,
+            color: C.warningText,
+          },
+          T.debitNotesCount > 0 && {
+            title: t("DebitNotes"),
+            value: money(T.debitNotes),
+            hint: `${T.debitNotesCount} ${t("Notes")}`,
+            color: C.infoText,
           },
           {
             title: t("NetPurchases"),

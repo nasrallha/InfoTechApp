@@ -8,12 +8,12 @@ import TableSkeleton from "@/components/common/TableSkeleton";
 import WarrantyReportView from "@/components/serials/WarrantyReportView";
 
 async function Content({ searchParams }) {
-  const { allowed } = await getPageAccess("serials.warranties");
+  const { user, allowed } = await getPageAccess("serials.warranties");
   if (!allowed) return <NoAccess />;
   await connection();
   const sp = await searchParams;
   const customerId = Number(sp?.customerId) || undefined;
-  const customers = await warrantyCustomers();
+  const customers = await warrantyCustomers(user);
   return (
     <WarrantyReportView
       customers={customers}

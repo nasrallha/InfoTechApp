@@ -24,11 +24,12 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
-import { Link } from "@/i18n/routing";
+import { Link, useRouter } from "@/i18n/routing";
 import { formatDate, today } from "@/lib/dates";
 import {
   createVoucherAction,
   getPartyAccountAction,
+  updateVoucherAction,
 } from "@/actions/account.actions";
 import { message } from "@/components/common/feedback";
 import { showActionError } from "@/components/common/actionError";
@@ -37,7 +38,7 @@ import { useCurrency } from "@/components/common/CurrencyProvider";
 import NextDocNo from "@/components/common/NextDocNo";
 import DayPicker from "@/components/common/DayPicker";
 import QuickAddParty from "@/components/parties/QuickAddParty";
-import { formatDocNo } from "@/lib/doc-number";
+import { formatDocNo, purchaseDocHref, saleDocHref } from "@/lib/doc-number";
 import PrintActions from "@/components/printing/PrintActions";
 import VoucherDocument from "./VoucherDocument";
 import { VOUCHER_COLOR, VOUCHER_PARTIES, VOUCHER_PATH } from "./voucherConfig";
@@ -46,7 +47,8 @@ import { C } from "@/lib/theme";
 const EPS = 0.0001;
 
 // ============================================================
-// سند جديد: قبض / صرف / تسوية
+// سند جديد (أو تعديل سند: voucher): قبض / صرف / تسوية
+// - التعديل: نفس النوع والرقم، والرصيد والفواتير بتظهر كأن السند مش موجود
 // - العميل/المورد: يظهر رصيده وفواتيره المفتوحة، والمبلغ لا يتجاوز الرصيد
 //   والسند يسدد من الأقدم تلقائياً (يظهر توزيعه قبل الحفظ)
 // - التسوية: بدون طريقة دفع (خصم مسموح به / مكتسب)
@@ -55,10 +57,13 @@ export default function VoucherForm({
   type,
   options,
   preset,
+  voucher = null,
   canChangeDate,
   printSettings,
 }) {
   const [form] = Form.useForm();
+  const router = useRouter();
+  const isEdit = Boolean(voucher);
   const locale = useLocale();
   const t = useTranslations("Accounts");
   const tAlerts = useTranslations("Alerts");
@@ -68,11 +73,13 @@ export default function VoucherForm({
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
   const parties = VOUCHER_PARTIES[type];
-  const initialParty = preset?.supplierId
-    ? "supplier"
-    : preset?.customerId
-      ? "customer"
-      : parties[0];
+  const initialParty = voucher
+    ? voucher.partyType
+    : preset?.supplierId
+      ? "supplier"
+      : preset?.customerId
+        ? "customer"
+        : parties[0];
   const [partyType, setPartyType] = useState(
     parties.includes(initialParty) ? initialParty : parties[0],
   );
@@ -109,7 +116,12 @@ export default function VoucherForm({
     }
     let alive = true;
     setLoadingAccount(true);
-    getPartyAccountAction({ kind: partyType, id: partyId }).then((res) => {
+    getPartyAccountAction({
+      kind: partyType,
+      id: partyId,
+      // التعديل: الرصيد والفواتير من غير السند ده
+      excludeVoucherId: voucher?.id ?? null,
+    }).then((res) => {
       if (!alive) return;
       setLoadingAccount(false);
       if (res.success) setAccount(res.data);
@@ -118,7 +130,7 @@ export default function VoucherForm({
     return () => {
       alive = false;
     };
-  }, [isParty, partyType, partyId, savedCount, tAlerts, locale]);
+  }, [isParty, partyType, partyId, savedCount, tAlerts, locale, voucher?.id]);
 
   const balance = account?.balance ?? 0;
   // القبض من عميل: مسموح أكثر من مديونيته (الزيادة تبقى رصيد له عندنا)
@@ -171,7 +183,7 @@ export default function VoucherForm({
       return;
     }
     setSaving(true);
-    const res = await saveKey.send(createVoucherAction, {
+    const payload = {
       type,
       partyType,
       customerId: partyType === "customer" ? values.customerId : null,
@@ -184,7 +196,10 @@ export default function VoucherForm({
       reference: values.reference,
       date: canChangeDate ? values.date : undefined,
       notes: values.notes,
-    });
+    };
+    const res = isEdit
+      ? await updateVoucherAction({ ...payload, id: voucher.id })
+      : await saveKey.send(createVoucherAction, payload);
     setSaving(false);
     if (!res.success) {
       if (res.fieldErrors) {
@@ -208,6 +223,12 @@ export default function VoucherForm({
       return showActionError(res, tAlerts, locale);
     }
     message.success(t("VoucherSaved"));
+    // التعديل: نرجع لصفحة السند
+    if (isEdit) {
+      router.replace(`/accounts/vouchers/${voucher.id}`);
+      router.refresh();
+      return;
+    }
     reset();
     setSavedCount((c) => c + 1);
     // الطباعة هنا مباشرة (بالمقاس الافتراضي) والسند جاهز لسند جديد
@@ -229,7 +250,11 @@ export default function VoucherForm({
       width: 100,
       render: (v, r) => (
         <Link
-          href={`${partyType === "customer" ? "/invoices/sales" : "/invoices/purchases"}/${r.id}`}
+          href={
+            partyType === "customer"
+              ? saleDocHref(r.type, r.id)
+              : purchaseDocHref(r.type, r.id)
+          }
           target="_blank"
         >
           <bdi>{v}</bdi>
@@ -279,9 +304,16 @@ export default function VoucherForm({
             />
           </Link>
           <h1 className="font-bold text-xl" style={{ color }}>
-            {t(`new.${type}`)}
+            {isEdit ? (
+              <>
+                {t("EditVoucher")}{" "}
+                <bdi>{formatDocNo(voucher.type, voucher.number)}</bdi>
+              </>
+            ) : (
+              t(`new.${type}`)
+            )}
           </h1>
-          <NextDocNo type={type} refreshKey={savedCount} />
+          {!isEdit && <NextDocNo type={type} refreshKey={savedCount} />}
         </Space>
         {isParty && partyId && (
           <Link
@@ -344,11 +376,28 @@ export default function VoucherForm({
               form={form}
               layout="vertical"
               onFinish={submit}
-              initialValues={{
-                customerId: preset?.customerId ?? undefined,
-                supplierId: preset?.supplierId ?? undefined,
-                date: today(),
-              }}
+              initialValues={
+                voucher
+                  ? {
+                      customerId: voucher.customerId ?? undefined,
+                      supplierId: voucher.supplierId ?? undefined,
+                      expenseCategoryId: voucher.expenseCategoryId ?? undefined,
+                      partyName:
+                        voucher.partyType === "other"
+                          ? voucher.partyArName
+                          : undefined,
+                      paymentMethodId: voucher.paymentMethodId ?? undefined,
+                      amount: voucher.amount,
+                      reference: voucher.reference ?? undefined,
+                      notes: voucher.notes ?? undefined,
+                      date: voucher.dayOfDate,
+                    }
+                  : {
+                      customerId: preset?.customerId ?? undefined,
+                      supplierId: preset?.supplierId ?? undefined,
+                      date: today(),
+                    }
+              }
             >
               <Form.Item label={t("PartyType")}>
                 <Segmented
@@ -550,7 +599,7 @@ export default function VoucherForm({
                 loading={saving}
                 icon={<SaveOutlined />}
               >
-                {t("SaveAndPrint")}
+                {isEdit ? t("SaveChanges") : t("SaveAndPrint")}
               </Button>
             </Form>
           </Card>

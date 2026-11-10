@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Table, Space, Button, Tag, Popconfirm, Flex, Avatar } from "antd";
 import { message } from "@/components/common/feedback";
-import { CrownFilled, UserOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { CrownFilled, UserOutlined, DeleteOutlined, EditOutlined, KeyOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import FormModal from "@/components/common/FormModal";
 import { textFilter, statusFilter, StatusBadge } from "@/components/common/tableFilters";
@@ -11,6 +11,7 @@ import { deleteUsersAction, unlockUserAction } from "@/actions/user.actions";
 import { LockOutlined, UnlockOutlined } from "@ant-design/icons";
 import { imageUrl } from "@/lib/image";
 import UserForm from "./UserForm";
+import UserPermissionsForm from "./UserPermissionsForm";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
@@ -18,6 +19,8 @@ import "@/components/common/table.css";
 // users: من السيرفر (مدير النظام يرى الكل، غيره يرى مستخدمي فرعه فقط)
 const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
+  // صلاحيات المستخدم (استثناءات على دوره)
+  const [permsUser, setPermsUser] = useState(null);
   const [selected, setSelected] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
   // التحديد يُستخدم كمان في التصدير (Excel / طباعة / PDF): المحدد فقط أو الكل
@@ -50,6 +53,10 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
       : "-";
 
   const canEdit = can("users.update");
+  // صلاحيات المستخدم: مش لنفسه، ومش لمدير النظام (له كل حاجة)
+  const canPermissions = can("users.permissions");
+  const customized = (u) =>
+    (u.grantedPermissions?.length ?? 0) + (u.revokedPermissions?.length ?? 0) > 0;
   const canUnlock = can("loginSecurity.unlock");
   const [unlocking, setUnlocking] = useState(null);
 
@@ -128,7 +135,13 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
             {nameOf(r.role)}
           </Tag>
         ) : (
-          <Tag color="blue">{nameOf(r.role)}</Tag>
+          <>
+            <Tag color="blue">{nameOf(r.role)}</Tag>
+            {/* المستخدم له استثناءات على صلاحيات دوره */}
+            {customized(r) && (
+              <Tag color="orange">{tTable("CustomPermissions")}</Tag>
+            )}
+          </>
         ),
       filters: roles.map((role) => ({ text: nameOf(role), value: role.id })),
       onFilter: (value, r) => r.role.id === value,
@@ -217,6 +230,19 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
               </Button>
             </Popconfirm>
           )}
+          {canPermissions &&
+            record.id !== currentUser?.id &&
+            !record.role?.isSuper && (
+              <Tag
+                color={C.header}
+                style={{ padding: "6px 12px", fontSize: 14, cursor: "pointer" }}
+                icon={<KeyOutlined />}
+                onClick={() => setPermsUser(record)}
+              >
+                {tButtons("Permissions")}
+                {customized(record) && " *"}
+              </Tag>
+            )}
           {canEdit && (
             <Tag
               color={C.primary}
@@ -305,6 +331,25 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
         formId="EditUserForm"
       >
         <UserForm formId="EditUserForm" user={selected} roles={roles} branches={branches} />
+      </FormModal>
+
+      {/* صلاحيات المستخدم: الدور قالب + استثناءاته */}
+      <FormModal
+        open={Boolean(permsUser)}
+        onCancel={() => setPermsUser(null)}
+        width={1150}
+        title={
+          <Flex align="center" gap="small">
+            <KeyOutlined style={{ fontSize: 20 }} />
+            <span>
+              {tHeadings("UserPermissionsHeading")}
+              {permsUser ? `: ${fullNameOf(permsUser)}` : ""}
+            </span>
+          </Flex>
+        }
+        formId="UserPermissionsForm"
+      >
+        <UserPermissionsForm key={permsUser?.id} user={permsUser} />
       </FormModal>
     </div>
   );

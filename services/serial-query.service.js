@@ -1,4 +1,5 @@
 import "server-only";
+import { partyBranchWhere } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { dayEnd, dayStart, dayToDbDate, today } from "@/lib/dates";
 import { assertModule } from "@/lib/modules";
@@ -255,10 +256,13 @@ export async function warrantyReport({
 }
 
 // العملاء اللي عندهم أجهزة (فلتر التقرير)
-export async function warrantyCustomers() {
+export async function warrantyCustomers(user) {
   await assertModule("serials");
   return prisma.customer.findMany({
-    where: { serials: { some: { status: "sold" } } },
+    where: {
+      serials: { some: { status: "sold" } },
+      ...partyBranchWhere(user),
+    },
     orderBy: { arName: "asc" },
     select: { id: true, code: true, arName: true, enName: true, phone: true },
   });

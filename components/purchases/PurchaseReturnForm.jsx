@@ -26,7 +26,7 @@ import {
 } from "@ant-design/icons";
 import { showActionError } from "@/components/common/actionError";
 import { useLocale, useTranslations } from "next-intl";
-import { Link, useRouter } from "@/i18n/routing";
+import { Link } from "@/i18n/routing";
 import { calcReturnLine, round, totalsOf } from "@/lib/invoice-calc";
 import { dayOf, formatDateTime, formatDay, today } from "@/lib/dates";
 import {
@@ -44,7 +44,7 @@ import "./purchases.css";
 import DayPicker from "@/components/common/DayPicker";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
-import { printQuery } from "@/lib/print-param";
+import { afterSave } from "@/components/common/afterSave";
 import { previewPayments, previewTotals } from "@/lib/preview-doc";
 import { formatDocNo } from "@/lib/doc-number";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
@@ -74,8 +74,10 @@ export default function PurchaseReturnForm({
   canChangeDate,
   initialPurchase,
 }) {
-  const router = useRouter();
   const locale = useLocale();
+  // رسالة الحفظ: "عرض" / "طباعة"
+  const tButtons = useTranslations("Buttons");
+  const tExports = useTranslations("Exports");
   const t = useTranslations("Purchases");
   const tTax = useTranslations("TaxModes");
   const tAlerts = useTranslations("Alerts");
@@ -321,13 +323,16 @@ export default function PurchaseReturnForm({
       return;
     }
 
-    message.success(
-      t("ReturnSaved", {
+    // الشاشة بتفضل فاضية لمرتجع جديد (الطباعة في تبويب جديد)
+    afterSave({
+      path: `/invoices/purchase-returns/${res.data.id}`,
+      mode,
+      locale,
+      text: t("ReturnSaved", {
         number: formatDocNo("return", res.data.number),
       }),
-    );
-    router.push(`/invoices/purchase-returns/${res.data.id}${printQuery(mode)}`);
-    // الشاشة ترجع فاضية لمرتجع جديد
+      labels: { view: tButtons("View"), print: tExports("Print") },
+    });
     resetAll();
     setSaving(null);
   };

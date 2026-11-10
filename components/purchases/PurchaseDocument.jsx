@@ -6,7 +6,7 @@ import { formatDateTime, formatDay } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { BASE_FONT, PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
 import "@/components/printing/invoice/invoice.css";
-import { formatDocNo } from "@/lib/doc-number";
+import { purchaseDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
 
 const LOGO_HEIGHT = { small: 12, medium: 18, large: 26 };
@@ -30,6 +30,8 @@ export default function PurchaseDocument({ settings, company, purchase }) {
   const width = PRINT_AREA[settings.paperSize] ?? 72;
   const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
   const isReturn = purchase.type === "return";
+  // إشعار دائن / مدين من المورد
+  const isNote = purchase.type === "credit" || purchase.type === "debit";
 
   const L = (ar, en) =>
     lang === "ar" ? ar : lang === "en" ? en : `${ar} / ${en}`;
@@ -66,7 +68,11 @@ export default function PurchaseDocument({ settings, company, purchase }) {
 
   const title = isReturn
     ? L("مرتجع مشتريات", "Purchase Return")
-    : L("فاتورة مشتريات", "Purchase Invoice");
+    : purchase.type === "credit"
+      ? L("إشعار دائن من المورد", "Supplier Credit Note")
+      : purchase.type === "debit"
+        ? L("إشعار مدين من المورد", "Supplier Debit Note")
+        : L("فاتورة مشتريات", "Purchase Invoice");
 
   // A4: كل الأعمدة، الكاشير: حسب الإعدادات
   const showCode = isA4 && settings.showItemCode;
@@ -142,18 +148,32 @@ export default function PurchaseDocument({ settings, company, purchase }) {
           <span>
             {isReturn
               ? L("رقم المرتجع", "Return No")
-              : L("رقم الفاتورة", "Invoice No")}
+              : isNote
+                ? L("رقم الإشعار", "Note No")
+                : L("رقم الفاتورة", "Invoice No")}
           </span>
-          <bdi>{formatDocNo(purchase.type, purchase.number)}</bdi>
+          <bdi>{purchaseDocNo(purchase.type, purchase.number)}</bdi>
         </div>
         <div>
           <span>{L("التاريخ", "Date")}</span>
           <bdi>{formatDateTime(purchase.date)}</bdi>
         </div>
-        {isReturn && purchase.returnOf && (
+        {(isReturn || isNote) && (purchase.returnOf || purchase.billingRef) && (
           <div>
             <span>{L("فاتورة الشراء", "Purchase Invoice")}</span>
-            <bdi>{formatDocNo("purchase", purchase.returnOf.number)}</bdi>
+            <bdi>
+              {purchase.returnOf
+                ? purchaseDocNo("purchase", purchase.returnOf.number)
+                : purchase.billingRef}
+            </bdi>
+          </div>
+        )}
+        {isNote && purchase.noteReason && (
+          <div>
+            <span>{L("سبب الإشعار", "Reason")}</span>
+            <span>
+              {N(purchase.noteReason, purchase.noteReasonEn || purchase.noteReason)}
+            </span>
           </div>
         )}
         <div>
@@ -169,7 +189,7 @@ export default function PurchaseDocument({ settings, company, purchase }) {
         {purchase.supplierInvoiceNo && (
           <div>
             <span>
-              {isReturn
+              {isReturn || isNote
                 ? L("رقم إشعار المورد", "Supplier Note No")
                 : L("رقم فاتورة المورد", "Supplier Invoice No")}
             </span>

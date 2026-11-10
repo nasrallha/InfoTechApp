@@ -47,6 +47,7 @@ export async function SaleViewContent({ type, params, searchParams }) {
       printSettings={printSettings}
       canCreate={can(user, isReturn ? "salesReturns.create" : "sales.create")}
       canReturn={can(user, "salesReturns.create")}
+      canNote={!isReturn && can(user, "salesNotes.create")}
       canUpdate={!isReturn && can(user, "sales.update")}
       canDelete={can(user, isReturn ? "salesReturns.delete" : "sales.delete")}
       productionLive={productionLive}

@@ -12,7 +12,8 @@ const bucketLabel = (key) => `${key.slice(5, 7)}/${key.slice(0, 4)}`;
 
 // ============================================================
 // إقرار ضريبة القيمة المضافة (ربع سنوي):
-// ضريبة المخرجات (المبيعات - المرتجعات) - ضريبة المدخلات (المشتريات - المرتجعات)
+// ضريبة المخرجات (المبيعات - المرتجعات - الإشعارات الدائنة + المدينة)
+// - ضريبة المدخلات (المشتريات - المرتجعات - إشعارات الموردين الدائنة + المدينة)
 // ============================================================
 export default function VatReportView({ data, filters, options }) {
   const t = useTranslations("Reports");
@@ -42,6 +43,21 @@ export default function VatReportView({ data, filters, options }) {
       net: -O.returns.net,
       tax: -O.returns.tax,
     },
+    // التعديلات: الإشعارات الدائنة (بالسالب) والمدينة (بالموجب)
+    {
+      key: "s3c",
+      group: t("OutputVat"),
+      label: t("SalesCreditNotes"),
+      count: O.creditNotes.count,
+      net: -O.creditNotes.net,
+      tax: -O.creditNotes.tax,
+    },
+    {
+      key: "s3d",
+      group: t("OutputVat"),
+      label: t("SalesDebitNotes"),
+      ...O.debitNotes,
+    },
     {
       key: "s4",
       group: t("OutputVat"),
@@ -58,6 +74,20 @@ export default function VatReportView({ data, filters, options }) {
       count: I.returns.count,
       net: -I.returns.net,
       tax: -I.returns.tax,
+    },
+    {
+      key: "p2c",
+      group: t("InputVat"),
+      label: t("PurchaseCreditNotes"),
+      count: I.creditNotes.count,
+      net: -I.creditNotes.net,
+      tax: -I.creditNotes.tax,
+    },
+    {
+      key: "p2d",
+      group: t("InputVat"),
+      label: t("PurchaseDebitNotes"),
+      ...I.debitNotes,
     },
     {
       key: "p3",

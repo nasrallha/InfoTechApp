@@ -42,6 +42,7 @@ export async function PurchaseViewContent({ type, params, searchParams }) {
         isReturn ? "purchaseReturns.create" : "purchases.create",
       )}
       canReturn={can(user, "purchaseReturns.create")}
+      canNote={!isReturn && can(user, "purchaseNotes.create")}
       canUpdate={!isReturn && can(user, "purchases.update")}
       canDelete={can(
         user,

@@ -17,6 +17,11 @@ const PREFIX_TYPE = {
   receipt: "receipt",
   payment: "payment",
   settlement: "settlement",
+  offset: "offset",
+  saleCredit: "saleCredit",
+  saleDebit: "saleDebit",
+  purchaseCredit: "purchaseCredit",
+  purchaseDebit: "purchaseDebit",
 };
 
 // ============================================================

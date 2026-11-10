@@ -34,6 +34,11 @@ export const createVoucherSchema = z.object({
   notes: optionalText(500),
 });
 
+// تعديل سند: نفس الحقول + رقمه (النوع مبيتغيرش)
+export const updateVoucherSchema = createVoucherSchema
+  .omit({ requestId: true })
+  .extend({ id: idField });
+
 export const listVouchersSchema = z.object({
   type: z.enum(["receipt", "payment", "settlement"]),
   q: z.string().trim().max(100).default(""),
@@ -44,6 +49,8 @@ export const listVouchersSchema = z.object({
 export const partyAccountSchema = z.object({
   kind: z.enum(["customer", "supplier"]),
   id: idField,
+  // تعديل سند: الرصيد والفواتير كأنه مش موجود
+  excludeVoucherId: idField.nullish(),
 });
 
 // كشف حساب
@@ -71,4 +78,20 @@ export const cashMovementSchema = z.object({
   type: z.enum(["in", "out"]),
   amount: amountField,
   reason: optionalText(255),
+});
+
+// ربط عميل بمورد (نفس الطرف) / فك الربط
+export const linkPartiesSchema = z.object({
+  customerId: idField,
+  supplierId: idField.nullish(),
+});
+
+// سند مقاصة: يقفل رصيد العميل في رصيده كمورد
+export const createOffsetSchema = z.object({
+  requestId: requestIdField,
+  customerId: idField,
+  supplierId: idField,
+  amount: amountField,
+  date: dayField.optional(),
+  notes: optionalText(500),
 });

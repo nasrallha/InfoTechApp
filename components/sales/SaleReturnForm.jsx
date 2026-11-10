@@ -27,7 +27,7 @@ import {
 } from "@ant-design/icons";
 import { showActionError } from "@/components/common/actionError";
 import { useLocale, useTranslations } from "next-intl";
-import { Link, useRouter } from "@/i18n/routing";
+import { Link } from "@/i18n/routing";
 import { calcReturnLine, round, totalsOf } from "@/lib/invoice-calc";
 import { formatDateTime } from "@/lib/dates";
 import {
@@ -45,7 +45,7 @@ import "@/components/purchases/purchases.css";
 import { saleDocNo } from "@/lib/doc-number";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
-import { printQuery } from "@/lib/print-param";
+import { afterSave } from "@/components/common/afterSave";
 import { previewPayments, previewTotals } from "@/lib/preview-doc";
 import { showZatcaResult } from "@/components/zatca/zatcaUi";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
@@ -76,8 +76,10 @@ export default function SaleReturnForm({
   shift,
   canChangeDate = false,
 }) {
-  const router = useRouter();
   const locale = useLocale();
+  // رسالة الحفظ: "عرض" / "طباعة"
+  const tButtons = useTranslations("Buttons");
+  const tExports = useTranslations("Exports");
   const t = useTranslations("Purchases");
   const tZ = useTranslations("Zatca");
   const tS = useTranslations("Sales");
@@ -322,14 +324,17 @@ export default function SaleReturnForm({
       return;
     }
 
-    message.success(
-      tS("ReturnSaved", {
+    showZatcaResult(res.data.zatca, { t: tZ });
+    // الشاشة بتفضل فاضية لمرتجع جديد (الطباعة في تبويب جديد)
+    afterSave({
+      path: `/invoices/sales-returns/${res.data.id}`,
+      mode,
+      locale,
+      text: tS("ReturnSaved", {
         number: saleDocNo("return", res.data.number),
       }),
-    );
-    showZatcaResult(res.data.zatca, { t: tZ });
-    router.push(`/invoices/sales-returns/${res.data.id}${printQuery(mode)}`);
-    // الشاشة ترجع فاضية لمرتجع جديد
+      labels: { view: tButtons("View"), print: tExports("Print") },
+    });
     resetAll();
     setSaving(null);
   };

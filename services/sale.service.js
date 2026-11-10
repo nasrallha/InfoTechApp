@@ -1,4 +1,5 @@
 import "server-only";
+import { partyInBranch } from "@/lib/party-scope";
 import { linkRestaurantSale } from "./restaurant-link.service";
 import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
@@ -213,7 +214,13 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
     customer = await prisma.customer.findFirst({
       where: {
         id: data.customerId,
-        ...(existing?.customerId === data.customerId ? {} : { isActive: true }),
+        // العميل لازم يكون متاح في فرع الفاتورة
+        ...(existing?.customerId === data.customerId
+          ? {}
+          : {
+              isActive: true,
+              ...partyInBranch(existing?.branchId ?? user.branch.id),
+            }),
       },
       select: {
         id: true,
@@ -1257,7 +1264,8 @@ export async function listSales({
         branch: { select: { arName: true, enName: true } },
         createdBy: { select: { arFullname: true, enFullname: true } },
         returnOf: { select: { id: true, number: true } },
-        _count: { select: { returns: true } },
+        // المرتجعات بس (الإشعارات مربوطة بنفس العلاقة)
+        _count: { select: { returns: { where: { type: SALE_RETURN } } } },
       },
     }),
   ]);
@@ -1344,9 +1352,10 @@ const saleDetailSelect = {
     },
   },
   returnOf: { select: { id: true, number: true, date: true } },
+  // المرتجعات والإشعارات على الفاتورة (بتتفصل في getSale)
   returns: {
     orderBy: { id: "asc" },
-    select: { id: true, number: true, date: true, totalAmount: true },
+    select: { id: true, type: true, number: true, date: true, totalAmount: true },
   },
   quotation: { select: { id: true, number: true } },
   // الفاتورة الإلكترونية (الحالة والـ QR الرسمي)
@@ -1469,7 +1478,14 @@ export async function getSale(id, type, user) {
     select: saleDetailSelect,
   });
   if (!sale) return null;
-  return withPacks({ ...sale, laundry: await laundryPrintInfo(sale) });
+  const linked = sale.returns ?? [];
+  return withPacks({
+    ...sale,
+    returns: linked.filter((r) => r.type === SALE_RETURN),
+    // الإشعارات الدائنة والمدينة على الفاتورة
+    notes: linked.filter((r) => r.type !== SALE_RETURN),
+    laundry: await laundryPrintInfo(sale),
+  });
 }
 
 // المغسلة: الفاتورة اتدفعت من الاشتراك ← المخصوم + رصيد العميل الحالي

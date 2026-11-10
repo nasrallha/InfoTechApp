@@ -30,7 +30,7 @@ async function Content() {
     warehouses,
     defaultWarehouseId,
   ] = await Promise.all([
-    getPurchaseSuppliers(),
+    getPurchaseSuppliers(user),
     getPurchasePaymentMethods(),
     getSystemSettings(),
     getPurchaseCategories(),

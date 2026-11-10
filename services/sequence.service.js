@@ -16,9 +16,15 @@ export const SEQUENCE_KEYS = {
   receipt: "receipt",
   payment: "payment",
   settlement: "settlement",
+  offset: "offset",
   claim: "warranty_claim",
   contract: "maintenance_contract",
   adjustment: "adjustment",
+  // الإشعارات (كل نوع بمسلسل مستقل)
+  saleCredit: "sale_credit",
+  saleDebit: "sale_debit",
+  purchaseCredit: "purchase_credit",
+  purchaseDebit: "purchase_debit",
 };
 
 export async function peekNextNumber(type) {

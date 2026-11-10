@@ -1,4 +1,5 @@
 import "server-only";
+import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
@@ -44,7 +45,13 @@ async function prepareQuotation(data, user, existing = null) {
     customer = await prisma.customer.findFirst({
       where: {
         id: data.customerId,
-        ...(existing?.customerId === data.customerId ? {} : { isActive: true }),
+        ...(existing?.customerId === data.customerId
+          ? {}
+          : {
+              isActive: true,
+              // العميل لازم يكون متاح في فرع العرض
+              ...partyInBranch(existing?.branchId ?? user.branch.id),
+            }),
       },
       select: { id: true, arName: true, enName: true, taxNo: true },
     });

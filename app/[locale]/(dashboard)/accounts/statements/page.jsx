@@ -5,19 +5,30 @@ import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
 import { dayEnd, dayStart, isDay } from "@/lib/dates";
 import { parseId } from "@/lib/purchase-pages";
-import { getStatement, getStatementParties } from "@/services/account.service";
+import { statementBranch } from "@/lib/party-scope";
+import {
+  getCombinedStatement,
+  getLinkedParties,
+  getStatement,
+  getStatementParties,
+} from "@/services/account.service";
 import StatementView from "@/components/accounts/StatementView";
+import CombinedStatementView from "@/components/accounts/CombinedStatementView";
 import NoAccess from "@/components/common/NoAccess";
 import TableSkeleton from "@/components/common/TableSkeleton";
 
 async function Content({ searchParams }) {
   const { user } = await getPageAccess();
-  const kinds = ["customer", "supplier"].filter((k) =>
-    can(
-      user,
-      k === "customer" ? "statements.customers" : "statements.suppliers",
+  const kinds = [
+    ...["customer", "supplier"].filter((k) =>
+      can(
+        user,
+        k === "customer" ? "statements.customers" : "statements.suppliers",
+      ),
     ),
-  );
+    // كشف مشترك للعميل اللي هو مورد
+    ...(can(user, "statements.combined") ? ["combined"] : []),
+  ];
   if (!kinds.length) return <NoAccess />;
   await connection();
   const sp = await searchParams;
@@ -25,15 +36,45 @@ async function Content({ searchParams }) {
   const id = parseId(sp.id);
   const from = isDay(sp.from) ? sp.from : null;
   const to = isDay(sp.to) ? sp.to : null;
+  // موظف الفرع: أطراف فرعه، وحركات فرعه بس
+  const range = {
+    from: from ? dayStart(from) : undefined,
+    to: to ? dayEnd(to) : undefined,
+    branchId: statementBranch(user),
+    user,
+  };
+
+  if (kind === "combined") {
+    const customerId = parseId(sp.customer);
+    const supplierId = parseId(sp.supplier);
+    const [customers, suppliers, links, statement] = await Promise.all([
+      getStatementParties("customer", user),
+      getStatementParties("supplier", user),
+      getLinkedParties(),
+      customerId && supplierId
+        ? getCombinedStatement(customerId, supplierId, range)
+        : null,
+    ]);
+    return (
+      <CombinedStatementView
+        kinds={kinds}
+        customers={customers}
+        suppliers={suppliers}
+        links={links}
+        customerId={statement ? customerId : null}
+        supplierId={statement ? supplierId : null}
+        from={from}
+        to={to}
+        statement={statement}
+        canOffset={can(user, "offsets.create")}
+        canOffsetDate={can(user, "offsets.changeDate")}
+      />
+    );
+  }
 
   const [parties, statement] = await Promise.all([
-    getStatementParties(kind),
-    id
-      ? getStatement(kind, id, {
-          from: from ? dayStart(from) : undefined,
-          to: to ? dayEnd(to) : undefined,
-        })
-      : null,
+    getStatementParties(kind, user),
+    id ? getStatement(kind, id, range) : null,
   ]);
 
   return (

@@ -8,13 +8,13 @@ import TableSkeleton from "@/components/common/TableSkeleton";
 import VehiclesView from "@/components/vehicles/VehiclesView";
 
 async function Content({ searchParams }) {
-  const { allowed } = await getPageAccess("vehicles.view");
+  const { user, allowed } = await getPageAccess("vehicles.view");
   if (!allowed) return <NoAccess />;
   await connection();
   const sp = await searchParams;
   const q = typeof sp?.q === "string" ? sp.q.slice(0, 50) : "";
   const filter = sp?.filter === "due" ? "due" : "all";
-  const customers = await getSaleCustomers();
+  const customers = await getSaleCustomers(user);
   return (
     <VehiclesView
       key={`${q}|${filter}`}

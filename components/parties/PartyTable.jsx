@@ -13,6 +13,7 @@ import {
 } from "@/components/common/tableFilters";
 import PartyForm from "./PartyForm";
 import { C } from "@/lib/theme";
+import { listSep } from "@/lib/list-sep";
 import "@/components/common/table.css";
 
 const formatMoney = (v) =>
@@ -23,7 +24,12 @@ const formatMoney = (v) =>
 
 // جدول العملاء أو الموردين
 // parties: البيانات من السيرفر، config: إعدادات النوع
-const PartyTable = ({ parties = [], config, onSelectionChange }) => {
+const PartyTable = ({
+  parties = [],
+  config,
+  onSelectionChange,
+  branches = null,
+}) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [selectedRows, setSelectedRows] = useState([]);
@@ -141,6 +147,21 @@ const PartyTable = ({ parties = [], config, onSelectionChange }) => {
           {formatMoney(v)}
         </span>
       ),
+    },
+    // الإتاحة في الفروع
+    {
+      title: tTable("Branches"),
+      key: "branches",
+      width: 180,
+      ellipsis: true,
+      render: (_, r) =>
+        r.allBranches ? (
+          <Tag className="cp-chip">{tForm("AllBranches")}</Tag>
+        ) : (
+          (r.branches ?? [])
+            .map((b) => (locale === "ar" ? b.branch.arName : b.branch.enName))
+            .join(listSep(locale))
+        ),
     },
     {
       title: tTable("Status"),
@@ -260,7 +281,12 @@ const PartyTable = ({ parties = [], config, onSelectionChange }) => {
         }
         formId="EditPartyForm"
       >
-        <PartyForm formId="EditPartyForm" party={selected} config={config} />
+        <PartyForm
+          formId="EditPartyForm"
+          party={selected}
+          config={config}
+          branches={branches}
+        />
       </FormModal>
     </div>
   );

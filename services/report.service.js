@@ -1,4 +1,5 @@
 import "server-only";
+import { partyBranchWhere } from "@/lib/party-scope";
 import { SUBSCRIPTION_METHOD_TYPE } from "./payment-method.service";
 import { hasModule } from "@/lib/modules";
 import { prisma } from "@/lib/prisma";
@@ -7,7 +8,13 @@ import { round } from "@/lib/invoice-calc";
 import { dayToDbDate } from "@/lib/dates";
 import { bizDayOf, bizMonthOf, bizRange } from "@/lib/business-day";
 import { getDayStartHour } from "@/lib/business-day-server";
-import { formatDocNo, parseDocNo, saleDocNo } from "@/lib/doc-number";
+import {
+  docSign,
+  formatDocNo,
+  parseDocNo,
+  purchaseDocNo,
+  saleDocNo,
+} from "@/lib/doc-number";
 
 // ============================================================
 // التقارير: المبيعات، المشتريات، الضريبة، الأرباح، اليومية + الصفحة الرئيسية
@@ -86,12 +93,14 @@ export async function getReportOptions(user, { parties = [] } = {}) {
     }),
     parties.includes("customer")
       ? prisma.customer.findMany({
+          where: partyBranchWhere(user),
           orderBy: { code: "asc" },
           select: { id: true, code: true, arName: true, enName: true },
         })
       : null,
     parties.includes("supplier")
       ? prisma.supplier.findMany({
+          where: partyBranchWhere(user),
           orderBy: { code: "asc" },
           select: { id: true, code: true, arName: true, enName: true },
         })
@@ -194,7 +203,7 @@ export async function salesReport(f, user) {
   // رسوم التبغ اللي دخلت مع أصناف المجموعة (للعرض في قسم الرسوم)
   const catTobacco = catFees
     ? docs.reduce(
-        (x, d) => x + (d.type === "return" ? -1 : 1) * (catFees.get(d.id)?.total ?? 0),
+        (x, d) => x + docSign(d.type) * (catFees.get(d.id)?.total ?? 0),
         0,
       )
     : 0;
@@ -204,6 +213,11 @@ export async function salesReport(f, user) {
     salesCount: 0,
     returns: 0,
     returnsCount: 0,
+    // الإشعارات الدائنة (تخفيض) والمدينة (زيادة)
+    creditNotes: 0,
+    creditNotesCount: 0,
+    debitNotes: 0,
+    debitNotesCount: 0,
     net: 0,
     tax: 0,
     total: 0,
@@ -221,15 +235,21 @@ export async function salesReport(f, user) {
   // فواتير الاشتراك (المغسلة): عددها والمدفوع من الرصيد
   const sub = { count: 0, amount: 0 };
   const rows = docs.map((d) => {
-    const sign = d.type === "return" ? -1 : 1;
+    const sign = docSign(d.type);
     const net = n(d.netAmount);
     const cost = n(d.costAmount);
-    if (sign > 0) {
+    if (d.type === "sale") {
       t.sales += n(d.totalAmount);
       t.salesCount++;
-    } else {
+    } else if (d.type === "return") {
       t.returns += n(d.totalAmount);
       t.returnsCount++;
+    } else if (d.type === "credit") {
+      t.creditNotes += n(d.totalAmount);
+      t.creditNotesCount++;
+    } else {
+      t.debitNotes += n(d.totalAmount);
+      t.debitNotesCount++;
     }
     t.net += sign * net;
     t.tax += sign * n(d.taxAmount);
@@ -261,7 +281,7 @@ export async function salesReport(f, user) {
       count: 0,
       total: 0,
     };
-    c.count += sign > 0 ? 1 : 0;
+    c.count += d.type === "sale" ? 1 : 0;
     c.total += sign * n(d.totalAmount);
     cashiers.set(d.createdBy.id, c);
     const key = byMonth ? monthOf(d.date, h) : dayOf(d.date, h);
@@ -299,6 +319,10 @@ export async function salesReport(f, user) {
       returnsCount: t.returnsCount,
       sales: r2(t.sales),
       returns: r2(t.returns),
+      creditNotesCount: t.creditNotesCount,
+      creditNotes: r2(t.creditNotes),
+      debitNotesCount: t.debitNotesCount,
+      debitNotes: r2(t.debitNotes),
       net: r2(t.net),
       tax: r2(t.tax),
       total: r2(t.total),
@@ -433,6 +457,11 @@ export async function purchasesReport(f, user) {
     purchasesCount: 0,
     returns: 0,
     returnsCount: 0,
+    // إشعارات الموردين: الدائن (تخفيض) والمدين (زيادة)
+    creditNotes: 0,
+    creditNotesCount: 0,
+    debitNotes: 0,
+    debitNotesCount: 0,
     net: 0,
     tax: 0,
     total: 0,
@@ -446,13 +475,19 @@ export async function purchasesReport(f, user) {
   );
 
   const rows = docs.map((d) => {
-    const sign = d.type === "return" ? -1 : 1;
-    if (sign > 0) {
+    const sign = docSign(d.type);
+    if (d.type === "purchase") {
       t.purchases += n(d.totalAmount);
       t.purchasesCount++;
-    } else {
+    } else if (d.type === "return") {
       t.returns += n(d.totalAmount);
       t.returnsCount++;
+    } else if (d.type === "credit") {
+      t.creditNotes += n(d.totalAmount);
+      t.creditNotesCount++;
+    } else {
+      t.debitNotes += n(d.totalAmount);
+      t.debitNotesCount++;
     }
     t.net += sign * n(d.netAmount);
     t.tax += sign * n(d.taxAmount);
@@ -475,7 +510,7 @@ export async function purchasesReport(f, user) {
       count: 0,
       total: 0,
     };
-    s.count += sign > 0 ? 1 : 0;
+    s.count += d.type === "purchase" ? 1 : 0;
     s.total += sign * n(d.totalAmount);
     suppliers.set(sKey, s);
     const b = chart.get(byMonth ? monthOf(d.date, h) : dayOf(d.date, h));
@@ -486,7 +521,7 @@ export async function purchasesReport(f, user) {
     return {
       id: d.id,
       type: d.type,
-      docNo: formatDocNo(d.type === "return" ? "return" : "purchase", d.number),
+      docNo: purchaseDocNo(d.type, d.number),
       date: d.date,
       supplierArName: d.supplierArName,
       supplierEnName: d.supplierEnName,
@@ -510,6 +545,10 @@ export async function purchasesReport(f, user) {
       returnsCount: t.returnsCount,
       purchases: r2(t.purchases),
       returns: r2(t.returns),
+      creditNotesCount: t.creditNotesCount,
+      creditNotes: r2(t.creditNotes),
+      debitNotesCount: t.debitNotesCount,
+      debitNotes: r2(t.debitNotes),
       net: r2(t.net),
       tax: r2(t.tax),
       total: r2(t.total),
@@ -563,13 +602,29 @@ export async function vatReport(f, user) {
     }),
   ]);
   const blank = () => ({ net: 0, tax: 0, total: 0, count: 0 });
+  // التعديلات: المرتجعات والإشعارات الدائنة (بالسالب) والمدينة (بالموجب)
   const out = {
     sales: blank(),
     returns: blank(),
+    creditNotes: blank(),
+    debitNotes: blank(),
     standard: blank(),
     simplified: blank(),
   };
-  const inp = { purchases: blank(), returns: blank() };
+  const inp = {
+    purchases: blank(),
+    returns: blank(),
+    creditNotes: blank(),
+    debitNotes: blank(),
+  };
+  const bucketOf = (side, type) =>
+    type === "return"
+      ? side.returns
+      : type === "credit"
+        ? side.creditNotes
+        : type === "debit"
+          ? side.debitNotes
+          : null;
   const months = new Map();
   const add = (b, d) => {
     b.net += n(d.netAmount);
@@ -591,50 +646,56 @@ export async function vatReport(f, user) {
   };
   for (const d of sales) {
     const m = month(d);
-    if (d.type === "return") {
-      add(out.returns, d);
-      m.outputTax -= n(d.taxAmount);
-      m.salesNet -= n(d.netAmount);
-    } else {
+    const sign = docSign(d.type);
+    const b = bucketOf(out, d.type);
+    if (b) add(b, d);
+    else {
       add(out.sales, d);
       add(d.customerTaxNo ? out.standard : out.simplified, d);
-      m.outputTax += n(d.taxAmount);
-      m.salesNet += n(d.netAmount);
     }
+    m.outputTax += sign * n(d.taxAmount);
+    m.salesNet += sign * n(d.netAmount);
   }
   for (const d of purchases) {
     const m = month(d);
-    if (d.type === "return") {
-      add(inp.returns, d);
-      m.inputTax -= n(d.taxAmount);
-      m.purchasesNet -= n(d.netAmount);
-    } else {
-      add(inp.purchases, d);
-      m.inputTax += n(d.taxAmount);
-      m.purchasesNet += n(d.netAmount);
-    }
+    const sign = docSign(d.type);
+    const b = bucketOf(inp, d.type);
+    if (b) add(b, d);
+    else add(inp.purchases, d);
+    m.inputTax += sign * n(d.taxAmount);
+    m.purchasesNet += sign * n(d.netAmount);
   }
+  // صافي جانب: الأساسي - المرتجع - الدائن + المدين
+  const netOf = (side, main, key) =>
+    side[main][key] -
+    side.returns[key] -
+    side.creditNotes[key] +
+    side.debitNotes[key];
   const fix = (b) => ({
     count: b.count,
     net: r2(b.net),
     tax: r2(b.tax),
     total: r2(b.total),
   });
-  const outputTax = out.sales.tax - out.returns.tax;
-  const inputTax = inp.purchases.tax - inp.returns.tax;
+  const outputTax = netOf(out, "sales", "tax");
+  const inputTax = netOf(inp, "purchases", "tax");
   return {
     output: {
       sales: fix(out.sales),
       returns: fix(out.returns),
+      creditNotes: fix(out.creditNotes),
+      debitNotes: fix(out.debitNotes),
       standard: fix(out.standard),
       simplified: fix(out.simplified),
-      netSales: r2(out.sales.net - out.returns.net),
+      netSales: r2(netOf(out, "sales", "net")),
       tax: r2(outputTax),
     },
     input: {
       purchases: fix(inp.purchases),
       returns: fix(inp.returns),
-      netPurchases: r2(inp.purchases.net - inp.returns.net),
+      creditNotes: fix(inp.creditNotes),
+      debitNotes: fix(inp.debitNotes),
+      netPurchases: r2(netOf(inp, "purchases", "net")),
       tax: r2(inputTax),
     },
     payable: r2(outputTax - inputTax),
@@ -661,7 +722,7 @@ export async function profitReport(f, user) {
   const branch = reportBranch(user, f.branchId);
   const range = dateRange(f, h);
   const saleWhere = { ...range, ...branch };
-  const [sales, vouchers] = await Promise.all([
+  const [sales, vouchers, supplierNotes] = await Promise.all([
     prisma.sale.findMany({
       where: saleWhere,
       select: { type: true, date: true, netAmount: true, costAmount: true },
@@ -684,6 +745,11 @@ export async function profitReport(f, user) {
         expenseCategory: { select: { id: true, arName: true, enName: true } },
       },
     }),
+    // إشعارات الموردين: الدائن (خصم من المورد) يزوّد الربح، والمدين (رسوم زيادة) ينقّصه
+    prisma.purchase.findMany({
+      where: { ...range, ...branch, type: { in: ["credit", "debit"] } },
+      select: { type: true, date: true, netAmount: true },
+    }),
   ]);
 
   const { byMonth, keys } = buckets(f.from, f.to);
@@ -697,9 +763,17 @@ export async function profitReport(f, user) {
   let returnsNet = 0;
   let salesCost = 0;
   let returnsCost = 0;
+  // الإشعارات: الدائن ينقّص الإيراد والمدين يزوّده (من غير تكلفة)
+  let creditNotesNet = 0;
+  let debitNotesNet = 0;
   for (const s of sales) {
     const b = bucketOf(s.date);
-    if (s.type === "return") {
+    if (s.type === "credit" || s.type === "debit") {
+      const v = n(s.netAmount);
+      if (s.type === "credit") creditNotesNet += v;
+      else debitNotesNet += v;
+      if (b) b.revenue += docSign(s.type) * v;
+    } else if (s.type === "return") {
       returnsNet += n(s.netAmount);
       returnsCost += n(s.costAmount);
       if (b) {
@@ -745,18 +819,39 @@ export async function profitReport(f, user) {
       if (b) b.net += a;
     }
   }
-  const revenue = salesNet - returnsNet;
+  let supplierCredits = 0;
+  let supplierDebits = 0;
+  for (const p of supplierNotes) {
+    const v = n(p.netAmount);
+    const b = bucketOf(p.date);
+    if (p.type === "credit") supplierCredits += v;
+    else supplierDebits += v;
+    if (b) b.net -= docSign(p.type) * v;
+  }
+
+  const revenue = salesNet - returnsNet - creditNotesNet + debitNotesNet;
   const cost = salesCost - returnsCost;
   const gross = revenue - cost;
   const totalExpenses = [...expenses.values()].reduce(
     (s, e) => s + e.amount,
     0,
   );
-  const net = gross - allowed + received - totalExpenses + otherIncome;
+  const net =
+    gross -
+    allowed +
+    received -
+    totalExpenses +
+    otherIncome +
+    supplierCredits -
+    supplierDebits;
 
   return {
     salesNet: r2(salesNet),
     returnsNet: r2(returnsNet),
+    creditNotesNet: r2(creditNotesNet),
+    debitNotesNet: r2(debitNotesNet),
+    supplierCredits: r2(supplierCredits),
+    supplierDebits: r2(supplierDebits),
     revenue: r2(revenue),
     salesCost: r2(salesCost),
     returnsCost: r2(returnsCost),
@@ -954,13 +1049,14 @@ export async function dailyReport(f, user) {
   for (const p of salePays) {
     const r = rows.get(p.paymentMethodId);
     if (!r) continue;
-    if (p.sale.type === "return") r.salesReturns += n(p.amount);
+    // الإشعار الدائن (مبلغ اترد) مع المرتجعات، والمدين (مبلغ اتحصّل) مع المبيعات
+    if (docSign(p.sale.type) < 0) r.salesReturns += n(p.amount);
     else r.sales += n(p.amount);
   }
   for (const p of purchasePays) {
     const r = rows.get(p.paymentMethodId);
     if (!r) continue;
-    if (p.purchase.type === "return") r.purchaseReturns += n(p.amount);
+    if (docSign(p.purchase.type) < 0) r.purchaseReturns += n(p.amount);
     else r.purchases += n(p.amount);
   }
   for (const v of vouchers) {
@@ -1154,7 +1250,7 @@ export async function restaurantFeeTotals(saleWhere) {
   });
   for (const l of lines) {
     const kind = Object.keys(ids).find((k) => ids[k] === l.productId);
-    if (kind) out[kind] += (l.sale.type === "return" ? -1 : 1) * n(l.totalAmount);
+    if (kind) out[kind] += docSign(l.sale.type) * n(l.totalAmount);
   }
   return { service: r2(out.service), delivery: r2(out.delivery), tobacco: r2(out.tobacco) };
 }
@@ -1231,7 +1327,7 @@ export async function tobaccoReport(f, user) {
   const products = new Map();
   const invoices = new Map();
   for (const l of lines) {
-    const sign = l.sale.type === "return" ? -1 : 1;
+    const sign = docSign(l.sale.type);
     const inv = invoices.get(l.sale.id) ?? {
       id: l.sale.id,
       type: l.sale.type,

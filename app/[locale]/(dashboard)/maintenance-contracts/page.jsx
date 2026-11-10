@@ -9,11 +9,11 @@ import TableSkeleton from "@/components/common/TableSkeleton";
 import ContractsView from "@/components/maintenance-contracts/ContractsView";
 
 async function Content() {
-  const { allowed } = await getPageAccess("maintenanceContracts.view");
+  const { user, allowed } = await getPageAccess("maintenanceContracts.view");
   if (!allowed) return <NoAccess />;
   await connection();
   const [customers, technicians] = await Promise.all([
-    getSaleCustomers(),
+    getSaleCustomers(user),
     techniciansIfEnabled(),
   ]);
   return <ContractsView customers={customers} technicians={technicians} />;

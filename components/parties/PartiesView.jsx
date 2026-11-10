@@ -13,7 +13,13 @@ import { PARTY_CONFIG } from "./partyConfig";
 // kind: "customers" أو "suppliers"
 // parties: البيانات من السيرفر (تتحدث تلقائياً بعد أي عملية)
 // nextCode: الكود الذي سيأخذه العميل/المورد الجديد (للعرض فقط)
-export default function PartiesView({ kind, parties, nextCode }) {
+// branches: الفروع (لصاحب "عرض كل الفروع") ← اختيار الإتاحة في الفورم
+export default function PartiesView({
+  kind,
+  parties,
+  nextCode,
+  branches = null,
+}) {
   const config = PARTY_CONFIG[kind];
   const [addModalOpen, setAddModalOpen] = useState(false);
   // المحدد في الجدول (للتصدير)
@@ -53,12 +59,18 @@ export default function PartiesView({ kind, parties, nextCode }) {
         }
         formId="AddPartyForm"
       >
-        <PartyForm formId="AddPartyForm" config={config} nextCode={nextCode} />
+        <PartyForm
+          formId="AddPartyForm"
+          config={config}
+          nextCode={nextCode}
+          branches={branches}
+        />
       </FormModal>
 
       <PartyTable
         parties={parties}
         config={config}
+        branches={branches}
         onSelectionChange={setSelectedIds}
       />
     </>

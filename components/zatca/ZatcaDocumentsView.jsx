@@ -24,6 +24,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/routing";
 import { formatDateTime } from "@/lib/dates";
+import { saleDocHref } from "@/lib/doc-number";
 import { message } from "@/components/common/feedback";
 import { downloadBlob } from "@/lib/excel";
 import { useCurrency } from "@/components/common/CurrencyProvider";
@@ -116,10 +117,7 @@ export default function ZatcaDocumentsView({
   // الضريبية قبل الاعتماد: مفيش ملف رسمي لسه
   const exportable = (r) => !(r.kind === "standard" && r.status !== "cleared");
 
-  const linkOf = (r) =>
-    r.saleType === "return"
-      ? `/invoices/sales-returns/${r.saleId}`
-      : `/invoices/sales/${r.saleId}`;
+  const linkOf = (r) => saleDocHref(r.saleType, r.saleId);
 
   const columns = [
     {

@@ -9,6 +9,8 @@ import {
   FileSearchOutlined,
   FileDoneOutlined,
   GlobalOutlined,
+  DiffOutlined,
+  ReconciliationOutlined,
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
@@ -40,6 +42,14 @@ export const INVOICE_TYPES = [
     color: C.dangerText,
     permission: "salesReturns.view",
   },
+  // إشعارات العملاء: دائن (تخفيض) / مدين (زيادة) على فاتورة بيع
+  {
+    key: "SalesNotes",
+    href: "/invoices/sales-notes",
+    Icon: DiffOutlined,
+    color: C.warningText,
+    permission: "salesNotes.view",
+  },
   {
     key: "PurchaseInvoice",
     href: "/invoices/purchases",
@@ -53,6 +63,14 @@ export const INVOICE_TYPES = [
     Icon: UndoOutlined,
     color: C.warningText,
     permission: "purchaseReturns.view",
+  },
+  // إشعارات الموردين (تسجيل الإشعار اللي أصدره المورد)
+  {
+    key: "PurchaseNotes",
+    href: "/invoices/purchase-notes",
+    Icon: ReconciliationOutlined,
+    color: C.infoText,
+    permission: "purchaseNotes.view",
   },
   {
     key: "Quotation",

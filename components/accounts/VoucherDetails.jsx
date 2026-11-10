@@ -12,6 +12,7 @@ import {
 } from "antd";
 import {
   DeleteOutlined,
+  EditOutlined,
   FileTextOutlined,
   PlusOutlined,
   UnorderedListOutlined,
@@ -19,7 +20,13 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/routing";
 import { formatDateTime } from "@/lib/dates";
-import { formatDocNo, saleDocNo } from "@/lib/doc-number";
+import {
+  formatDocNo,
+  purchaseDocHref,
+  purchaseDocNo,
+  saleDocHref,
+  saleDocNo,
+} from "@/lib/doc-number";
 import { deleteVoucherAction } from "@/actions/account.actions";
 import { message } from "@/components/common/feedback";
 import { showActionError } from "@/components/common/actionError";
@@ -35,6 +42,7 @@ export default function VoucherDetails({
   voucher: v,
   printSettings,
   canCreate,
+  canUpdate = false,
   canDelete,
   autoPrint,
 }) {
@@ -47,6 +55,8 @@ export default function VoucherDetails({
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
   const docNo = formatDocNo(v.type, v.number);
   const shiftClosed = v.shift && v.shift.status !== "open";
+  // التعديل ممنوع لو الوردية اتقفلت أو السند مربوط باشتراك مغسلة
+  const editLocked = shiftClosed || Boolean(v.laundryWallet);
   const kind = v.customerId ? "customer" : v.supplierId ? "supplier" : null;
 
   const remove = async () => {
@@ -174,6 +184,26 @@ export default function VoucherDetails({
               {t(`list.${v.type}`)}
             </Button>
           </Link>
+          {canUpdate && (
+            <Link
+              href={`/accounts/vouchers/${v.id}/edit`}
+              onClick={(e) => editLocked && e.preventDefault()}
+            >
+              <Button
+                icon={<EditOutlined />}
+                disabled={editLocked}
+                title={
+                  shiftClosed
+                    ? tAlerts("VoucherShiftClosed")
+                    : v.laundryWallet
+                      ? tAlerts("VoucherLinkedLaundry")
+                      : undefined
+                }
+              >
+                {t("Edit")}
+              </Button>
+            </Link>
+          )}
           {canDelete && (
             <Popconfirm
               title={t("DeleteVoucherConfirm")}
@@ -215,12 +245,14 @@ export default function VoucherDetails({
                 key: "doc",
                 render: (_, a) =>
                   a.sale ? (
-                    <Link href={`/invoices/sales/${a.sale.id}`}>
-                      {saleDocNo("sale", a.sale.number)}
+                    <Link href={saleDocHref(a.sale.type, a.sale.id)}>
+                      {saleDocNo(a.sale.type, a.sale.number)}
                     </Link>
                   ) : a.purchase ? (
-                    <Link href={`/invoices/purchases/${a.purchase.id}`}>
-                      {formatDocNo("purchase", a.purchase.number)}
+                    <Link
+                      href={purchaseDocHref(a.purchase.type, a.purchase.id)}
+                    >
+                      {purchaseDocNo(a.purchase.type, a.purchase.number)}
                     </Link>
                   ) : (
                     t("OpeningBalance")

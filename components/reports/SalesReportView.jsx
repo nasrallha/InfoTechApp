@@ -3,6 +3,7 @@
 import { Alert, Card, Table, Tag } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
+import { saleDocHref } from "@/lib/doc-number";
 import { formatDateTime } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import ReportFilters from "./ReportFilters";
@@ -39,7 +40,7 @@ export default function SalesReportView({
       width: 100,
       render: (_, r) => (
         <Link
-          href={`/invoices/${r.type === "return" ? "sales-returns" : "sales"}/${r.id}`}
+          href={saleDocHref(r.type, r.id)}
         >
           <bdi>{r.docNo}</bdi>
         </Link>
@@ -58,6 +59,10 @@ export default function SalesReportView({
       render: (_, r) =>
         r.type === "return" ? (
           <Tag color="red">{t("Return")}</Tag>
+        ) : r.type === "credit" ? (
+          <Tag color="gold">{t("CreditNote")}</Tag>
+        ) : r.type === "debit" ? (
+          <Tag color="cyan">{t("DebitNote")}</Tag>
         ) : (
           <Tag color={r.source === "pos" ? "geekblue" : "blue"}>
             {r.source === "pos" ? t("SourcePos") : t("SourceInvoice")}
@@ -152,6 +157,13 @@ export default function SalesReportView({
       [t("SalesCount"), String(T.salesCount)],
       [t("Sales"), money(T.sales)],
       [`${t("Returns")} (${T.returnsCount})`, money(T.returns)],
+      // الإشعارات: الدائن بالسالب والمدين بالموجب (جوه الصافي)
+      ...(T.creditNotesCount
+        ? [[`${t("CreditNotes")} (${T.creditNotesCount})`, money(-T.creditNotes)]]
+        : []),
+      ...(T.debitNotesCount
+        ? [[`${t("DebitNotes")} (${T.debitNotesCount})`, money(T.debitNotes)]]
+        : []),
       [t("NetBeforeTax"), money(T.net)],
       [t("Tax"), money(T.tax)],
       [t("NetSales"), money(T.total), true],
@@ -234,6 +246,19 @@ export default function SalesReportView({
             value: money(T.returns),
             hint: `${T.returnsCount} ${t("Invoices")}`,
             color: C.dangerText,
+          },
+          // الإشعارات (لو موجودة في الفترة)
+          T.creditNotesCount > 0 && {
+            title: t("CreditNotes"),
+            value: money(T.creditNotes),
+            hint: `${T.creditNotesCount} ${t("Notes")}`,
+            color: C.warningText,
+          },
+          T.debitNotesCount > 0 && {
+            title: t("DebitNotes"),
+            value: money(T.debitNotes),
+            hint: `${T.debitNotesCount} ${t("Notes")}`,
+            color: C.infoText,
           },
           {
             title: t("NetSales"),

@@ -56,7 +56,7 @@ async function Content({ searchParams }) {
     followUp,
     booking,
   ] = await Promise.all([
-    getSaleCustomers(),
+    getSaleCustomers(user),
     getSaleCategories(),
     getPurchasePaymentMethods(),
     getOpenShift(user),

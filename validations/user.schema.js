@@ -24,9 +24,18 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   ...userFields,
   id: idField,
-  password: z.preprocess((v) => (v === "" || v === null ? undefined : v), passwordField.optional()),
+  password: z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    passwordField.optional(),
+  ),
   // true = حذف الصورة الحالية بدون اختيار صورة جديدة
   removeImage: z.boolean().default(false),
 });
 
 export const deleteUsersSchema = idsField;
+
+// صلاحيات المستخدم (النهائية) من شاشة صلاحيات المستخدم
+export const userPermissionsSchema = z.object({
+  userId: idField,
+  permissions: z.array(z.string().max(80)).max(1000),
+});

@@ -7,6 +7,7 @@ import {
   ArrowUpOutlined,
   DiffOutlined,
   ProfileOutlined,
+  SwapOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
@@ -43,7 +44,19 @@ export const ACCOUNT_PAGES = [
     href: "/accounts/statements",
     Icon: ProfileOutlined,
     color: C.infoText,
-    permissions: ["statements.customers", "statements.suppliers"],
+    permissions: [
+      "statements.customers",
+      "statements.suppliers",
+      "statements.combined",
+    ],
+  },
+  // سندات المقاصة (العميل اللي هو مورد)
+  {
+    key: "offsets",
+    href: "/accounts/offsets",
+    Icon: SwapOutlined,
+    color: C.infoText,
+    permissions: ["offsets.view"],
   },
   {
     key: "expenseCategories",

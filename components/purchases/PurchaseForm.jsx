@@ -48,6 +48,7 @@ import DiscountInput from "./DiscountInput";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
 import { printQuery } from "@/lib/print-param";
+import { afterSave } from "@/components/common/afterSave";
 import {
   previewItems,
   previewPayments,
@@ -139,6 +140,9 @@ export default function PurchaseForm({
   const isEdit = Boolean(purchase);
   const router = useRouter();
   const locale = useLocale();
+  // رسالة الحفظ: "عرض" / "طباعة"
+  const tButtons = useTranslations("Buttons");
+  const tExports = useTranslations("Exports");
   const t = useTranslations("Purchases");
   const tTax = useTranslations("TaxModes");
   const tAlerts = useTranslations("Alerts");
@@ -363,14 +367,24 @@ export default function PurchaseForm({
       return;
     }
 
-    message.success(
-      t(isEdit ? "PurchaseUpdated" : "PurchaseSaved", {
-        number: formatDocNo("purchase", res.data.number),
-      }),
-    );
-    router.push(`/invoices/purchases/${res.data.id}${printQuery(mode)}`);
-    // الشاشة ترجع فاضية لفاتورة جديدة
-    if (!isEdit) resetAll();
+    const text = t(isEdit ? "PurchaseUpdated" : "PurchaseSaved", {
+      number: formatDocNo("purchase", res.data.number),
+    });
+    const path = `/invoices/purchases/${res.data.id}`;
+    if (isEdit) {
+      message.success(text);
+      router.push(`${path}${printQuery(mode)}`);
+    } else {
+      // الشاشة بتفضل فاضية لفاتورة جديدة (الطباعة في تبويب جديد)
+      afterSave({
+        path,
+        mode,
+        locale,
+        text,
+        labels: { view: tButtons("View"), print: tExports("Print") },
+      });
+      resetAll();
+    }
     setSaving(null);
   };
 
@@ -576,7 +590,8 @@ export default function PurchaseForm({
                       optionFilterProp="label"
                       placeholder={t("ChooseSupplier")}
                       style={{ width: "100%" }}
-                      onChange={onSupplierChange}
+                      // (الـ Select بيبعت الاختيار كباراميتر تاني: منبعتهوش كمورد)
+                      onChange={(id) => onSupplierChange(id)}
                       options={suppliers.map((s) => ({
                         value: s.id,
                         label: `${s.code} - ${nameOf(s)}`,

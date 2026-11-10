@@ -1,4 +1,5 @@
 import "server-only";
+import { partyInBranch } from "@/lib/party-scope";
 import { productTax } from "@/lib/zatca-tax";
 import { prisma } from "@/lib/prisma";
 import { parseScaleBarcode, scaleQty } from "@/lib/scale-barcode";
@@ -317,10 +318,13 @@ export async function getSaleCategories() {
   }));
 }
 
-// العملاء النشطون (لاختيار العميل في البيع)
-export async function getSaleCustomers() {
+// العملاء النشطون المتاحين في فرع المستخدم (لاختيار العميل في البيع)
+export async function getSaleCustomers(user) {
   return prisma.customer.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(user?.branch?.id ? partyInBranch(user.branch.id) : {}),
+    },
     orderBy: { code: "asc" },
     select: {
       id: true,

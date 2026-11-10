@@ -114,6 +114,9 @@ model Branch {
   @@index([warehouseId])
   @@index([priceListId])
   @@map("branches")
+  // العملاء والموردين المتاحين في الفرع (اللي مش "كل الفروع")
+  customerLinks CustomerBranch[]
+  supplierLinks SupplierBranch[]
 }
 
 // ============================================================
@@ -134,6 +137,11 @@ model User {
 
   roleId Int
   role   Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  // استثناءات المستخدم على صلاحيات دوره (الدور قالب):
+  // صلاحياته = صلاحيات الدور + grantedPermissions - revokedPermissions
+  grantedPermissions Json?
+  revokedPermissions Json?
 
   // الفرع الأساسي: المستخدم يدخل عليه تلقائياً بعد تسجيل الدخول
   branchId Int
@@ -583,10 +591,17 @@ model Customer {
   // الرصيد الافتتاحي (المنقول من النظام القديم): موجب = عليه لنا
   openingBalance Decimal @default(0) @db.Decimal(18, 4)
 
+  // الإتاحة في الفروع: true = كل الفروع / false = الفروع المسجّلة في branches بس
+  allBranches Boolean @default(true)
+  branches    CustomerBranch[]
+
   isActive Boolean @default(true)
 
   sales      Sale[]
   quotations Quotation[]
+  // العميل ده هو نفسه مورد (كشف حساب مشترك + سند مقاصة)
+  supplierId Int?      @unique
+  linkedSupplier Supplier? @relation("CustomerSupplierLink", fields: [supplierId], references: [id], onDelete: SetNull)
   vouchers   Voucher[]
   // الأجهزة المشتراة (الأرقام التسلسلية)
   serials    ProductSerial[]
@@ -633,8 +648,14 @@ model Supplier {
   // الرصيد الافتتاحي (المنقول من النظام القديم): موجب = له علينا
   openingBalance Decimal @default(0) @db.Decimal(18, 4)
 
+  // الإتاحة في الفروع: true = كل الفروع / false = الفروع المسجّلة في branches بس
+  allBranches Boolean @default(true)
+  branches    SupplierBranch[]
+
   isActive Boolean @default(true)
 
+  // العميل المرتبط (نفس الطرف)
+  linkedCustomer Customer? @relation("CustomerSupplierLink")
   vouchers Voucher[]
 
   createdAt DateTime @default(now())
@@ -976,6 +997,7 @@ model DocumentSequence {
 // ============================================================
 // المشتريات (Purchase): فاتورة الشراء ومرتجع الشراء في نفس الجدول
 // - type: purchase = فاتورة شراء / return = مرتجع مشتريات
+//         credit = إشعار دائن من المورد / debit = إشعار مدين من المورد (تسجيل بس)
 // - المرتجع مربوط بفاتورته الأصلية (returnOfId)
 // - الفاتورة بعد الحفظ لا تُعدل ولا تُحذف، والتصحيح يكون بمرتجع
 // - كل المبالغ محفوظة كما كانت وقت التسجيل (لا تتأثر بتغيير الإعدادات أو الأصناف)
@@ -1030,10 +1052,16 @@ model Purchase {
 
   notes String? @db.VarChar(500)
 
-  // المرتجع: الفاتورة الأصلية
+  // المرتجع / الإشعار: الفاتورة الأصلية (الإشعار ممكن يبقى من غير فاتورة)
   returnOfId Int?
   returnOf   Purchase?  @relation("PurchaseReturns", fields: [returnOfId], references: [id], onDelete: Restrict)
   returns    Purchase[] @relation("PurchaseReturns")
+
+  // إشعار المورد: السبب + مرجع الفاتورة لو مش مربوط بفاتورة هنا
+  // (رقم إشعار المورد وتاريخه في supplierInvoiceNo / supplierInvoiceDate)
+  noteReason   String? @db.VarChar(500)
+  noteReasonEn String? @db.VarChar(500)
+  billingRef   String? @db.VarChar(100)
 
   createdById Int
   createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
@@ -1066,8 +1094,10 @@ model PurchaseItem {
   purchaseId Int
   purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
 
-  productId Int
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  // فاضي = بند حر في إشعار المورد (خصم، رسوم شحن...) ← نوعه في lineKind
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lineKind  String?  @db.VarChar(12)
 
   // نسخة من بيانات الصنف وقت التسجيل
   code   String @db.VarChar(50)
@@ -1078,8 +1108,8 @@ model PurchaseItem {
   note String? @db.VarChar(500)
 
   // الوحدة ومعامل التحويل (الوحدة الأساسية = 1)
-  unitId Int
-  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  unitId Int?
+  unit   Unit?   @relation(fields: [unitId], references: [id], onDelete: Restrict)
   factor Decimal @default(1) @db.Decimal(18, 4)
 
   qty     Decimal @db.Decimal(18, 3) // بالوحدة المختارة
@@ -1471,8 +1501,9 @@ model ProductPrice {
 }
 
 // ============================================================
-// المبيعات: فاتورة البيع ومرتجع البيع في جدول واحد
+// المبيعات: فاتورة البيع ومرتجع البيع والإشعارات في جدول واحد
 // type: sale = فاتورة بيع / return = مرتجع مبيعات (مربوط بفاتورته)
+//       credit = إشعار دائن (تخفيض بدون بضاعة) / debit = إشعار مدين (زيادة)
 // الضريبة لكل صنف حسب شاشة الصنف (نسبته، وهل سعره شامل الضريبة)
 // ============================================================
 model Sale {
@@ -1539,10 +1570,16 @@ model Sale {
 
   allocations VoucherAllocation[]
 
-  // المرتجع: الفاتورة الأصلية
+  // المرتجع / الإشعار: الفاتورة الأصلية (الإشعار ممكن يبقى من غير فاتورة)
   returnOfId Int?
   returnOf   Sale?  @relation("SaleReturns", fields: [returnOfId], references: [id], onDelete: Restrict)
   returns    Sale[] @relation("SaleReturns")
+
+  // الإشعار: السبب (إلزامي للهيئة) + مرجع الفاتورة لو مش مربوط بفاتورة هنا
+  // noteReason: عربي (بيتبعت في الـ XML) / noteReasonEn: إنجليزي (للطباعة)
+  noteReason   String? @db.VarChar(500)
+  noteReasonEn String? @db.VarChar(500)
+  billingRef   String? @db.VarChar(100)
 
   // الفاتورة المحوّلة من عرض سعر
   quotation Quotation?
@@ -1597,8 +1634,10 @@ model SaleItem {
   saleId Int
   sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
-  productId Int
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  // فاضي = بند حر في إشعار (خصم، رسوم شحن...) ← نوعه في lineKind
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  lineKind  String?  @db.VarChar(12)
 
   code   String @db.VarChar(50)
   arName String @db.VarChar(150)
@@ -1607,8 +1646,8 @@ model SaleItem {
   // ملاحظة / وصف السطر (بتظهر تحت الصنف وفي الطباعة)
   note String? @db.VarChar(500)
 
-  unitId Int
-  unit   Unit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  unitId Int?
+  unit   Unit?   @relation(fields: [unitId], references: [id], onDelete: Restrict)
   factor Decimal @default(1) @db.Decimal(18, 4)
 
   qty     Decimal @db.Decimal(18, 3)
@@ -1953,6 +1992,10 @@ model VoucherAllocation {
   purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
 
   amount Decimal @db.Decimal(18, 4)
+
+  // سند المقاصة: التوزيع على أنهي طرف (customer / supplier)
+  // فاضي = السند العادي (طرف واحد)
+  partySide String? @db.VarChar(10)
 
   @@index([voucherId])
   @@index([saleId])
@@ -3336,4 +3379,66 @@ model PrintJob {
   @@index([branchId, jobStatus, priority])
   @@index([printerId])
   @@map("print_jobs")
+}
+
+// ============================================================
+// بنود الإشعارات اللي بيضيفها المستخدم (غير البنود الثابتة في lib/note-lines)
+// مشتركة بين إشعارات العملاء والموردين، والسطر بيتسجل بـ lineKind = "c" + id
+// ============================================================
+model NoteLineItem {
+  id        Int      @id @default(autoincrement())
+  arName    String   @unique @db.VarChar(100)
+  enName    String   @db.VarChar(100)
+  // البند يظهر في الإشعار الدائن / المدين
+  forCredit Boolean  @default(true)
+  forDebit  Boolean  @default(true)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("note_line_items")
+}
+
+// ============================================================
+// أسباب الإشعارات (قائمة يديرها المستخدم، مشتركة بين العملاء والموردين)
+// السبب الجديد المكتوب في إشعار بيتضاف هنا لوحده
+// ============================================================
+model NoteReason {
+  id        Int      @id @default(autoincrement())
+  label     String   @unique @db.VarChar(500)
+  // الاسم الإنجليزي (للطباعة)
+  enLabel   String?  @db.VarChar(500)
+  // السبب يظهر في الإشعار الدائن / المدين
+  forCredit Boolean  @default(true)
+  forDebit  Boolean  @default(true)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("note_reasons")
+}
+
+// ============================================================
+// إتاحة العملاء والموردين في الفروع (لو allBranches = false)
+// ============================================================
+model CustomerBranch {
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  branchId   Int
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, branchId])
+  @@index([branchId])
+  @@map("customer_branches")
+}
+
+model SupplierBranch {
+  supplierId Int
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  branchId   Int
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([supplierId, branchId])
+  @@index([branchId])
+  @@map("supplier_branches")
 }

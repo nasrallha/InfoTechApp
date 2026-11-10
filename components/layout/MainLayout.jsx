@@ -521,12 +521,15 @@ const MainLayout = ({
             zIndex: 10,
             width: "100%",
             display: "grid",
-            gridTemplateColumns: isMobile ? "auto 1fr auto" : "1fr auto 1fr",
+            // الموبايل: عمود زر القائمة ثابت (محدش يزنقه)، والنص بيتقص لو ضاق
+            gridTemplateColumns: isMobile
+              ? "44px minmax(0, 1fr) auto"
+              : "1fr auto 1fr",
             alignItems: "center",
             gap: isMobile ? 4 : 12,
           }}
         >
-          <div className="flex items-center justify-start">
+          <div className="flex items-center justify-start shrink-0">
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}

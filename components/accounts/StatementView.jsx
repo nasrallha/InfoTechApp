@@ -30,6 +30,8 @@ const KIND_COLOR = {
   receipt: "green",
   payment: "red",
   settlement: "purple",
+  creditNote: "gold",
+  debitNote: "cyan",
 };
 
 // ============================================================
@@ -67,6 +69,13 @@ export default function StatementView({
   const debitTitle = t(`col.${kind}.debit`);
   const creditTitle = t(`col.${kind}.credit`);
   const lineLabel = (l) => t(`lineKind.${kind}.${l.kind}`);
+  // اتجاه الرصيد بالكلام (موجب: على العميل / للمورد، سالب: رصيد للطرف أو لنا)
+  const balanceSide = (v) =>
+    Math.abs(v) < 0.005
+      ? t("NoBalance")
+      : v > 0
+        ? t(kind === "customer" ? "CustomerOwes" : "WeOwe")
+        : t(`creditBalance.${kind}`);
 
   const columns = [
     {
@@ -82,6 +91,14 @@ export default function StatementView({
       width: 130,
       align: "center",
       render: (_, l) => <Tag color={KIND_COLOR[l.kind]}>{lineLabel(l)}</Tag>,
+    },
+    // الفرع اللي اتعملت منه الحركة
+    {
+      title: t("Branch"),
+      key: "branch",
+      width: 120,
+      ellipsis: true,
+      render: (_, l) => nameOf(l.branch),
     },
     {
       title: t("DocNo"),
@@ -147,11 +164,16 @@ export default function StatementView({
         [t("OpeningBalance"), money(statement.opening)],
         [debitTitle, money(statement.totalDebit)],
         [creditTitle, money(statement.totalCredit)],
-        [t("ClosingBalance"), money(statement.closing), true],
+        [
+          `${t("ClosingBalance")} - ${balanceSide(statement.closing)}`,
+          money(Math.abs(statement.closing)),
+          true,
+        ],
       ],
       columns: [
         { title: t("Date"), key: "date", type: "text", width: 18 },
         { title: t("Movement"), key: "kind", type: "text", width: 16 },
+        { title: t("Branch"), key: "branch", type: "text", width: 14 },
         { title: t("DocNo"), key: "doc", type: "text", width: 12 },
         { title: debitTitle, key: "debit", type: "money" },
         { title: creditTitle, key: "credit", type: "money" },
@@ -169,6 +191,7 @@ export default function StatementView({
           key: l.key,
           date: formatDateTime(l.date),
           kind: lineLabel(l),
+          branch: nameOf(l.branch),
           doc: l.docNo,
           debit: l.debit || null,
           credit: l.credit || null,
@@ -228,7 +251,13 @@ export default function StatementView({
               }}
               options={kinds.map((k) => ({
                 value: k,
-                label: t(k === "customer" ? "Customers" : "Suppliers"),
+                label: t(
+                  k === "customer"
+                    ? "Customers"
+                    : k === "supplier"
+                      ? "Suppliers"
+                      : "CombinedStatement",
+                ),
               }))}
             />
           )}
@@ -318,8 +347,8 @@ export default function StatementView({
             <Col xs={12} md={6}>
               <Card size="small">
                 <Statistic
-                  title={t("ClosingBalance")}
-                  value={money(statement.closing)}
+                  title={`${t("ClosingBalance")} - ${balanceSide(statement.closing)}`}
+                  value={money(Math.abs(statement.closing))}
                   styles={{
                     content: {
                       fontWeight: 800,
@@ -341,19 +370,19 @@ export default function StatementView({
             summary={() => (
               <Table.Summary fixed>
                 <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={3}>
+                  <Table.Summary.Cell index={0} colSpan={4}>
                     <b>{t("Total")}</b>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} align="end">
+                  <Table.Summary.Cell index={4} align="end">
                     <b>{money(statement.totalDebit)}</b>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={4} align="end">
+                  <Table.Summary.Cell index={5} align="end">
                     <b>{money(statement.totalCredit)}</b>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="end">
+                  <Table.Summary.Cell index={6} align="end">
                     <b>{money(statement.closing)}</b>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={6} />
+                  <Table.Summary.Cell index={7} />
                 </Table.Summary.Row>
               </Table.Summary>
             )}

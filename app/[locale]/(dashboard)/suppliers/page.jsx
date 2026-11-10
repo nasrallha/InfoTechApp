@@ -3,20 +3,34 @@ import { Suspense } from "react";
 import { getPageAccess } from "@/lib/auth";
 import NoAccess from "@/components/common/NoAccess";
 import { connection } from "next/server";
+import { can } from "@/lib/permissions";
+import { getBranches } from "@/services/branch.service";
 import { getSuppliers, getNextSupplierCode } from "@/services/supplier.service";
 import PartiesView from "@/components/parties/PartiesView";
 import TableSkeleton from "@/components/common/TableSkeleton";
 
 async function SuppliersContent() {
   // لازم يكون مسجل دخول ويملك صلاحية "suppliers.view"
-  const { allowed } = await getPageAccess("suppliers.view");
+  const { user, allowed } = await getPageAccess("suppliers.view");
   if (!allowed) return <NoAccess />;
 
   await connection();
   // نجيب البيانات والكود التالي في نفس الوقت
-  const [parties, nextCode] = await Promise.all([getSuppliers(), getNextSupplierCode()]);
+  // صاحب "عرض كل الفروع": بيحدد إتاحة الطرف في الفروع
+  const [parties, nextCode, branches] = await Promise.all([
+    getSuppliers(user),
+    getNextSupplierCode(),
+    can(user, "allBranches.view") ? getBranches() : null,
+  ]);
   // kind يحدد النوع (عملاء أو موردين): العناوين والـ actions المستخدمة
-  return <PartiesView kind="suppliers" parties={parties} nextCode={nextCode} />;
+  return (
+    <PartiesView
+      kind="suppliers"
+      parties={parties}
+      nextCode={nextCode}
+      branches={branches}
+    />
+  );
 }
 
 export default function SuppliersPage() {

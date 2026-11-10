@@ -67,6 +67,7 @@ import QuickAddParty from "@/components/parties/QuickAddParty";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
 import { printQuery } from "@/lib/print-param";
+import { afterSave } from "@/components/common/afterSave";
 import { exportBuyerMissing } from "@/lib/zatca-tax";
 import {
   previewItems,
@@ -280,6 +281,9 @@ export default function SaleForm({
   const tZ = useTranslations("Zatca");
   const router = useRouter();
   const locale = useLocale();
+  // رسالة الحفظ: "عرض" / "طباعة"
+  const tButtons = useTranslations("Buttons");
+  const tExports = useTranslations("Exports");
   const t = useTranslations("Sales");
   const tP = useTranslations("Purchases");
   // رصيد فرعك مش كفاية ← تنبيه بالفروع اللي فيها الصنف (البيع وعرض السعر)
@@ -626,22 +630,45 @@ export default function SaleForm({
       applyFieldErrors(form, res.fieldErrors, tAlerts);
       return showActionError(res, tAlerts, locale);
     }
+    // التعديل: صفحة المستند / الجديد: الشاشة بتفضل جاهزة لمستند جديد
+    // (حفظ وطباعة: المستند بيتطبع في تبويب جديد)
+    const editing = isQuotation
+      ? Boolean(quotation && !converting)
+      : Boolean(sale);
     if (isQuotation) {
-      message.success(
-        t("QuotationSaved", {
-          number: formatDocNo("quotation", res.data.number),
-        }),
-      );
-      router.push(`/invoices/quotations/${res.data.id}${printQuery(how)}`);
+      const text = t("QuotationSaved", {
+        number: formatDocNo("quotation", res.data.number),
+      });
+      const path = `/invoices/quotations/${res.data.id}`;
+      if (editing) {
+        message.success(text);
+        router.push(`${path}${printQuery(how)}`);
+      } else
+        afterSave({
+          path,
+          mode: how,
+          locale,
+          text,
+          labels: { view: tButtons("View"), print: tExports("Print") },
+        });
       clearForm();
     } else {
-      message.success(
-        t(sale ? "SaleUpdated" : "SaleSaved", {
-          number: saleDocNo("sale", res.data.number),
-        }),
-      );
+      const text = t(sale ? "SaleUpdated" : "SaleSaved", {
+        number: saleDocNo("sale", res.data.number),
+      });
       showZatcaResult(res.data.zatca, { t: tZ });
-      router.push(`/invoices/sales/${res.data.id}${printQuery(how)}`);
+      const path = `/invoices/sales/${res.data.id}`;
+      if (editing) {
+        message.success(text);
+        router.push(`${path}${printQuery(how)}`);
+      } else
+        afterSave({
+          path,
+          mode: how,
+          locale,
+          text,
+          labels: { view: tButtons("View"), print: tExports("Print") },
+        });
       clearForm();
     }
   };

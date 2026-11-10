@@ -8,8 +8,14 @@ import {
   createUserSchema,
   updateUserSchema,
   deleteUsersSchema,
+  userPermissionsSchema,
 } from "@/validations/user.schema";
-import { createUser, updateUser, deleteUsers } from "@/services/user.service";
+import {
+  createUser,
+  updateUser,
+  deleteUsers,
+  setUserPermissions,
+} from "@/services/user.service";
 import { unlockUser } from "@/services/login-security.service";
 import { idField } from "@/validations/common.schema";
 
@@ -79,4 +85,14 @@ export async function unlockUserAction(id) {
     permission: "loginSecurity.unlock",
     refresh: true,
   });
+}
+
+// صلاحيات المستخدم: استثناءات على صلاحيات دوره
+export async function setUserPermissionsAction(input) {
+  return runAction(
+    userPermissionsSchema,
+    input,
+    (d, user) => setUserPermissions(d, user),
+    { permission: "users.permissions", refresh: true },
+  );
 }

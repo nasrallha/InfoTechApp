@@ -266,6 +266,47 @@ canvas {
   .ant-tabs-nav {
     max-width: 100%;
   }
+
+  /* الجداول اللي ملهاش scroll: تتحرك بالعرض جواها بدل ما تمط الصفحة */
+  .ant-table-wrapper {
+    max-width: 100%;
+  }
+  .ant-table-wrapper .ant-table-content {
+    overflow-x: auto;
+  }
+
+  /* الحقول بعرض ثابت (قوائم الاختيار / التاريخ / البحث): متعدّيش الشاشة */
+  .ant-space-wrap,
+  .ant-space-wrap > .ant-space-item {
+    max-width: 100%;
+  }
+  .ant-space-item > .ant-select,
+  .ant-space-item > .ant-picker,
+  .ant-space-item > div > .ant-select,
+  .ant-space-item > div > .ant-picker,
+  .ant-space-item > .search-box {
+    max-width: calc(100vw - 40px);
+  }
+
+  /* الاختيارات المتجاورة (Segmented): تتحرك بالعرض لو كتير */
+  .ant-segmented {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* أرقام الكروت (Statistic) أصغر */
+  .ant-statistic .ant-statistic-content {
+    font-size: 18px;
+  }
+  .ant-statistic .ant-statistic-title {
+    font-size: 12px;
+  }
+
+  /* القوائم المنسدلة متعدّيش عرض الشاشة */
+  .ant-select-dropdown,
+  .ant-dropdown {
+    max-width: calc(100vw - 16px);
+  }
 }
 
 @media (max-width: 480px) {

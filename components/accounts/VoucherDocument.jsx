@@ -2,7 +2,7 @@
 
 import { imageUrl } from "@/lib/image";
 import { formatDateTime } from "@/lib/dates";
-import { formatDocNo, saleDocNo } from "@/lib/doc-number";
+import { formatDocNo, purchaseDocNo, saleDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
 import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
@@ -13,6 +13,7 @@ const TITLES = {
   receipt: ["سند قبض", "Receipt Voucher"],
   payment: ["سند صرف", "Payment Voucher"],
   settlement: ["سند تسوية", "Settlement Voucher"],
+  offset: ["سند مقاصة", "Offset Voucher"],
 };
 
 // ============================================================
@@ -49,7 +50,9 @@ export default function VoucherDocument({
   const partyLabelSettlement =
     v.partyType === "customer"
       ? L("العميل", "Customer")
-      : L("المورد", "Supplier");
+      : v.partyType === "offset"
+        ? L("العميل / المورد", "Customer / Supplier")
+        : L("المورد", "Supplier");
 
   const party =
     lang === "en"
@@ -140,7 +143,9 @@ export default function VoucherDocument({
       <div className="vch__lines">
         <div>
           <span>
-            {v.type === "settlement" ? partyLabelSettlement : partyLabel}
+            {v.type === "settlement" || v.type === "offset"
+              ? partyLabelSettlement
+              : partyLabel}
           </span>
           <b>{party}</b>
         </div>
@@ -189,9 +194,9 @@ export default function VoucherDocument({
                 <td>
                   <bdi>
                     {a.sale
-                      ? saleDocNo("sale", a.sale.number)
+                      ? saleDocNo(a.sale.type, a.sale.number)
                       : a.purchase
-                        ? formatDocNo("purchase", a.purchase.number)
+                        ? purchaseDocNo(a.purchase.type, a.purchase.number)
                         : L("الرصيد الافتتاحي", "Opening balance")}
                   </bdi>
                 </td>

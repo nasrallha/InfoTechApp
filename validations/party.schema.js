@@ -19,6 +19,9 @@ import {
 // فنكتب القواعد مرة واحدة ونستخدمها في الاثنين
 
 const partyFields = {
+  // الإتاحة في الفروع (لصاحب "عرض كل الفروع" بس، غيره بيتسجل على فرعه)
+  allBranches: z.boolean().optional(),
+  branchIds: z.array(idField).max(200).optional(),
   // ملاحظة: الكود (code) غير موجود هنا عن قصد
   // السيرفر هو الذي يعطيه تلقائياً (1، 2، 3 ...) ولا يقبله من المستخدم أبداً
 
@@ -80,7 +83,10 @@ const SA_ADDRESS = {
   postalCode: [/^\d{5}$/, "PostalCodeInvalid"],
 };
 
-function checkCustomer(c, ctx) {
+// requireB2B: بيانات الفاتورة الضريبية كاملة (العنوان الوطني...) للعميل الشركة
+// - شاشة العملاء: بس لو الشركة مربوطة بالزكاة (بيتفحص في الـ action)
+// - إكمال البيانات من شاشة البيع: دايماً
+function checkCustomer(c, ctx, { requireB2B = true } = {}) {
   const issue = (path, message) =>
     ctx.addIssue({ code: "custom", path: [path], message });
 
@@ -101,19 +107,36 @@ function checkCustomer(c, ctx) {
     if (c[field] && !re.test(c[field])) issue(field, code);
   }
   // العميل الشركة: بيانات الفاتورة الضريبية كاملة
+  if (!requireB2B) return;
   for (const field of buyerMissing(c)) {
     if (field === "idNumber") continue; // اتفحص فوق
     issue(field, field === "taxNo" ? "TaxNoInvalidZatca" : "B2BFieldRequired");
   }
 }
 
+// شاشة العملاء: شكل البيانات بس، وكمال بيانات الشركة بيتفحص في الـ action
+// لو الشركة مربوطة بالزكاة (customerB2BIssues)
+const checkCustomerBasic = (c, ctx) =>
+  checkCustomer(c, ctx, { requireB2B: false });
+
 export const createCustomerSchema = z
   .object(customerFields)
-  .superRefine(checkCustomer);
+  .superRefine(checkCustomerBasic);
 
 export const updateCustomerSchema = z
   .object({ ...customerFields, id: idField })
-  .superRefine(checkCustomer);
+  .superRefine(checkCustomerBasic);
+
+// الحقول الناقصة لعميل الشركة (للعميل المحلي) ← { field: errorCode }
+export function customerB2BIssues(c) {
+  if (isForeign(c)) return {};
+  const out = {};
+  for (const field of buyerMissing(c)) {
+    if (field === "idNumber") continue;
+    out[field] = field === "taxNo" ? "TaxNoInvalidZatca" : "B2BFieldRequired";
+  }
+  return out;
+}
 
 // إكمال بيانات العميل الشركة / عميل التصدير من شاشة البيع
 export const customerB2BSchema = z

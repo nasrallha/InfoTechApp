@@ -2,6 +2,13 @@ import "server-only";
 import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { multiTenant } from "@/lib/tenant";
+import {
+  ALL_PERMISSIONS,
+  can,
+  isOwnerPermission,
+  permissionOverrides,
+} from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
 import { deleteUserSessions } from "@/lib/auth";
 import { saveImage, deleteImage } from "@/lib/upload";
@@ -27,7 +34,18 @@ const userSelect = {
   isActive: true,
   lastLoginAt: true,
   createdAt: true,
-  role: { select: { id: true, arName: true, enName: true, isSuper: true } },
+  role: {
+    select: {
+      id: true,
+      arName: true,
+      enName: true,
+      isSuper: true,
+      permissions: { select: { permission: true } },
+    },
+  },
+  // استثناءات المستخدم على صلاحيات دوره
+  grantedPermissions: true,
+  revokedPermissions: true,
   branch: { select: { id: true, arName: true, enName: true } },
 };
 
@@ -186,6 +204,10 @@ export async function updateUser({ id, password, image, removeImage, ...data }, 
         ...data,
         ...(imageChanged ? { image: newImagePath } : {}),
         ...(password ? { password: await hashPassword(password) } : {}),
+        // دور جديد ← استثناءاته القديمة كانت على الدور القديم: بتتمسح
+        ...(data.roleId !== target.roleId
+          ? { grantedPermissions: [], revokedPermissions: [] }
+          : {}),
       },
       select: userSelect,
     });
@@ -237,4 +259,63 @@ export async function deleteUsers(inputIds, currentUser) {
   const { count } = await prisma.user.deleteMany({ where: { id: { in: ids } } });
   await Promise.all(images.map((u) => deleteImage(u.image)));
   return { deleted: count };
+}
+
+// ------------------------------------------------------------
+// صلاحيات المستخدم (الدور قالب + استثناءات للمستخدم)
+// permissions: الصلاحيات المطلوبة للمستخدم (النهائية) من الشاشة
+// - مبيعدّلش صلاحياته هو، ولا مستخدم مدير نظام (له كل حاجة)
+// - مبيدّيش صلاحية هو نفسه مش عنده (والمقفول على الشركة مبيتدّيش)
+// - صلاحيات المالك والمقفولة على الشركة مبتتلمسش
+// ------------------------------------------------------------
+export async function setUserPermissions({ userId, permissions }, currentUser) {
+  if (userId === currentUser.id) throw new AppError("CannotEditOwnPermissions");
+  const user = await prisma.user.findFirst({
+    where: { id: userId, ...scopeOf(currentUser) },
+    select: {
+      id: true,
+      isOwner: true,
+      role: {
+        select: {
+          isSuper: true,
+          permissions: { select: { permission: true } },
+        },
+      },
+    },
+  });
+  if (!user || user.isOwner) throw new AppError("UserNotFound");
+  if (user.role.isSuper) throw new AppError("SuperRoleHasAll");
+
+  // الصلاحيات اللي بتتعدّل: كل الصلاحيات من غير المالك والمقفولة على الشركة
+  const blocked = new Set([
+    ...(currentUser.moduleBlocked ?? []),
+    ...(currentUser.planBlocked ?? []),
+  ]);
+  const assignable = ALL_PERMISSIONS.filter(
+    (p) =>
+      !blocked.has(p) &&
+      !(
+        (currentUser.ownerMode || multiTenant()) &&
+        isOwnerPermission(p)
+      ),
+  );
+  const rolePerms = user.role.permissions.map((p) => p.permission);
+  const { granted, revoked } = permissionOverrides(
+    rolePerms,
+    permissions,
+    assignable,
+  );
+  // مبيدّيش صلاحية هو نفسه مش عنده
+  if (granted.some((p) => !can(currentUser, p)))
+    throw new AppError("CannotGrantMissingPermission");
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      // فاضي = زي دوره بالظبط
+      grantedPermissions: granted,
+      revokedPermissions: revoked,
+    },
+  });
+  return { userId, granted, revoked };
 }

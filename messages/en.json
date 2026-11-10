@@ -1,9 +1,155 @@
 {
+  "UserPermissions": {
+    "RoleIs": "Role: {role}",
+    "FromRole": "From role",
+    "Granted": "Granted",
+    "Revoked": "Revoked",
+    "ResetToRole": "Reset to role permissions",
+    "Hint": "Role permissions apply to everyone with the role; what you add or remove here applies to this user only. Permissions locked for the company are hidden and cannot be granted."
+  },
+  "Notes": {
+    "EditNote": "Edit",
+    "PayTitle": {"sale": {"credit": "Refund to customer", "debit": "Collect from customer"}, "purchase": {"credit": "Refund from supplier", "debit": "Pay to supplier"}},
+    "PayHint": {"sale": {"credit": "Choose Deduct from customer account to reduce the balance, or a payment method only if you actually refunded the money", "debit": "Choose On customer account to add it to the balance, or a payment method if you actually collected the money"}, "purchase": {"credit": "Choose Deduct from our supplier balance to reduce what we owe, or a payment method only if the supplier actually refunded the money", "debit": "Choose On our supplier balance to add it to what we owe, or a payment method if you actually paid it"}},
+    "ReasonAr": "Reason (Arabic)",
+    "ReasonEn": "Reason (English)",
+    "DescriptionAr": "Arabic description (sent to ZATCA)",
+    "DescriptionEn": "English description",
+    "ManageReasons": "Manage note reasons",
+    "ManageReasonsHint": "Reasons here appear in the reason list for customer and supplier notes; a new reason typed in a note is added here automatically.",
+    "ReasonSaved": "Reason saved",
+    "ReasonDeleted": "Reason deleted",
+    "ReasonDeleteTitle": "Delete the reason? (previous notes are not affected)",
+    "NoReasons": "No reasons",
+    "NewItem": "New line item…",
+    "ManageItems": "Manage note line items",
+    "ManageItemsHint": "Items added here appear in the Add line list for customer and supplier notes. An item used in notes cannot be deleted, but it can be deactivated.",
+    "ItemArName": "Item name (Arabic)",
+    "ItemEnName": "Item name (English)",
+    "ShowsIn": "Shows in",
+    "Active": "Active",
+    "AddItem": "Add",
+    "ItemSaved": "Item saved",
+    "ItemDeleted": "Item deleted",
+    "ItemNameRequired": "Enter the item name",
+    "ItemDeleteTitle": "Delete item",
+    "ItemDeleteHint": "An item used in notes cannot be deleted; deactivate it instead",
+    "NoCustomItems": "No added items",
+    "type": {
+      "credit": "Credit note",
+      "debit": "Debit note"
+    },
+    "new": {
+      "credit": "New credit note",
+      "debit": "New debit note"
+    },
+    "list": {
+      "sale": "Customer notes",
+      "purchase": "Supplier notes"
+    },
+    "ListSearch": {
+      "sale": "Note no, customer name or reference",
+      "purchase": "Note no, supplier name or supplier note no"
+    },
+    "All": "All",
+    "AllBranches": "All branches",
+    "NoteNo": "Note no",
+    "Type": "Type",
+    "Date": "Date",
+    "Customer": "Customer",
+    "Supplier": "Supplier",
+    "CashCustomer": "Cash customer",
+    "OriginalInvoice": "Original invoice",
+    "SupplierNoteNo": "Supplier note no",
+    "SupplierNoteDate": "Supplier note date",
+    "SupplierInvoiceNo": "Supplier invoice no",
+    "Reason": "Reason",
+    "Total": "Total",
+    "User": "User",
+    "NotesOfInvoice": "Notes on this invoice",
+    "MakeNote": "Credit / debit note",
+    "ForCustomer": "Customer",
+    "FromSupplier": "From supplier",
+    "LockedProductionLive": "Cannot delete after sending to ZATCA production has started",
+    "LockedShiftClosed": "Cannot delete because the shift is closed",
+    "LockedSettled": "Cannot delete because it has settlement vouchers (delete them first)",
+    "Deleted": "Note deleted",
+    "DeleteTitle": "Delete note",
+    "DeleteWarning": "The note and its payments will be deleted and the party balance restored. Are you sure?",
+    "LineKind": "Line type",
+    "Description": "Description",
+    "DescriptionOrItem": "Description / item",
+    "PriceOrAmount": "Amount / price difference",
+    "PriceHint": "Free line: the line amount. Item price correction: the price difference per unit, multiplied by the quantity",
+    "PartyVat": "VAT number",
+    "Shift": "Shift",
+    "Notes": "Notes",
+    "Refunds": "Refunded amount",
+    "Collections": "Collected amount",
+    "Refunded": "Refunded",
+    "Collected": "Collected",
+    "OnAccount": {
+      "sale": {
+        "credit": "Deduct from customer account",
+        "debit": "On customer account (credit)"
+      },
+      "purchase": {
+        "credit": "Deduct from our supplier balance",
+        "debit": "On our supplier balance (credit)"
+      }
+    },
+    "hint": {
+      "sale": {
+        "credit": "A credit note reduces a previous invoice without returning goods (later discount, overcharged amount, or cancelled fees). It reduces sales, output VAT and the customer balance, and is sent to ZATCA.",
+        "debit": "A debit note increases a previous invoice (undercharged price, or later shipping, storage or delivery fees). It increases sales, output VAT and the customer balance, and is sent to ZATCA."
+      },
+      "purchase": {
+        "credit": "Record the credit note issued by the supplier (discount or reduction without returning goods). It reduces purchases, input VAT and the supplier balance, and is not sent to ZATCA.",
+        "debit": "Record the debit note issued by the supplier (price difference or extra fees). It increases purchases, input VAT and the supplier balance, and is not sent to ZATCA."
+      }
+    },
+    "InvoiceAndParty": "Original invoice and party",
+    "InvoiceTotal": "Invoice total",
+    "CurrentValue": "Current value",
+    "CurrentValueHint": "Invoice total minus returns and credit notes plus debit notes; a credit note cannot exceed it",
+    "Unlink": "Unlink invoice",
+    "FindInvoice": "Find by invoice number",
+    "FindInvoiceHint": "Link the note to its invoice if any, or leave it unlinked and enter a reference",
+    "ChooseSupplier": "Choose supplier",
+    "BillingRef": "Invoice reference",
+    "BillingRefHint": "Required when not linked to an invoice: original invoice, contract or several invoice numbers; it is sent to ZATCA",
+    "ReasonHint": "Printed on the note and sent to ZATCA (required). Pick from the list or type a new reason to add it; use the settings button to manage the list",
+    "PricesIncludeTax": "Amounts include VAT",
+    "PricesIncludeTaxHint": "When on, VAT is extracted from the amounts; when off, VAT is added on top",
+    "Lines": "Note lines",
+    "AddLine": "Add line",
+    "NoLinesYet": "No lines yet, click Add line",
+    "ExceedsInvoice": "The credit note exceeds the invoice current value ({value})",
+    "RefundHow": "Refund",
+    "CollectHow": "Collection",
+    "ZatcaWillSend": "The note will be signed and sent to ZATCA after saving, per ZATCA settings",
+    "Save": "Save note",
+    "Saved": "Note {number} saved",
+    "InvoiceNotFoundFor": "No invoice with number {q}",
+    "RefRequired": "Link an invoice or enter the invoice reference",
+    "ReasonRequired": "Enter the note reason",
+    "AddLines": "Add at least one line",
+    "ChooseProduct": "Choose the item",
+    "DescriptionRequired": "Enter the line description",
+    "AmountRequired": "Enter each line amount",
+    "ChoosePayment": "Choose the refund/collection method, or on account",
+    "InvoicePrice": "Invoice price",
+    "LineNoteOptional": "Line note (optional)",
+    "InvoiceItems": "Invoice items",
+    "SearchResults": "Search results"
+  },
   "HomePage": {
     "welcome": "Welcome to Next.js",
     "description": "This is the translated home page"
   },
   "Sidebar": {
+    "SalesNotes": "Customer notes",
+    "PurchaseNotes": "Supplier notes",
     "Home": "Home",
     "Categories": "Categories",
     "Units": "Units",
@@ -115,6 +261,11 @@
     "More": "More actions"
   },
   "Form": {
+    "PartyBranches": "Branch availability",
+    "PartyBranchesHint": "Branches where it appears and can be used (invoices, vouchers, notes); each branch sees only its own movements in the statement",
+    "AllBranches": "All branches",
+    "SomeBranches": "Specific branches",
+    "ChooseBranches": "Branches",
     "AvailableIn": "Available in",
     "AllWarehouses": "Available in all warehouses",
     "AllWarehousesHint": "When on, the item shows in every branch. When off, it shows only in the selected branches. The main warehouse always holds every item",
@@ -257,6 +408,21 @@
     "AllowDecimalsHint": "Like kilogram and gram (0.250). Turn it off for units sold whole, like piece and pack, so fractional quantities are rejected."
   },
   "Alerts": {
+    "CannotEditOwnPermissions": "You cannot edit your own permissions",
+    "PartyRegisteredIn": "Registered as \"{name}\" in: {branches}",
+    "OffsetExceedsBalance": "The offset exceeds the customer or supplier balance",
+    "VoucherLinkedLaundry": "The voucher is linked to a laundry subscription and cannot be edited",
+    "NoteReasonExists": "This reason already exists",
+    "NoteReasonNotFound": "Reason not found",
+    "NoteItemExists": "An item with the same name already exists",
+    "NoteItemNotFound": "Item not found",
+    "NoteItemInUse": "The item is used in notes and cannot be deleted; deactivate it instead",
+    "NoteItemTypeRequired": "Choose the note type the item shows in (credit or debit)",
+    "NoteExceedsInvoice": "The credit note exceeds the invoice current value",
+    "CashCustomerFullPay": "The full amount must be collected from a cash customer",
+    "DuplicateSupplierNote": "This supplier note number is already recorded for this supplier",
+    "NoteNotFound": "Note not found",
+    "NoteRefRequired": "Link an invoice or enter the invoice reference",
     "TransferOverStock": "Transfer quantity exceeds what is available in the source warehouse",
     "PhoneInvalidSA": "Mobile number must be 10 digits starting with 05",
     "PhoneInvalidEG": "Mobile number must be 11 digits starting with 010, 011, 012 or 015",
@@ -680,6 +846,7 @@
     "TooManyVariants": "Too many sizes × colors (max {max})"
   },
   "Headings": {
+    "UserPermissionsHeading": "User permissions",
     "AddCategoryHeading": "Add new category",
     "EditCategoryHeading": "Edit category",
     "AddUnitHeading": "Add new unit",
@@ -701,6 +868,8 @@
     "OpeningTotal": "Total opening stock"
   },
   "Table": {
+    "CustomPermissions": "Custom permissions",
+    "Branches": "Branch availability",
     "CustomizedRole": "Customized for this company",
     "ID": "Id",
     "ArUnitName": "Arabic unit name",
@@ -800,6 +969,9 @@
     "SuperRoleText": "It automatically has every permission (current and future) and sees every branch",
     "AllPermissions": "All permissions",
     "groups": {
+      "offsets": "Offset vouchers (customer & supplier)",
+      "salesNotes": "Customer notes (credit / debit)",
+      "purchaseNotes": "Supplier notes (credit / debit)",
       "categories": "Categories",
       "units": "Units",
       "products": "Products",
@@ -852,6 +1024,7 @@
       "restaurant": "Restaurant (menu & delivery)"
     },
     "actions": {
+      "combined": "Combined statement (customer & supplier)",
       "view": "View",
       "create": "Create",
       "update": "Edit",
@@ -1040,6 +1213,8 @@
     },
     "ChooseType": "Choose invoice type",
     "short": {
+      "SalesNotes": "Credit or debit note for a customer",
+      "PurchaseNotes": "Record a supplier credit or debit note",
       "SalesInvoice": "Sell to customers / POS",
       "SalesReturn": "Return from a sales invoice",
       "PurchaseInvoice": "Buy from suppliers",
@@ -1831,6 +2006,26 @@
     "IdNumber": "Identifier"
   },
   "Accounts": {
+    "CombinedStatement": "Customer & supplier (combined)",
+    "CombinedOwesUs": "Net owed to us",
+    "CombinedWeOwe": "Net we owe",
+    "AsCustomer": "As customer",
+    "AsSupplier": "As supplier",
+    "Side": "Role",
+    "NetBalance": "Net balance",
+    "LinkHint": "Choose the supplier that is the same party as the customer; the link is saved when you show the statement and the supplier is picked automatically next time",
+    "LinkedNote": "The customer is linked to the supplier; the supplier will be picked automatically next time",
+    "CombinedChoose": "Choose the customer and the matching supplier to show the combined statement",
+    "Offset": "Offset",
+    "SaveOffset": "Save offset",
+    "OffsetSaved": "Offset voucher saved",
+    "OffsetHint": "Close his customer balance against his supplier balance without cash",
+    "OffsetNothing": "Nothing to offset (he must owe us as a customer and we must owe him as a supplier)",
+    "OffsetExplain": "The amount is deducted from what the customer owes and what we owe the supplier, without cash. Maximum: {max}",
+    "AmountRequired": "Enter the amount",
+    "EditVoucher": "Edit voucher",
+    "SaveChanges": "Save changes",
+    "Edit": "Edit",
     "VoucherNo": "Voucher No",
     "Date": "Date",
     "PartyType": "Type",
@@ -1841,6 +2036,9 @@
     "CreatedBy": "By",
     "ListSearch": "Search by number, name or reference",
     "party": {
+      "offset": {
+        "offset": "Customer & supplier"
+      },
       "receipt": {
         "customer": "From customer",
         "other": "Other income"
@@ -1855,16 +2053,19 @@
       }
     },
     "list": {
+      "offset": "Offset vouchers",
       "receipt": "Receipt vouchers",
       "payment": "Payment vouchers",
       "settlement": "Settlement vouchers"
     },
     "new": {
+      "offset": "New offset",
       "receipt": "New receipt",
       "payment": "New payment",
       "settlement": "New settlement"
     },
     "title": {
+      "offset": "Offset voucher",
       "receipt": "Receipt voucher",
       "payment": "Payment voucher",
       "settlement": "Settlement voucher"
@@ -1920,6 +2121,10 @@
     "NewExpenseCategory": "New category",
     "EditExpenseCategory": "Edit category",
     "col": {
+      "combined": {
+        "debit": "Debit (increases what he owes)",
+        "credit": "Credit (reduces what he owes)"
+      },
       "customer": {
         "debit": "Debit",
         "credit": "Credit"
@@ -1931,12 +2136,18 @@
     },
     "lineKind": {
       "customer": {
+        "offset": "Offset",
+        "creditNote": "Credit note",
+        "debitNote": "Debit note",
         "invoice": "Sales invoice",
         "return": "Sales return",
         "receipt": "Receipt",
         "settlement": "Discount allowed"
       },
       "supplier": {
+        "offset": "Offset",
+        "creditNote": "Supplier credit note",
+        "debitNote": "Supplier debit note",
         "invoice": "Purchase invoice",
         "return": "Purchase return",
         "payment": "Payment",
@@ -1973,6 +2184,7 @@
     "View": "View",
     "ChoosePage": "Accounts",
     "pages": {
+      "offsets": "Offset vouchers",
       "receipts": "Receipt vouchers",
       "payments": "Payment vouchers",
       "settlements": "Settlement vouchers",
@@ -1980,6 +2192,7 @@
       "expenseCategories": "Expense categories"
     },
     "pageHints": {
+      "offsets": "Close the balance of a party who is both customer and supplier",
       "receipts": "Money received from a customer or other income",
       "payments": "Paid to a supplier or an expense",
       "settlements": "Discount allowed or received",
@@ -2055,6 +2268,15 @@
     "VisitsUpcoming": "Within 7 days: {n}"
   },
   "Reports": {
+    "CreditNote": "Credit note",
+    "DebitNote": "Debit note",
+    "CreditNotes": "Credit notes",
+    "DebitNotes": "Debit notes",
+    "Notes": "notes",
+    "SalesCreditNotes": "Customer credit notes",
+    "SalesDebitNotes": "Customer debit notes",
+    "PurchaseCreditNotes": "Supplier credit notes",
+    "PurchaseDebitNotes": "Supplier debit notes",
     "AllCategories": "All main groups",
     "Category": "Main group",
     "fees": {
@@ -2613,10 +2835,10 @@
     },
     "item": {
       "sales": "Sales invoices",
-      "saleReturns": "Sales returns",
+      "saleReturns": "Sales returns and customer notes",
       "quotations": "Quotations",
       "purchases": "Purchase invoices",
-      "purchaseReturns": "Purchase returns",
+      "purchaseReturns": "Purchase returns and supplier notes",
       "vouchers": "Vouchers (receipt / payment / settlement)",
       "shifts": "Shifts and cash drawer movements",
       "transfers": "Stock transfers",

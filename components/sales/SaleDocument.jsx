@@ -22,7 +22,7 @@ const LOGO_THERMAL = { small: 16, medium: 24, large: 32 };
 // فاتورة بيع / إشعار دائن (مرتجع) / عرض سعر كما تُطبع
 // - نفس إعدادات طباعة الفواتير (الورق، الهوامش، اللغة، الشعار)
 // - فاتورة ضريبية (العميل له رقم ضريبي) أو مبسطة، مع QR الزكاة
-// kind: "sale" | "return" | "quotation"
+// kind: "sale" | "return" | "quotation" | "credit" | "debit" (الإشعارات)
 // doc: الفاتورة كاملة (getSale / getQuotation)
 // ============================================================
 // أنواع طلب المطعم على الفاتورة [عربي، إنجليزي]
@@ -43,7 +43,9 @@ export default function SaleDocument({ settings, company, doc, kind }) {
   const width = PRINT_AREA[settings.paperSize] ?? 72;
   const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
   const isQuotation = kind === "quotation";
-  const isReturn = kind === "return";
+  const isNote = kind === "credit" || kind === "debit";
+  // المرتجع والإشعار الدائن: المبلغ "لحساب العميل"
+  const isReturn = kind === "return" || kind === "credit";
 
   const L = (ar, en) =>
     lang === "ar" ? ar : lang === "en" ? en : `${ar} / ${en}`;
@@ -87,6 +89,10 @@ export default function SaleDocument({ settings, company, doc, kind }) {
 
   const title = isQuotation
     ? L("عرض سعر", "Quotation")
+    : kind === "credit"
+      ? L("إشعار دائن", "Credit Note")
+      : kind === "debit"
+        ? L("إشعار مدين", "Debit Note")
     : isReturn
       ? L("إشعار دائن (مرتجع مبيعات)", "Credit Note (Sales Return)")
       : doc.isExport
@@ -211,7 +217,7 @@ export default function SaleDocument({ settings, company, doc, kind }) {
           <span>
             {isQuotation
               ? L("رقم العرض", "Quotation No")
-              : isReturn
+              : isReturn || isNote
                 ? L("رقم الإشعار", "Note No")
                 : L("رقم الفاتورة", "Invoice No")}
           </span>
@@ -273,10 +279,23 @@ export default function SaleDocument({ settings, company, doc, kind }) {
             <bdi>{formatDay(doc.validUntil)}</bdi>
           </div>
         )}
-        {isReturn && doc.returnOf && (
+        {(isReturn || isNote) && (doc.returnOf || doc.billingRef) && (
           <div>
             <span>{L("الفاتورة الأصلية", "Original invoice")}</span>
-            <bdi>{saleDocNo("sale", doc.returnOf.number)}</bdi>
+            <bdi>
+              {doc.returnOf
+                ? saleDocNo("sale", doc.returnOf.number)
+                : doc.billingRef}
+            </bdi>
+          </div>
+        )}
+        {/* الإشعار: السبب */}
+        {isNote && doc.noteReason && (
+          <div>
+            <span>{L("سبب الإشعار", "Reason")}</span>
+            <span>
+              {N(doc.noteReason, doc.noteReasonEn || doc.noteReason)}
+            </span>
           </div>
         )}
         <div>

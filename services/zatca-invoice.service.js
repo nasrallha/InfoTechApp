@@ -7,7 +7,7 @@ import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { round } from "@/lib/invoice-calc";
 import { dayEnd, dayStart } from "@/lib/dates";
-import { saleDocNo } from "@/lib/doc-number";
+import { docSign, saleDocNo } from "@/lib/doc-number";
 import { zatcaGateway } from "@/lib/zatca-gateway";
 import { decryptSecret } from "@/lib/secret-box";
 import { buyerMissing, isB2BCustomer, productTax } from "@/lib/zatca-tax";
@@ -124,6 +124,9 @@ const saleForZatcaSelect = {
   createdAt: true,
   branchId: true,
   notes: true,
+  // الإشعار: السبب ومرجع الفاتورة (لو مش مربوط بفاتورة)
+  noteReason: true,
+  billingRef: true,
   customerArName: true,
   customerEnName: true,
   customerTaxNo: true,
@@ -192,9 +195,9 @@ const saleForZatcaSelect = {
 };
 
 // نوع الفاتورة: التصدير أو عميل شركة بياناته كاملة = ضريبية، غير كده مبسطة
-// (المرتجع بياخد نوع الفاتورة الأصلية)
+// (المرتجع والإشعار بياخدوا نوع الفاتورة الأصلية)
 function kindOf(sale) {
-  if (sale.type === "return" && sale.returnOf?.zatcaDocument?.kind)
+  if (sale.type !== "sale" && sale.returnOf?.zatcaDocument?.kind)
     return sale.returnOf.zatcaDocument.kind;
   if (isExportSale(sale)) return "standard";
   const c = sale.customer;
@@ -203,9 +206,24 @@ function kindOf(sale) {
     : "simplified";
 }
 
-// فاتورة تصدير (أو مرتجع فاتورة تصدير)
+// فاتورة تصدير (أو مرتجع / إشعار على فاتورة تصدير)
 const isExportSale = (sale) =>
-  Boolean(sale.isExport || (sale.type === "return" && sale.returnOf?.isExport));
+  Boolean(sale.isExport || (sale.type !== "sale" && sale.returnOf?.isExport));
+
+// نوع المستند للهيئة: الفاتورة 388 / المرتجع والإشعار الدائن 381 / المدين 383
+const ZATCA_DOC_TYPE = {
+  sale: "invoice",
+  return: "credit",
+  credit: "credit",
+  debit: "debit",
+};
+
+// السبب الافتراضي لو مكتوبش (KSA-10 إلزامي في الإشعارات)
+const DEFAULT_REASON = {
+  return: "Returned goods | مرتجع بضاعة",
+  credit: "Invoice adjustment | تعديل على الفاتورة",
+  debit: "Invoice adjustment | تعديل على الفاتورة",
+};
 
 // معرّف المشتري: النوع المختار في بيانات العميل، أو السجل التجاري القديم
 function buyerId(c) {
@@ -268,23 +286,29 @@ function lineOf(it) {
 
 export function buildInvoiceDto(sale, { company, icv, pih, uuid, kind }) {
   const { date, time } = riyadhParts(sale.date);
-  const isReturn = sale.type === "return";
+  const documentType = ZATCA_DOC_TYPE[sale.type] ?? "invoice";
+  const isNote = documentType !== "invoice";
   return {
     id: saleDocNo(sale.type, sale.number),
     uuid,
     issueDate: date,
     issueTime: time,
     kind,
-    documentType: isReturn ? "credit" : "invoice",
+    documentType,
     icv,
     pih,
     currency: "SAR",
     paymentMeansCode: paymentMeansCode(sale),
-    billingReference: isReturn
-      ? saleDocNo(sale.returnOf?.type ?? "sale", sale.returnOf?.number)
+    // الإشعار: رقم الفاتورة الأصلية، أو المرجع المكتوب لو مش مربوط بفاتورة
+    billingReference: isNote
+      ? sale.returnOf
+        ? saleDocNo(sale.returnOf.type ?? "sale", sale.returnOf.number)
+        : sale.billingRef?.trim() || null
       : null,
-    reason: isReturn
-      ? sale.notes?.trim() || "Returned goods | مرتجع بضاعة"
+    reason: isNote
+      ? sale.noteReason?.trim() ||
+        sale.notes?.trim() ||
+        DEFAULT_REASON[sale.type]
       : null,
     seller: sellerParty(company, sale.branch),
     buyer: buyerOf(sale, kind),
@@ -700,7 +724,7 @@ export async function listZatcaDocuments(filters, user) {
   });
 
   const list = rows.map((d) => {
-    const sign = d.sale.type === "return" ? -1 : 1;
+    const sign = docSign(d.sale.type);
     return {
       id: d.id,
       saleId: d.saleId,

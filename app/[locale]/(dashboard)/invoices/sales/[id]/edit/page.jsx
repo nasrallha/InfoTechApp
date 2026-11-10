@@ -33,7 +33,7 @@ async function Content({ params }) {
   const [sale, customers, categories, { methods, creditMethod }] =
     await Promise.all([
       getSaleForEdit(saleId, user),
-      getSaleCustomers(),
+      getSaleCustomers(user),
       getSaleCategories(),
       getPurchasePaymentMethods(),
     ]);

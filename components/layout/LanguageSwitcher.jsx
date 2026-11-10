@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "antd";
+import { Button, Grid } from "antd";
 import { useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 
@@ -19,6 +19,19 @@ export default function LanguageSwitcher() {
   const handleLanguageChange = (newLocale) => {
     if (newLocale !== locale) router.replace(pathname, { locale: newLocale });
   };
+  // الموبايل: زرار واحد للغة التانية (توفير مساحة الهيدر)
+  const screens = Grid.useBreakpoint();
+  if (screens.md === false) {
+    const other = LANGS.find((l) => l.code !== locale);
+    return (
+      <Button
+        onClick={() => handleLanguageChange(other.code)}
+        style={{ minWidth: 40, paddingInline: 8, fontWeight: 600 }}
+      >
+        {other.label}
+      </Button>
+    );
+  }
 
   return (
     <div className="language-wraper flex gap-1.5">

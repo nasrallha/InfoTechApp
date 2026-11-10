@@ -26,7 +26,7 @@ async function Content({ params }) {
   if (!quotationId) notFound();
   const [quotation, customers, categories] = await Promise.all([
     getQuotationForForm(quotationId, user),
-    getSaleCustomers(),
+    getSaleCustomers(user),
     getSaleCategories(),
   ]);
   if (!quotation || quotation.status !== "open") notFound();

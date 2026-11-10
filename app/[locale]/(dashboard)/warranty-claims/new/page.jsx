@@ -8,10 +8,10 @@ import TableSkeleton from "@/components/common/TableSkeleton";
 import ClaimForm from "@/components/warranty-claims/ClaimForm";
 
 async function Content() {
-  const { allowed } = await getPageAccess("warrantyClaims.create");
+  const { user, allowed } = await getPageAccess("warrantyClaims.create");
   if (!allowed) return <NoAccess />;
   await connection();
-  const customers = await getSaleCustomers();
+  const customers = await getSaleCustomers(user);
   return <ClaimForm customers={customers} />;
 }
 

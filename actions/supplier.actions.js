@@ -17,24 +17,39 @@ import {
 } from "@/services/supplier.service";
 
 export async function createSupplierAction(input) {
-  return runAction(createPartySchema, input, (data) => createSupplier(data), {
-    permission: "suppliers.create",
-    refresh: true,
-  });
+  return runAction(
+    createPartySchema,
+    input,
+    (data, user) => createSupplier(data, user),
+    {
+      permission: "suppliers.create",
+      refresh: true,
+    },
+  );
 }
 
 export async function updateSupplierAction(input) {
-  return runAction(updatePartySchema, input, (data) => updateSupplier(data), {
-    permission: "suppliers.update",
-    refresh: true,
-  });
+  return runAction(
+    updatePartySchema,
+    input,
+    (data, user) => updateSupplier(data, user),
+    {
+      permission: "suppliers.update",
+      refresh: true,
+    },
+  );
 }
 
 export async function deleteSuppliersAction(ids) {
-  return runAction(deletePartiesSchema, ids, (data) => deleteSuppliers(data), {
-    permission: "suppliers.delete",
-    refresh: true,
-  });
+  return runAction(
+    deletePartiesSchema,
+    ids,
+    (data, user) => deleteSuppliers(data, user),
+    {
+      permission: "suppliers.delete",
+      refresh: true,
+    },
+  );
 }
 
 // الكود التالي للمورد الجديد (للعرض في الإضافة السريعة من فاتورة الشراء)

@@ -41,6 +41,7 @@ import {
   PAYMENT_STATUS_COLOR,
 } from "@/lib/doc-number";
 import { listSep } from "@/lib/list-sep";
+import { LinkedNotes, NoteButton } from "@/components/notes/LinkedNotes";
 
 // حالة الإرجاع لفاتورة شراء: لا يوجد / جزئي / كامل
 export function returnStatus(items) {
@@ -59,6 +60,8 @@ export default function PurchaseDetails({
   printSettings,
   canCreate,
   canReturn,
+  // إشعار دائن / مدين من المورد على الفاتورة
+  canNote = false,
   canUpdate,
   canDelete,
   autoPrint,
@@ -74,7 +77,10 @@ export default function PurchaseDetails({
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
   const isReturn = purchase.type === "return";
-  const hasReturns = !isReturn && (purchase.returns?.length ?? 0) > 0;
+  // مرتجعات أو إشعارات على الفاتورة ← مقفولة (لا تعديل ولا حذف)
+  const hasReturns =
+    !isReturn &&
+    (purchase.returns?.length ?? 0) + (purchase.notes?.length ?? 0) > 0;
 
   // الحذف: فاتورة الشراء ← قائمة المشتريات، المرتجع ← فاتورته الأصلية
   const remove = async () => {
@@ -267,6 +273,9 @@ export default function PurchaseDetails({
             >
               <Button icon={<RollbackOutlined />}>{t("MakeReturn")}</Button>
             </Link>
+          )}
+          {!isReturn && canNote && (
+            <NoteButton side="purchase" invoiceId={purchase.id} />
           )}
           {canCreate && (
             <Link
@@ -478,6 +487,9 @@ export default function PurchaseDetails({
                   </div>
                 ))}
               </div>
+            )}
+            {!isReturn && (
+              <LinkedNotes side="purchase" notes={purchase.notes} />
             )}
           </Card>
         </Col>
