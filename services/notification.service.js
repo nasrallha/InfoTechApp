@@ -69,7 +69,7 @@ async function saleJobs(user, todayDay) {
       sale: {
         select: {
           id: true,
-          number: true,
+          number: true, docCode: true,
           customerArName: true,
           customerEnName: true,
           customer: { select: { phone: true } },
@@ -93,7 +93,7 @@ async function saleJobs(user, todayDay) {
       phone: r.sale.customer?.phone ?? null,
       address: r.jobAddress,
       technician: r.technician,
-      ref: { kind: "sale", number: r.sale.number },
+      ref: { kind: "sale", number: r.sale.number, docCode: r.sale.docCode },
       href: `/invoices/sales/${r.sale.id}`,
     };
   });
@@ -116,7 +116,7 @@ async function contractVisits(user, todayDay) {
       contract: {
         select: {
           id: true,
-          number: true,
+          number: true, docCode: true,
           deviceName: true,
           address: true,
           technician: nameSel,
@@ -142,7 +142,7 @@ async function contractVisits(user, todayDay) {
       phone: v.contract.customer?.phone ?? null,
       address: v.contract.address,
       technician: v.technician ?? v.contract.technician,
-      ref: { kind: "contract", number: v.contract.number },
+      ref: { kind: "contract", number: v.contract.number, docCode: v.contract.docCode },
       href: `/maintenance-contracts/${v.contract.id}`,
     };
   });
@@ -161,7 +161,7 @@ async function endingContracts(user, todayDay) {
     take: LIMIT,
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       deviceName: true,
       endDate: true,
       customer: { select: { arName: true, enName: true, phone: true } },
@@ -179,7 +179,7 @@ async function endingContracts(user, todayDay) {
       title: { arName: c.deviceName, enName: c.deviceName },
       customer: c.customer,
       phone: c.customer?.phone ?? null,
-      ref: { kind: "contract", number: c.number },
+      ref: { kind: "contract", number: c.number, docCode: c.docCode },
       href: `/maintenance-contracts/${c.id}`,
     };
   });
@@ -193,7 +193,7 @@ async function lateClaims(user) {
     take: LIMIT,
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       sentAt: true,
       deviceName: true,
       customerName: true,
@@ -220,7 +220,7 @@ async function lateClaims(user) {
     },
     phone: c.customer?.phone ?? c.customerPhone ?? null,
     supplier: c.supplier,
-    ref: { kind: "claim", number: c.number },
+    ref: { kind: "claim", number: c.number, docCode: c.docCode },
     href: `/warranty-claims/${c.id}`,
   }));
 }

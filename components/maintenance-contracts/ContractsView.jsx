@@ -110,7 +110,7 @@ export default function ContractsView({ customers = [], technicians = [] }) {
             width: 90,
             render: (_, r) => (
               <Link href={`/maintenance-contracts/${r.id}`}>
-                <bdi>{formatDocNo("contract", r.number)}</bdi>
+                <bdi>{formatDocNo("contract", r.number, r.docCode)}</bdi>
               </Link>
             ),
           },

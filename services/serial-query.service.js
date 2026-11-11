@@ -57,7 +57,7 @@ const toRow = (r) => ({
 const docSelect = {
   id: true,
   type: true,
-  number: true,
+  number: true, docCode: true,
   date: true,
   customerArName: true,
   customerEnName: true,
@@ -102,7 +102,7 @@ export async function getSerialCard(id) {
           purchase: {
             select: {
               id: true,
-              number: true,
+              number: true, docCode: true,
               date: true,
               supplierInvoiceNo: true,
               supplierArName: true,
@@ -113,19 +113,19 @@ export async function getSerialCard(id) {
       },
       purchaseReturnItem: {
         select: {
-          purchase: { select: { id: true, number: true, date: true } },
+          purchase: { select: { id: true, number: true, docCode: true, date: true } },
         },
       },
       // التوالف والزيادات
       damageItem: {
         select: {
           reason: true,
-          adjustment: { select: { id: true, number: true, date: true } },
+          adjustment: { select: { id: true, number: true, docCode: true, date: true } },
         },
       },
       surplusItem: {
         select: {
-          adjustment: { select: { id: true, number: true, date: true } },
+          adjustment: { select: { id: true, number: true, docCode: true, date: true } },
         },
       },
       saleItem: {
@@ -240,7 +240,7 @@ export async function warrantyReport({
           select: { id: true, arName: true, enName: true, phone: true },
         },
         saleItem: {
-          select: { sale: { select: { id: true, number: true } } },
+          select: { sale: { select: { id: true, number: true, docCode: true } } },
         },
       },
     }),

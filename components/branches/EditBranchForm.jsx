@@ -62,6 +62,7 @@ const EditBranchForm = ({
         tAlerts={tAlerts}
         warehouses={warehouses}
         priceLists={priceLists}
+        codeLocked={Boolean(branch?.codeLocked)}
       />
     </Form>
   );

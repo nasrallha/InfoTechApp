@@ -307,7 +307,7 @@ export default function VoucherForm({
             {isEdit ? (
               <>
                 {t("EditVoucher")}{" "}
-                <bdi>{formatDocNo(voucher.type, voucher.number)}</bdi>
+                <bdi>{formatDocNo(voucher.type, voucher.number, voucher.docCode)}</bdi>
               </>
             ) : (
               t(`new.${type}`)
@@ -333,7 +333,7 @@ export default function VoucherForm({
           closable
           onClose={() => setLastVoucher(null)}
           title={t("LastVoucherSaved", {
-            number: formatDocNo(lastVoucher.type, lastVoucher.number),
+            number: formatDocNo(lastVoucher.type, lastVoucher.number, lastVoucher.docCode),
           })}
           action={
             <Space wrap>
@@ -343,7 +343,7 @@ export default function VoucherForm({
                 keepUrl
                 size="small"
                 defaultPaper={printSettings?.paperSize ?? "80mm"}
-                fileName={formatDocNo(lastVoucher.type, lastVoucher.number)}
+                fileName={formatDocNo(lastVoucher.type, lastVoucher.number, lastVoucher.docCode)}
                 renderDoc={(paper) => (
                   <VoucherDocument
                     voucher={lastVoucher}

@@ -2,12 +2,16 @@ import "server-only";
 import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { suggestBranchCode } from "./sequence.service";
 
 // الحقول التي نرجعها للواجهة
 const branchSelect = {
   id: true,
   arName: true,
   enName: true,
+  // رمز الفرع (DM) + مقفول؟ (عليه مستندات مترقّمة)
+  code: true,
+  codeLocked: true,
   address: true,
   isActive: true,
   phone: true,
@@ -52,8 +56,22 @@ export async function getActiveBranches() {
 
 // P2002 = مخالفة @unique (اسم الفرع مكرر)
 function handleUniqueError(error) {
-  if (error?.code === "P2002") throw new AppError("BranchNameExists");
+  if (error?.code === "P2002") {
+    // رمز الفرع مستخدم لفرع تاني
+    if (String(error?.meta?.target ?? "").includes("code"))
+      throw new AppError("BranchCodeExists", null, { code: "BranchCodeExists" });
+    throw new AppError("BranchNameExists");
+  }
   throw error;
+}
+
+// الرمز: المكتوب، أو تلقائي من الاسم الإنجليزي لو فاضي
+async function withCode(tx, data, id = null) {
+  if (data.code) return data;
+  return {
+    ...data,
+    code: await suggestBranchCode(tx, { id: id ?? 0, enName: data.enName }, id),
+  };
 }
 
 // ------------------------------------------------------------
@@ -99,7 +117,7 @@ export async function createBranch(input, user) {
   try {
     return await prisma.$transaction(async (tx) =>
       tx.branch.create({
-        data: await withNewWarehouse(tx, input),
+        data: await withCode(tx, await withNewWarehouse(tx, input)),
         select: branchSelect,
       }),
     );
@@ -111,16 +129,18 @@ export async function createBranch(input, user) {
 export async function updateBranch({ id, ...input }) {
   const exists = await prisma.branch.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, code: true, codeLocked: true },
   });
   if (!exists) throw new AppError("BranchNotFound");
+  // الرمز المقفول (عليه مستندات) مبيتغيرش أبداً
+  if (exists.codeLocked && exists.code) input = { ...input, code: exists.code };
 
   try {
     // فرع موجود على الرئيسي: «مستودع جديد باسم الفرع» بيتعمل ويتربط
     return await prisma.$transaction(async (tx) =>
       tx.branch.update({
         where: { id },
-        data: await withNewWarehouse(tx, input),
+        data: await withCode(tx, await withNewWarehouse(tx, input), id),
         select: branchSelect,
       }),
     );

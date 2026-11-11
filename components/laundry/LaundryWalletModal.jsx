@@ -373,7 +373,7 @@ export default function LaundryWalletModal({
                     {
                       title: t("Invoice"),
                       render: (_, u) => (
-                        <bdi>{saleDocNo(u.sale.type, u.sale.number)}</bdi>
+                        <bdi>{saleDocNo(u.sale.type, u.sale.number, u.sale.docCode)}</bdi>
                       ),
                     },
                     {
@@ -396,7 +396,7 @@ export default function LaundryWalletModal({
               {
                 title: t("WalletNo"),
                 width: 90,
-                render: (_, w) => <bdi>LW-{w.number}</bdi>,
+                render: (_, w) => <bdi>{w.docCode ? `${w.docCode}-` : ""}LW-{w.number}</bdi>,
               },
               {
                 title: t("Date"),

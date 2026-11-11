@@ -20,7 +20,8 @@ async function Content({ searchParams }) {
   });
   const [data, options] = await Promise.all([
     profitReport(filters, user),
-    getReportOptions(user, { parties: [] }),
+    // المجموعات الرئيسية (فلتر ربح المجموعة)
+    getReportOptions(user, { parties: ["category"] }),
   ]);
   return (
     <ProfitReportView

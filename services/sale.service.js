@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { linkRestaurantSale } from "./restaurant-link.service";
 import { assertPlanLimit } from "@/lib/plan-limits";
@@ -17,7 +18,7 @@ import {
   totalsOf,
 } from "@/lib/invoice-calc";
 import { dayOf, dayToDateTime, dayToDbDate, today } from "@/lib/dates";
-import { parseDocNo, saleDocNo } from "@/lib/doc-number";
+import { saleDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
   isNegativeStockAllowed,
@@ -84,7 +85,8 @@ import {
 export const SALE = "sale";
 export const SALE_RETURN = "return";
 
-const SEQUENCE_KEY = { [SALE]: "sale", [SALE_RETURN]: "sale_return" };
+// نوع المستند ← مفتاحه في sequence.service (BRANCH_DOCS)
+const SEQUENCE_KEY = { [SALE]: "sale", [SALE_RETURN]: "saleReturn" };
 const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 };
 const n = (v) => (v == null ? 0 : Number(v));
 
@@ -101,15 +103,9 @@ export const canViewAllBranches = (user) => can(user, "allBranches.view");
 const branchScope = (user) =>
   !user || canViewAllBranches(user) ? {} : { branchId: user.branch.id };
 
-async function nextNumber(tx, type) {
-  const key = SEQUENCE_KEY[type];
-  const seq = await tx.documentSequence.upsert({
-    where: { key },
-    create: { key, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
+// الرقم التالي في فرع المستند + رمز الفرع (DM-SI-5) - مفيش تكرار مهما كان عدد المستخدمين
+async function nextNumber(tx, type, branchId) {
+  return nextBranchNumber(tx, SEQUENCE_KEY[type], branchId);
 }
 
 // حركات المخزون: البيع يخرج من المستودع، والمرتجع يدخل
@@ -118,6 +114,7 @@ function saleMovements({
   type,
   id,
   number,
+  docCode = null,
   date,
   warehouseId,
   lines,
@@ -136,7 +133,7 @@ function saleMovements({
     type: type === SALE ? "sale" : "sale_return",
     refType: "sale",
     refId: id,
-    refNo: saleDocNo(type, number),
+    refNo: saleDocNo(type, number, docCode),
     date,
   }));
 }
@@ -662,7 +659,7 @@ export function createSale(data, user) {
     "sale",
     data.requestId,
     user,
-    { id: true, number: true, totalAmount: true, changeAmount: true },
+    { id: true, number: true, docCode: true, totalAmount: true, changeAmount: true },
     () => createSaleNow(data, user),
   );
 }
@@ -691,12 +688,13 @@ async function createSaleNow(data, user) {
     Boolean(data.restaurantPrices?.length) || (await isNegativeStockAllowed());
 
   return runTx(async (tx) => {
-    const number = await nextNumber(tx, SALE);
+    const { number, docCode } = await nextNumber(tx, SALE, user.branch.id);
     const { items: createdItems, ...created } = await tx.sale.create({
       data: {
         ...header,
         type: SALE,
         number,
+        docCode,
         source,
         branchId: user.branch.id,
         shiftId,
@@ -707,7 +705,7 @@ async function createSaleNow(data, user) {
       },
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         totalAmount: true,
         changeAmount: true,
         items: { orderBy: { id: "asc" }, select: { id: true } },
@@ -727,6 +725,7 @@ async function createSaleNow(data, user) {
         type: SALE,
         id: created.id,
         number,
+        docCode,
         date: header.date,
         warehouseId: header.warehouseId,
         lines: itemRows,
@@ -839,7 +838,7 @@ export async function updateSale({ id, ...data }, user) {
       },
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         items: { orderBy: { id: "asc" }, select: { id: true } },
       },
     });
@@ -865,6 +864,7 @@ export async function updateSale({ id, ...data }, user) {
         type: SALE,
         id,
         number: updated.number,
+        docCode: updated.docCode,
         date: header.date,
         warehouseId: header.warehouseId,
         lines: itemRows,
@@ -912,7 +912,7 @@ export function createSaleReturn(data, user) {
     "sale",
     data.requestId,
     user,
-    { id: true, number: true },
+    { id: true, number: true, docCode: true },
     () => createSaleReturnNow(data, user),
   );
 }
@@ -1047,7 +1047,11 @@ async function createSaleReturnNow(data, user) {
       throw new AppError("CashCustomerFullRefund");
     }
 
-    const number = await nextNumber(tx, SALE_RETURN);
+    const { number, docCode } = await nextNumber(
+      tx,
+      SALE_RETURN,
+      user.branch.id,
+    );
     // التاريخ: الآن، أو يوم سابق لمن يملك الصلاحية (ولا يسبق الفاتورة)
     const now = today();
     const day =
@@ -1100,6 +1104,7 @@ async function createSaleReturnNow(data, user) {
       data: {
         type: SALE_RETURN,
         number,
+        docCode,
         source: "invoice",
         branchId: user.branch.id,
         warehouseId: original.warehouseId,
@@ -1132,7 +1137,7 @@ async function createSaleReturnNow(data, user) {
       },
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         items: { orderBy: { id: "asc" }, select: { id: true } },
       },
     });
@@ -1163,6 +1168,7 @@ async function createSaleReturnNow(data, user) {
         type: SALE_RETURN,
         id: created.id,
         number,
+        docCode,
         date,
         warehouseId: original.warehouseId,
         lines: itemRows,
@@ -1266,7 +1272,8 @@ export async function listSales({
   branchId,
 }) {
   const query = q.trim();
-  const asNumber = parseDocNo(query);
+  // رقم المستند: في فرع الرمز (DM-SI-5) أو الفرع المختار / فرع المستخدم
+  const asNumber = await docNumberWhere(query, user, branchId);
   const scope = branchScope(user);
   const where = {
     type,
@@ -1275,7 +1282,7 @@ export async function listSales({
     ...(query
       ? {
           OR: [
-            ...(asNumber ? [{ number: asNumber }] : []),
+            ...(asNumber ? [asNumber] : []),
             { customerArName: { contains: query } },
             { customerEnName: { contains: query } },
           ],
@@ -1291,7 +1298,7 @@ export async function listSales({
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         type: true,
         source: true,
         date: true,
@@ -1303,7 +1310,7 @@ export async function listSales({
         settledAmount: true,
         branch: { select: { arName: true, enName: true } },
         createdBy: { select: { arFullname: true, enFullname: true } },
-        returnOf: { select: { id: true, number: true } },
+        returnOf: { select: { id: true, number: true, docCode: true } },
         // المرتجعات بس (الإشعارات مربوطة بنفس العلاقة)
         _count: { select: { returns: { where: { type: SALE_RETURN } } } },
       },
@@ -1315,7 +1322,7 @@ export async function listSales({
 const saleDetailSelect = {
   id: true,
   type: true,
-  number: true,
+  number: true, docCode: true,
   source: true,
   date: true,
   customerId: true,
@@ -1346,7 +1353,7 @@ const saleDetailSelect = {
   notes: true,
   createdAt: true,
   shiftId: true,
-  shift: { select: { id: true, number: true, status: true } },
+  shift: { select: { id: true, number: true, docCode: true, status: true } },
   branch: {
     select: {
       id: true,
@@ -1392,13 +1399,13 @@ const saleDetailSelect = {
       driver: { select: { name: true } },
     },
   },
-  returnOf: { select: { id: true, number: true, date: true } },
+  returnOf: { select: { id: true, number: true, docCode: true, date: true } },
   // المرتجعات والإشعارات على الفاتورة (بتتفصل في getSale)
   returns: {
     orderBy: { id: "asc" },
-    select: { id: true, type: true, number: true, date: true, totalAmount: true },
+    select: { id: true, type: true, number: true, docCode: true, date: true, totalAmount: true },
   },
-  quotation: { select: { id: true, number: true } },
+  quotation: { select: { id: true, number: true, docCode: true } },
   // الفاتورة الإلكترونية (الحالة والـ QR الرسمي)
   zatcaDocument: {
     select: {
@@ -1524,7 +1531,8 @@ export async function getSale(id, type, user) {
     ...sale,
     returns: linked.filter((r) => r.type === SALE_RETURN),
     // الإشعارات الدائنة والمدينة على الفاتورة
-    notes: linked.filter((r) => r.type !== SALE_RETURN),
+    // (اسم منفصل: notes = ملاحظات الفاتورة نفسها اللي بتظهر في الطباعة)
+    linkedNotes: linked.filter((r) => r.type !== SALE_RETURN),
     laundry: await laundryPrintInfo(sale),
   });
 }
@@ -1564,15 +1572,16 @@ export const withPacks = (sale) => ({
 // في فرع الكاشير بس
 // ------------------------------------------------------------
 export async function posRecentSales({ q = "" }, user) {
-  const number = parseDocNo(q);
-  if (!number) return [];
+  // الكاشير: فواتير فرعه بس (حتى لو الرقم فيه رمز فرع تاني)
+  const ref = await docNumberWhere(q, user);
+  if (!ref) return [];
   const rows = await prisma.sale.findMany({
-    where: { type: SALE, branchId: user.branch.id, number },
+    where: { type: SALE, number: ref.number, branchId: user.branch.id },
     orderBy: { id: "desc" },
     take: 5,
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       createdAt: true,
       customerArName: true,
@@ -1596,14 +1605,14 @@ export async function posSaleForPrint(id, user) {
 
 // البحث عن فاتورة البيع للمرتجع برقمها (SI-15 أو 15)
 export async function findSalesForReturn({ value }, user) {
-  const number = parseDocNo(value);
-  if (!number) return [];
+  const ref = await docNumberWhere(value, user);
+  if (!ref) return [];
   return prisma.sale.findMany({
-    where: { type: SALE, number, ...branchScope(user) },
+    where: { type: SALE, ...ref, ...branchScope(user) },
     take: 5,
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       customerArName: true,
       customerEnName: true,

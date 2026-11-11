@@ -1,11 +1,12 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
 import { dayOf, dayToDateTime, dayToDbDate, today } from "@/lib/dates";
-import { DOC_PREFIX } from "@/lib/doc-number";
+import { formatDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
   isNegativeStockAllowed,
@@ -31,22 +32,13 @@ import {
 // ============================================================
 
 const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 };
-const SEQUENCE_KEY = "adjustment";
 const n = (v) => (v == null ? 0 : Number(v));
 const round = (v, d) =>
   Math.round((Number(v) + Number.EPSILON) * 10 ** d) / 10 ** d;
 const allowed = (ids, warehouseId) => ids === null || ids.includes(warehouseId);
-const docNo = (number) => `${DOC_PREFIX.adjustment}-${number}`;
+// رقم المستند في حركات المخزون (DM-AJ-5 / القديم AJ-5)
+const docNo = (number, code) => formatDocNo("adjustment", number, code);
 
-async function nextNumber(tx) {
-  const seq = await tx.documentSequence.upsert({
-    where: { key: SEQUENCE_KEY },
-    create: { key: SEQUENCE_KEY, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
-}
 
 // الأصناف والوحدات: نتحقق منها ونرجع معامل التحويل والتكلفة
 async function resolveItems(items) {
@@ -131,7 +123,11 @@ async function prepare(data, user) {
 }
 
 // السطور + الحركات + الأرقام (جوه الـ transaction)
-async function writeLines(tx, { id, number, type, warehouseId, date }, p) {
+async function writeLines(
+  tx,
+  { id, number, docCode = null, type, warehouseId, date },
+  p,
+) {
   const damageSerials =
     type === "damage"
       ? await prepareDamageSerials(
@@ -174,7 +170,7 @@ async function writeLines(tx, { id, number, type, warehouseId, date }, p) {
       type,
       refType: "adjustment",
       refId: id,
-      refNo: docNo(number),
+      refNo: docNo(number, docCode),
       date,
       // تتبع الصلاحية: الزيادة بدفعاتها، والتالف من دفعة معيّنة (أو الأقرب انتهاءً)
       ...(it.product.trackExpiry && type === "surplus"
@@ -222,23 +218,30 @@ async function undo(tx, a) {
 export async function createAdjustment(data, user) {
   const p = await prepare(data, user);
   return runTx(async (tx) => {
-    const number = await nextNumber(tx);
+    const { number, docCode } = await nextBranchNumber(
+      tx,
+      "adjustment",
+      user.branch.id,
+    );
     const created = await tx.stockAdjustment.create({
       data: {
         number,
+        docCode,
+        branchId: user.branch.id,
         type: data.type,
         warehouseId: data.warehouseId,
         date: p.date,
         notes: data.notes ?? null,
         createdById: user.id,
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
     await writeLines(
       tx,
       {
         id: created.id,
         number,
+        docCode,
         type: data.type,
         warehouseId: data.warehouseId,
         date: p.date,
@@ -256,7 +259,7 @@ export async function updateAdjustment({ id, ...data }, user) {
     where: { id },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       type: true,
       warehouseId: true,
@@ -284,13 +287,14 @@ export async function updateAdjustment({ id, ...data }, user) {
       {
         id,
         number: a.number,
+        docCode: a.docCode,
         type: a.type,
         warehouseId: data.warehouseId,
         date: p.date,
       },
       p,
     );
-    return { id, number: a.number };
+    return { id, number: a.number, docCode: a.docCode };
   }, TX_OPTIONS);
 }
 
@@ -327,11 +331,12 @@ export async function listAdjustments({
   pageSize = 20,
 }) {
   const ids = await userWarehouseIds(user);
-  const number = /^\D*(\d+)$/.exec(q.trim())?.[1];
+  // رقم المستند: في فرع الرمز (DM-AJ-5) أو فرع المستخدم
+  const ref = q.trim() ? await docNumberWhere(q, user) : null;
   const where = {
     ...(ids === null ? {} : { warehouseId: { in: ids } }),
     ...(type ? { type } : {}),
-    ...(number ? { number: Number(number) } : {}),
+    ...(ref ? { number: ref.number, AND: [{ branchId: ref.branchId }] } : {}),
   };
   const [total, rows, counts] = await Promise.all([
     prisma.stockAdjustment.count({ where }),
@@ -342,7 +347,7 @@ export async function listAdjustments({
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         type: true,
         status: true,
         date: true,
@@ -385,7 +390,7 @@ export async function getAdjustment(id, user) {
     where: { id, ...(ids === null ? {} : { warehouseId: { in: ids } }) },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       type: true,
       status: true,
       date: true,

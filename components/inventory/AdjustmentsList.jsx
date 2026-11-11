@@ -60,7 +60,7 @@ export default function AdjustmentsList({ data, q, type, canCreate }) {
       render: (_, r) => (
         <Link href={`/inventory/adjustments/${r.id}`}>
           <b>
-            <bdi>{formatDocNo("adjustment", r.number)}</bdi>
+            <bdi>{formatDocNo("adjustment", r.number, r.docCode)}</bdi>
           </b>
         </Link>
       ),

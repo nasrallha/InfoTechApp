@@ -282,7 +282,7 @@ export default function FollowUpReportView({ branches = [] }) {
                 <Tag color={STATE_COLORS[r.state]}>{stateText(r)}</Tag>
                 {r.sale && (
                   <Link href={`/invoices/sales/${r.sale.id}`}>
-                    <bdi>{saleDocNo("sale", r.sale.number)}</bdi>
+                    <bdi>{saleDocNo("sale", r.sale.number, r.sale.docCode)}</bdi>
                   </Link>
                 )}
               </>

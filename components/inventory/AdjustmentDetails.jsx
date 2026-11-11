@@ -56,7 +56,7 @@ export default function AdjustmentDetails({
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
   const userName = (u) =>
     u ? (locale === "ar" ? u.arFullname : u.enFullname) : "";
-  const no = formatDocNo("adjustment", a.number);
+  const no = formatDocNo("adjustment", a.number, a.docCode);
   const cancelled = a.status === "cancelled";
   const color = cancelled
     ? ADJUSTMENT_COLORS.cancelled

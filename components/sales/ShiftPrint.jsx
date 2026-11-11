@@ -55,7 +55,7 @@ export default function ShiftPrint({ shift, company, settings }) {
       </header>
       <div className="inv__title">
         {L("تقرير تسليم وردية", "Shift handover report")}{" "}
-        <bdi>{formatDocNo("shift", shift.number)}</bdi>
+        <bdi>{formatDocNo("shift", shift.number, shift.docCode)}</bdi>
       </div>
       {/* ترتيب الوردية في يوم العمل: الوردية 2 — 30/10/2026 */}
       {shiftDayTexts(shift) && (

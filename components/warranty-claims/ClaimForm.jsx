@@ -170,7 +170,7 @@ export default function ClaimForm({ customers: customersProp = [] }) {
                 {device.sale && (
                   <span>
                     {t("SoldBy")}{" "}
-                    <bdi>{saleDocNo("sale", device.sale.number)}</bdi> —{" "}
+                    <bdi>{saleDocNo("sale", device.sale.number, device.sale.docCode)}</bdi> —{" "}
                     <bdi>{formatDate(device.sale.date)}</bdi>
                   </span>
                 )}

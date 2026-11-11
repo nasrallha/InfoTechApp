@@ -76,7 +76,7 @@ export default function QuickAddParty({ kind, onCreated, size }) {
 
       <FormModal
         open={open}
-        width={900}
+        width={1000}
         formId={formId}
         title={
           <>

@@ -38,7 +38,7 @@ export function useWaMessages() {
       [
         t("WaMsgInvoice", {
           name: s.customerArName || "",
-          invoice: saleDocNo(s.type ?? "sale", s.number),
+          invoice: saleDocNo(s.type ?? "sale", s.number, s.docCode),
           total: cur(s.totalAmount),
           shop,
         }),

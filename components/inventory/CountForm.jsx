@@ -56,6 +56,7 @@ import {
 import { C } from "@/lib/theme";
 import "@/components/purchases/purchases.css";
 import "@/components/common/table.css";
+import DocBranchSelect from "@/components/common/DocBranchSelect";
 
 const q3 = (v) => Number(Number(v ?? 0).toFixed(3));
 
@@ -98,7 +99,7 @@ export default function CountForm({
   const tAlerts = useTranslations("Alerts");
   const { amount: money } = useCurrency();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
-  const no = count ? formatDocNo("count", count.number) : null;
+  const no = count ? formatDocNo("count", count.number, count.docCode) : null;
   const editable = !posted && canCreate;
 
   // تحميل الأصناف من البرنامج (الموجود في الجدول لا يتكرر)
@@ -249,7 +250,7 @@ export default function CountForm({
     setBusy(false);
     if (!saved) return;
     message.success(
-      t("CountSaved", { number: formatDocNo("count", saved.number) }),
+      t("CountSaved", { number: formatDocNo("count", saved.number, saved.docCode) }),
     );
     if (!count) router.push(`/inventory/counts/${saved.id}`);
     clearNew();
@@ -263,7 +264,7 @@ export default function CountForm({
     setBusy(false);
     if (!res.success) return showActionError(res, tAlerts, locale);
     message.success(
-      t("CountPosted", { number: formatDocNo("count", saved.number) }),
+      t("CountPosted", { number: formatDocNo("count", saved.number, saved.docCode) }),
     );
     if (!count) router.push(`/inventory/counts/${saved.id}`);
     clearNew();
@@ -447,6 +448,8 @@ export default function CountForm({
     <div>
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">{title}</h1>
+        {/* مدير النظام: فرع المستند (الجديد بس) */}
+        {!count && <DocBranchSelect />}
         <Space wrap>
           {editable && (
             <Button

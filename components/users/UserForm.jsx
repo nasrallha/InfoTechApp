@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Alert, Form, Input, Select, Switch, Row, Col, Divider } from "antd";
+import { Form, Input, Select, Switch, Row, Col } from "antd";
 import { message } from "@/components/common/feedback";
 import { CrownFilled, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
@@ -122,6 +122,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
       id={formId}
       layout="vertical"
       autoComplete="off"
+      className="compact-modal-form"
       onFinish={onFinish}
       initialValues={{
         isActive: true,
@@ -132,18 +133,18 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
     >
       {/* البيانات الأساسية */}
       <Row gutter={[16, 0]}>
-        <Col xs={24} md={12}>
+        <Col xs={24} md={8}>
           <Form.Item name="arFullname" label={tForm("ArFullname")} rules={nameRules} hasFeedback>
             <Input />
           </Form.Item>
         </Col>
-        <Col xs={24} md={12}>
+        <Col xs={24} md={8}>
           <Form.Item name="enFullname" label={tForm("EnFullname")} rules={nameRules} hasFeedback>
             <Input dir="ltr" />
           </Form.Item>
         </Col>
 
-        <Col xs={24} md={12}>
+        <Col xs={24} md={8}>
           <Form.Item
             name="username"
             label={tAuth("Username")}
@@ -159,20 +160,9 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
             <Input prefix={<UserOutlined />} dir="ltr" autoComplete="off" />
           </Form.Item>
         </Col>
-        <Col xs={24} md={12}>
-          <Form.Item name="isActive" label={tForm("Active")} valuePropName="checked">
-            <Switch disabled={isSelf} />
-          </Form.Item>
-        </Col>
-      </Row>
 
-      {/* الصورة (اختيارية): لو موجودة تظهر بدل الأفاتار */}
-      <ImageUploadItem name="image" label={tForm("UserImage")} />
-
-      {/* الدور والفرع */}
-      <Divider titlePlacement="start">{tForm("RoleAndBranch")}</Divider>
-      <Row gutter={[16, 0]}>
-        <Col xs={24} md={12}>
+        {/* الدور والفرع والحالة */}
+        <Col xs={24} md={8}>
           <Form.Item
             name="roleId"
             label={tForm("Role")}
@@ -198,7 +188,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
             />
           </Form.Item>
         </Col>
-        <Col xs={24} md={12}>
+        <Col xs={16} md={8}>
           <Form.Item
             name="branchId"
             label={tForm("Branch")}
@@ -213,25 +203,24 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
             />
           </Form.Item>
         </Col>
-      </Row>
+        <Col xs={8} md={8}>
+          <Form.Item name="isActive" label={tForm("Active")} valuePropName="checked">
+            <Switch disabled={isSelf} />
+          </Form.Item>
+        </Col>
 
-      {/* كلمة المرور */}
-      <Divider titlePlacement="start">{tAuth("Password")}</Divider>
-      {isEdit && (
-        <Alert
-          type="info"
-          showIcon
-          title={tForm("PasswordKeepHint")}
-          style={{ marginBottom: 16 }}
-        />
-      )}
-      <Row gutter={[16, 0]}>
-        <Col xs={24} md={12}>
-          <Form.Item name="password" label={tAuth("Password")} rules={passwordRules}>
+        {/* كلمة المرور (في التعديل: فاضية = مبتتغيرش ← تلميح) */}
+        <Col xs={24} md={8}>
+          <Form.Item
+            name="password"
+            label={tAuth("Password")}
+            tooltip={isEdit ? tForm("PasswordKeepHint") : undefined}
+            rules={passwordRules}
+          >
             <Input.Password prefix={<LockOutlined />} dir="ltr" autoComplete="new-password" />
           </Form.Item>
         </Col>
-        <Col xs={24} md={12}>
+        <Col xs={24} md={8}>
           <Form.Item
             name="confirmPassword"
             label={tAuth("ConfirmPassword")}
@@ -250,6 +239,11 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
           >
             <Input.Password prefix={<LockOutlined />} dir="ltr" autoComplete="new-password" />
           </Form.Item>
+        </Col>
+
+        {/* الصورة (اختيارية): لو موجودة تظهر بدل الأفاتار */}
+        <Col xs={24} md={8}>
+          <ImageUploadItem name="image" label={tForm("UserImage")} />
         </Col>
       </Row>
     </Form>

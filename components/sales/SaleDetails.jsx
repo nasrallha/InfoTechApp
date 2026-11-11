@@ -81,7 +81,7 @@ export default function SaleDetails({
   const isReturn = sale.type === "return";
   // مرتجعات أو إشعارات على الفاتورة ← مقفولة (لا تعديل ولا حذف)
   const hasReturns =
-    !isReturn && sale.returns.length + (sale.notes?.length ?? 0) > 0;
+    !isReturn && sale.returns.length + (sale.linkedNotes?.length ?? 0) > 0;
   const shiftClosed = sale.shift && sale.shift.status !== "open";
   // اتوقّعت للزكاة: مقفولة (التصحيح بمرتجع / إشعار دائن)
   const zdoc = sale.zatcaDocument;
@@ -273,7 +273,7 @@ export default function SaleDetails({
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">
           {isReturn ? t("ReturnNo") : t("SaleNo")}{" "}
-          <bdi>{saleDocNo(sale.type, sale.number)}</bdi>{" "}
+          <bdi>{saleDocNo(sale.type, sale.number, sale.docCode)}</bdi>{" "}
           {sale.source === "pos" && <Tag color="geekblue">{t("FromPos")}</Tag>}
           {!isReturn && (
             <Tag color={PAYMENT_STATUS_COLOR[payStatus]}>
@@ -289,7 +289,7 @@ export default function SaleDetails({
           <PrintActions
             autoPrint={notCleared ? false : autoPrint}
             defaultPaper={printSettings.paperSize}
-            fileName={saleDocNo(sale.type, sale.number)}
+            fileName={saleDocNo(sale.type, sale.number, sale.docCode)}
             renderDoc={(paper) =>
               paper === "A4" ? (
                 <InvoiceA4
@@ -451,7 +451,7 @@ export default function SaleDetails({
             <div>
               <span>{t("Shift")}</span>
               <Link href={`/sales/shifts/${sale.shift.id}`}>
-                {formatDocNo("shift", sale.shift.number)}
+                {formatDocNo("shift", sale.shift.number, sale.shift.docCode)}
               </Link>
             </div>
           )}
@@ -459,7 +459,7 @@ export default function SaleDetails({
             <div>
               <span>{t("FromQuotation")}</span>
               <Link href={`/invoices/quotations/${sale.quotation.id}`}>
-                {formatDocNo("quotation", sale.quotation.number)}
+                {formatDocNo("quotation", sale.quotation.number, sale.quotation.docCode)}
               </Link>
             </div>
           )}
@@ -467,7 +467,7 @@ export default function SaleDetails({
             <div>
               <span>{tP("OriginalInvoice")}</span>
               <Link href={`/invoices/sales/${sale.returnOf.id}`}>
-                {saleDocNo("sale", sale.returnOf.number)}
+                {saleDocNo("sale", sale.returnOf.number, sale.returnOf.docCode)}
               </Link>
             </div>
           )}
@@ -555,7 +555,7 @@ export default function SaleDetails({
                   <div key={r.id} className="pur-totals">
                     <div>
                       <Link href={`/invoices/sales-returns/${r.id}`}>
-                        {t("ReturnNo")} {saleDocNo("return", r.number)}
+                        {t("ReturnNo")} {saleDocNo("return", r.number, r.docCode)}
                       </Link>
                       <span>
                         <bdi>{formatDateTime(r.date)}</bdi> —{" "}
@@ -566,7 +566,7 @@ export default function SaleDetails({
                 ))}
               </div>
             )}
-            {!isReturn && <LinkedNotes side="sale" notes={sale.notes} />}
+            {!isReturn && <LinkedNotes side="sale" notes={sale.linkedNotes} />}
           </Card>
         </Col>
         <Col xs={24} lg={10}>

@@ -119,7 +119,7 @@ function paymentMeansCode(sale) {
 const saleForZatcaSelect = {
   id: true,
   type: true,
-  number: true,
+  number: true, docCode: true,
   date: true,
   createdAt: true,
   branchId: true,
@@ -169,7 +169,7 @@ const saleForZatcaSelect = {
   returnOf: {
     select: {
       type: true,
-      number: true,
+      number: true, docCode: true,
       isExport: true,
       zatcaDocument: { select: { kind: true } },
     },
@@ -292,7 +292,7 @@ export function buildInvoiceDto(sale, { company, icv, pih, uuid, kind }) {
   const documentType = ZATCA_DOC_TYPE[sale.type] ?? "invoice";
   const isNote = documentType !== "invoice";
   return {
-    id: saleDocNo(sale.type, sale.number),
+    id: saleDocNo(sale.type, sale.number, sale.docCode),
     uuid,
     issueDate: date,
     issueTime: time,
@@ -305,7 +305,7 @@ export function buildInvoiceDto(sale, { company, icv, pih, uuid, kind }) {
     // الإشعار: رقم الفاتورة الأصلية، أو المرجع المكتوب لو مش مربوط بفاتورة
     billingReference: isNote
       ? sale.returnOf
-        ? saleDocNo(sale.returnOf.type ?? "sale", sale.returnOf.number)
+        ? saleDocNo(sale.returnOf.type ?? "sale", sale.returnOf.number, sale.returnOf.docCode)
         : sale.billingRef?.trim() || null
       : null,
     reason: isNote
@@ -713,7 +713,7 @@ export async function listZatcaDocuments(filters, user) {
       sale: {
         select: {
           type: true,
-          number: true,
+          number: true, docCode: true,
           date: true,
           customerArName: true,
           customerEnName: true,
@@ -731,7 +731,7 @@ export async function listZatcaDocuments(filters, user) {
     return {
       id: d.id,
       saleId: d.saleId,
-      docNo: saleDocNo(d.sale.type, d.sale.number),
+      docNo: saleDocNo(d.sale.type, d.sale.number, d.sale.docCode),
       saleType: d.sale.type,
       date: d.sale.date,
       customer: d.sale.customerArName
@@ -859,12 +859,12 @@ export async function getDocumentXml(saleId, user) {
       signedXml: true,
       clearedXml: true,
       uuid: true,
-      sale: { select: { type: true, number: true } },
+      sale: { select: { type: true, number: true, docCode: true } },
     },
   });
   if (!doc) throw new AppError("ZatcaDocumentNotFound");
   return {
-    fileName: `${saleDocNo(doc.sale.type, doc.sale.number)}_${doc.uuid}.xml`,
+    fileName: `${saleDocNo(doc.sale.type, doc.sale.number, doc.sale.docCode)}_${doc.uuid}.xml`,
     xml: doc.clearedXml || doc.signedXml,
   };
 }

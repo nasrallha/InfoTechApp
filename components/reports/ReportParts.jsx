@@ -125,6 +125,7 @@ export function useFilterInfo(filters, options = {}) {
         t(filters.source === "pos" ? "SourcePos" : "SourceInvoice"),
       ],
       filters.q && [t("DocNo"), filters.q],
+      filters.item && [t("ItemFilter"), filters.item],
     ].filter(Boolean);
 }
 

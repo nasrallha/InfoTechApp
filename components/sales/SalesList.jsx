@@ -63,8 +63,8 @@ export default function SalesList({
 
   const docNo = (r) =>
     isQuotation
-      ? formatDocNo("quotation", r.number)
-      : saleDocNo(kind, r.number);
+      ? formatDocNo("quotation", r.number, r.docCode)
+      : saleDocNo(kind, r.number, r.docCode);
   const customerOf = (r) =>
     (locale === "ar" ? r.customerArName : r.customerEnName) ||
     t("CashCustomer");
@@ -130,7 +130,7 @@ export default function SalesList({
                 <Link href={`/invoices/sales/${r.sale?.id}`}>
                   <Tag color="green">
                     {t("Converted")}{" "}
-                    {r.sale && saleDocNo("sale", r.sale.number)}
+                    {r.sale && saleDocNo("sale", r.sale.number, r.sale.docCode)}
                   </Tag>
                 </Link>
               ) : r.validUntil < todayDay ? (
@@ -163,7 +163,7 @@ export default function SalesList({
                   render: (_, r) =>
                     r.returnOf && (
                       <Link href={`/invoices/sales/${r.returnOf.id}`}>
-                        {saleDocNo("sale", r.returnOf.number)}
+                        {saleDocNo("sale", r.returnOf.number, r.returnOf.docCode)}
                       </Link>
                     ),
                 },

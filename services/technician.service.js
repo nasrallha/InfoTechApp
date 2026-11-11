@@ -241,7 +241,7 @@ export async function listJobs({ from, to, technicianId, type = "all" }, user) {
         sale: {
           select: {
             id: true,
-            number: true,
+            number: true, docCode: true,
             customerArName: true,
             customerEnName: true,
             customer: { select: { phone: true } },
@@ -271,7 +271,7 @@ export async function listJobs({ from, to, technicianId, type = "all" }, user) {
         status: it.jobStatus,
         doneAt: it.jobDoneAt,
         note: it.jobNote,
-        ref: { kind: "sale", id: it.sale.id, number: it.sale.number },
+        ref: { kind: "sale", id: it.sale.id, number: it.sale.number, docCode: it.sale.docCode },
       });
   }
 
@@ -321,7 +321,7 @@ export async function listJobs({ from, to, technicianId, type = "all" }, user) {
         contract: {
           select: {
             id: true,
-            number: true,
+            number: true, docCode: true,
             deviceName: true,
             address: true,
             technician: { select: { id: true, arName: true, enName: true } },
@@ -348,7 +348,7 @@ export async function listJobs({ from, to, technicianId, type = "all" }, user) {
         status: v.status === "skipped" ? "cancelled" : v.status,
         doneAt: v.doneAt,
         note: v.note,
-        ref: { kind: "contract", id: v.contract.id, number: v.contract.number },
+        ref: { kind: "contract", id: v.contract.id, number: v.contract.number, docCode: v.contract.docCode },
       });
     }
   }
@@ -458,7 +458,7 @@ export async function commissionReport(
         select: {
           id: true,
           type: true,
-          number: true,
+          number: true, docCode: true,
           date: true,
           customerArName: true,
           customerEnName: true,

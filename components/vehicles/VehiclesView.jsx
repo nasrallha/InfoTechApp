@@ -350,7 +350,7 @@ function HistoryDrawer({ id, onClose }) {
                   <Link
                     href={`/invoices/${isReturn ? "sales-returns" : "sales"}/${s.id}`}
                   >
-                    <bdi>{saleDocNo(s.type, s.number)}</bdi>
+                    <bdi>{saleDocNo(s.type, s.number, s.docCode)}</bdi>
                   </Link>
                   {s.odometer != null && (
                     <Tag color="blue">

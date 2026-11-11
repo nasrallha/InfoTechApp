@@ -50,7 +50,7 @@ export default function LaundryWalletReceipt({ wallet: w, phone, paperSize, lang
       <div className="lrc__title">{L("إيصال اشتراك", "Subscription receipt")}</div>
 
       <div className="lrc__meta">
-        {row(L("رقم الاشتراك", "Subscription No"), `LW-${w.number}`)}
+        {row(L("رقم الاشتراك", "Subscription No"), `${w.docCode ? `${w.docCode}-` : ""}LW-${w.number}`)}
         {w.voucher && row(L("سند القبض", "Receipt voucher"), w.voucher.number)}
         {row(L("العميل", "Customer"), w.customer.arName)}
         {row(L("الجوال", "Phone"), phone)}

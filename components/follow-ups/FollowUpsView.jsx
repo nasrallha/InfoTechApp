@@ -190,7 +190,7 @@ export default function FollowUpsView({ focusId = null }) {
               <>
                 {" · "}
                 <Link href={`/invoices/sales/${r.originSale.id}`}>
-                  <bdi>{saleDocNo("sale", r.originSale.number)}</bdi>
+                  <bdi>{saleDocNo("sale", r.originSale.number, r.originSale.docCode)}</bdi>
                 </Link>
               </>
             )}
@@ -509,7 +509,7 @@ function HistoryDrawer({ row, onClose }) {
                   <Link
                     href={`/invoices/${l.sale.type === "return" ? "sales-returns" : "sales"}/${l.sale.id}`}
                   >
-                    <bdi>{saleDocNo(l.sale.type, l.sale.number)}</bdi>
+                    <bdi>{saleDocNo(l.sale.type, l.sale.number, l.sale.docCode)}</bdi>
                   </Link>
                 </>
               )}

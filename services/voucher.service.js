@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
@@ -7,7 +8,6 @@ import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { round } from "@/lib/invoice-calc";
 import { dayOf, dayToDateTime, today } from "@/lib/dates";
-import { parseDocNo } from "@/lib/doc-number";
 import { allocateFifo, partyBalance } from "./account.service";
 import { getBaseCurrency } from "./currency.service";
 
@@ -44,14 +44,10 @@ const PARTIES = {
 const branchScope = (user) =>
   can(user, "allBranches.view") ? {} : { branchId: user.branch.id };
 
-async function nextNumber(tx, type) {
-  const seq = await tx.documentSequence.upsert({
-    where: { key: type },
-    create: { key: type, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
+// الرقم التالي في فرع السند + رمز الفرع (DM-RV-5) - مفيش تكرار مهما كان عدد المستخدمين
+// type: receipt / payment / settlement / offset (نفس مفاتيح BRANCH_DOCS)
+async function nextNumber(tx, type, branchId) {
+  return nextBranchNumber(tx, type, branchId);
 }
 
 // ------------------------------------------------------------
@@ -65,7 +61,7 @@ export function createVoucher(data, user) {
     "voucher",
     data.requestId,
     user,
-    { id: true, number: true },
+    { id: true, number: true, docCode: true },
     () => createVoucherNow(data, user),
   );
 }
@@ -257,17 +253,18 @@ async function createVoucherNow(data, user) {
   const v = await prepareVoucher(data, user);
   return runTx(async (tx) => {
     await assertWithinBalance(tx, v);
-    const number = await nextNumber(tx, v.type);
+    const { number, docCode } = await nextNumber(tx, v.type, user.branch.id);
     const created = await tx.voucher.create({
       data: {
         type: v.type,
         number,
+        docCode,
         branchId: user.branch.id,
         ...voucherRow(v, data),
         createdById: user.id,
         requestId: data.requestId ?? null,
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
     await allocate(tx, created.id, v);
     return created;
@@ -312,7 +309,7 @@ export async function updateVoucher({ id, ...data }, user) {
     const updated = await tx.voucher.update({
       where: { id },
       data: voucherRow(v, data),
-      select: { id: true, number: true, type: true },
+      select: { id: true, number: true, docCode: true, type: true },
     });
     await allocate(tx, id, v);
     return updated;
@@ -360,7 +357,7 @@ export async function deleteVoucher(id, user) {
 const listSelect = {
   id: true,
   type: true,
-  number: true,
+  number: true, docCode: true,
   partyType: true,
   partyArName: true,
   partyEnName: true,
@@ -381,14 +378,14 @@ export async function listVouchers({
   user,
 }) {
   const query = q.trim();
-  const num = parseDocNo(query);
+  const num = await docNumberWhere(query, user);
   const where = {
     type,
     ...branchScope(user),
     ...(query
       ? {
           OR: [
-            ...(num ? [{ number: num }] : []),
+            ...(num ? [num] : []),
             { partyArName: { contains: query } },
             { partyEnName: { contains: query } },
             { reference: { contains: query } },
@@ -421,7 +418,7 @@ export async function getVoucher(id, user) {
       paymentMethodId: true,
       laundryWallet: { select: { id: true } },
       expenseCategory: { select: { arName: true, enName: true } },
-      shift: { select: { id: true, number: true, status: true } },
+      shift: { select: { id: true, number: true, docCode: true, status: true } },
       branch: {
         select: {
           id: true,
@@ -442,8 +439,8 @@ export async function getVoucher(id, user) {
           id: true,
           amount: true,
           // النوع: فاتورة أو إشعار مدين (السند ممكن يسدد الاتنين)
-          sale: { select: { id: true, type: true, number: true } },
-          purchase: { select: { id: true, type: true, number: true } },
+          sale: { select: { id: true, type: true, number: true, docCode: true } },
+          purchase: { select: { id: true, type: true, number: true, docCode: true } },
         },
       },
     },
@@ -568,7 +565,7 @@ export async function createOffset(data, user) {
     "voucher",
     data.requestId,
     user,
-    { id: true, number: true },
+    { id: true, number: true, docCode: true },
     () =>
       runTx(async (tx) => {
         // نقفل الطرفين، والمبلغ ميعدّيش أي رصيد منهم
@@ -592,11 +589,16 @@ export async function createOffset(data, user) {
             { amount: "OffsetExceedsBalance" },
           );
 
-        const number = await nextNumber(tx, "offset");
+        const { number, docCode } = await nextNumber(
+          tx,
+          "offset",
+          user.branch.id,
+        );
         const created = await tx.voucher.create({
           data: {
             type: "offset",
             number,
+            docCode,
             partyType: "offset",
             branchId: user.branch.id,
             customerId: data.customerId,
@@ -609,7 +611,7 @@ export async function createOffset(data, user) {
             createdById: user.id,
             requestId: data.requestId ?? null,
           },
-          select: { id: true, number: true },
+          select: { id: true, number: true, docCode: true },
         });
         // التوزيع على الطرفين (كل طرف بعلامته)
         for (const [kind, partyId, docKey, docModel] of [

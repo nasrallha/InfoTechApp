@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
@@ -14,7 +15,6 @@ import { dayToDbDate, today } from "@/lib/dates";
 // - الفلوس: قيمة العقد للعلم بس، والتحصيل بفاتورة عادية
 // ============================================================
 
-const SEQUENCE_KEY = "maintenance_contract";
 const n = (v) => (v == null ? 0 : Number(v));
 const day = (d) => (d ? d.toISOString().slice(0, 10) : null);
 const branchScope = (user) =>
@@ -42,15 +42,6 @@ export function visitSchedule(startDate, endDate, intervalMonths) {
   return out;
 }
 
-async function nextNumber(tx) {
-  const seq = await tx.documentSequence.upsert({
-    where: { key: SEQUENCE_KEY },
-    create: { key: SEQUENCE_KEY, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
-}
 
 async function assertRefs(db, { customerId, technicianId, productId }) {
   const [c, t, p] = await Promise.all([
@@ -93,10 +84,15 @@ export async function createContract(data, user) {
     });
   await assertRefs(prisma, data);
   return runTx(async (tx) => {
-    const number = await nextNumber(tx);
+    const { number, docCode } = await nextBranchNumber(
+      tx,
+      "contract",
+      user.branch.id,
+    );
     return tx.maintenanceContract.create({
       data: {
         number,
+        docCode,
         branchId: user.branch.id,
         customerId: data.customerId,
         productId: data.productId ?? null,
@@ -114,7 +110,7 @@ export async function createContract(data, user) {
           create: visits.map((d) => ({ dueDate: dayToDbDate(d) })),
         },
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
   });
 }
@@ -269,14 +265,15 @@ const effectiveStatus = (c) =>
 export async function listContracts({ status = "active", q = "" }, user) {
   await assertModule("maintenanceContracts");
   const text = q.trim();
-  const num = Number(text.replace(/^mc-?/i, ""));
+  // رقم المستند: في فرع الرمز أو فرع المستخدم
+  const ref = text ? await docNumberWhere(text, user) : null;
   const todayDb = dayToDbDate(today());
   const base = {
     ...branchScope(user),
     ...(text
       ? {
           OR: [
-            ...(Number.isInteger(num) && num > 0 ? [{ number: num }] : []),
+            ...(ref ? [ref] : []),
             { deviceName: { contains: text } },
             { serialText: { contains: text } },
             { customer: { arName: { contains: text } } },
@@ -298,7 +295,7 @@ export async function listContracts({ status = "active", q = "" }, user) {
       take: 500,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         deviceName: true,
         serialText: true,
         intervalMonths: true,

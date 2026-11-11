@@ -57,6 +57,7 @@ import { Button, Grid, Layout, Menu, theme } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import UserAvatar from "./UserAvatar";
 import BranchSwitcher from "./BranchSwitcher";
+import { BranchListContext } from "./BranchList";
 import HeaderMenu from "./HeaderMenu";
 import NotificationBell from "./NotificationBell";
 import InvoiceTypePicker, {
@@ -150,6 +151,7 @@ const MainLayout = ({
     "/zatca/documents",
     "/admin/backup",
     "/admin/data-reset",
+    "/admin/products-bulk",
     "/sales/shifts",
     "/serials",
     "/warranty-claims",
@@ -436,6 +438,13 @@ const MainLayout = ({
         "DataReset",
         "dataReset.run",
       ),
+      // تعديل جماعي للأصناف (لمالك البرنامج)
+      link(
+        "/admin/products-bulk",
+        <ControlOutlined />,
+        "ProductsBulk",
+        "productsBulk.run",
+      ),
       // الطباعة: مجموعة داخل الإعدادات (لاحقاً: إعدادات طباعة الكاشير/الفواتير)
       group("printing", <PrinterOutlined />, "Printing", [
         link(
@@ -575,7 +584,10 @@ const MainLayout = ({
           }}
         >
           <SubscriptionBanner sub={subscription} />
-          {children}
+          {/* الفروع لاختيار فرع المستند جوه الفورم (مدير النظام) */}
+          <BranchListContext.Provider value={branches}>
+            {children}
+          </BranchListContext.Provider>
         </Content>
       </Layout>
       {/* نافذة شاشات المغسلة */}

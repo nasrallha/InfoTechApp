@@ -32,7 +32,7 @@ export default function UsersView({ users, roles, branches }) {
       <FormModal
         open={addModalOpen}
         onCancel={() => setAddModalOpen(false)}
-        width={760}
+        width={900}
         title={
           <>
             <UserAddOutlined style={{ fontSize: 22, marginInlineEnd: 6 }} />

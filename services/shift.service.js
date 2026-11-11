@@ -1,4 +1,5 @@
 import "server-only";
+import { nextBranchNumber } from "./sequence.service";
 import { docSign } from "@/lib/doc-number";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
@@ -21,20 +22,15 @@ import { dayToDbDate, isDay } from "@/lib/dates";
 
 const n = (v) => (v == null ? 0 : Number(v));
 
-async function nextShiftNumber(tx) {
-  const seq = await tx.documentSequence.upsert({
-    where: { key: "shift" },
-    create: { key: "shift", last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
+// الرقم التالي في فرع الوردية + رمز الفرع (DM-SH-5) - مفيش تكرار
+async function nextShiftNumber(tx, branchId) {
+  return nextBranchNumber(tx, "shift", branchId);
 }
 
 const userSelect = { select: { id: true, arFullname: true, enFullname: true } };
 const shiftSelect = {
   id: true,
-  number: true,
+  number: true, docCode: true,
   status: true,
   branchId: true,
   branch: { select: { id: true, arName: true, enName: true } },
@@ -78,7 +74,7 @@ async function previousShift(branchId, db = prisma) {
     orderBy: [{ closedAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       leftCash: true,
       closedAt: true,
       user: userSelect,
@@ -93,6 +89,7 @@ export async function getOpeningSuggestion(user) {
     ? {
         previousShiftId: prev.id,
         previousNumber: prev.number,
+        previousDocCode: prev.docCode ?? null,
         previousCashier: prev.user,
         closedAt: prev.closedAt,
         leftCash: n(prev.leftCash),
@@ -139,11 +136,12 @@ async function openShiftOnce({ openingCash, notes }, user) {
     const prev = await previousShift(user.branch.id, tx);
     const expected = prev ? round(n(prev.leftCash), d) : null;
     const opening = round(openingCash ?? 0, d);
-    const number = await nextShiftNumber(tx);
+    const { number, docCode } = await nextShiftNumber(tx, user.branch.id);
     const dayNo = await nextDayNo(tx, user.branch.id, day);
     return tx.shift.create({
       data: {
         number,
+        docCode,
         branchId: user.branch.id,
         userId: user.id,
         openedAt: new Date(),

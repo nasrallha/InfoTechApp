@@ -272,7 +272,7 @@ const PartyTable = ({
           setEditModalOpen(false);
           setSelected(null);
         }}
-        width={900}
+        width={1000}
         title={
           <Flex align="center" gap="small">
             <Icon style={{ fontSize: 22 }} />

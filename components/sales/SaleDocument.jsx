@@ -111,8 +111,8 @@ export default function SaleDocument({ settings, company, doc, kind }) {
     : null;
 
   const number = isQuotation
-    ? formatDocNo("quotation", doc.number)
-    : saleDocNo(doc.type, doc.number);
+    ? formatDocNo("quotation", doc.number, doc.docCode)
+    : saleDocNo(doc.type, doc.number, doc.docCode);
 
   // QR الزكاة (الفواتير والإشعارات فقط)
   const [qr, setQr] = useState(null);
@@ -290,7 +290,7 @@ export default function SaleDocument({ settings, company, doc, kind }) {
             <span>{L("الفاتورة الأصلية", "Original invoice")}</span>
             <bdi>
               {doc.returnOf
-                ? saleDocNo("sale", doc.returnOf.number)
+                ? saleDocNo("sale", doc.returnOf.number, doc.returnOf.docCode)
                 : doc.billingRef}
             </bdi>
           </div>

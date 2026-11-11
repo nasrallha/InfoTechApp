@@ -45,7 +45,7 @@ export default function VouchersList({ type, data, q, canCreate }) {
       render: (_, r) => (
         <Link href={`/accounts/vouchers/${r.id}`}>
           <b>
-            <bdi>{formatDocNo(type, r.number)}</bdi>
+            <bdi>{formatDocNo(type, r.number, r.docCode)}</bdi>
           </b>
         </Link>
       ),

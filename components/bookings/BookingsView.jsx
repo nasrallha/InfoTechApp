@@ -265,7 +265,7 @@ export default function BookingsView({
         )}
         {b.sale && (
           <Link href={`/invoices/sales/${b.sale.id}`}>
-            <Tag color="green">{saleDocNo("sale", b.sale.number)}</Tag>
+            <Tag color="green">{saleDocNo("sale", b.sale.number, b.sale.docCode)}</Tag>
           </Link>
         )}
         {ACTIVE.includes(b.status) &&
@@ -330,7 +330,7 @@ export default function BookingsView({
       services: b.items.map((i) => nm(i)).join(listSep(locale)),
       total: b.total,
       status: t(`S_${b.status}`),
-      invoice: b.sale ? saleDocNo("sale", b.sale.number) : "",
+      invoice: b.sale ? saleDocNo("sale", b.sale.number, b.sale.docCode) : "",
     })),
     totals: { total: rows.reduce((s, b) => s + b.total, 0) },
   });
@@ -544,7 +544,7 @@ export default function BookingsView({
                       href={`/invoices/sales/${b.sale.id}`}
                       className="ms-1"
                     >
-                      {saleDocNo("sale", b.sale.number)}
+                      {saleDocNo("sale", b.sale.number, b.sale.docCode)}
                     </Link>
                   )}
                 </>

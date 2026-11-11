@@ -62,7 +62,7 @@ export default function PurchasesList({
       align: "center",
       render: (v, r) => (
         <Link href={`${basePath}/${r.id}`}>
-          <b>{formatDocNo(type, v)}</b>
+          <b>{formatDocNo(type, v, r.docCode)}</b>
         </Link>
       ),
     },
@@ -89,7 +89,7 @@ export default function PurchasesList({
           render: (_, r) =>
             r.returnOf && (
               <Link href={`/invoices/purchases/${r.returnOf.id}`}>
-                {formatDocNo("purchase", r.returnOf.number)}
+                {formatDocNo("purchase", r.returnOf.number, r.returnOf.docCode)}
               </Link>
             ),
         }

@@ -202,6 +202,7 @@ export default function PurchaseForm({
       preview: true,
       type: "purchase",
       number: isEdit ? purchase.number : ctx.number,
+      docCode: isEdit ? purchase.docCode : ctx.docCode,
       date:
         header.date && header.date !== todayDay
           ? header.date
@@ -378,7 +379,7 @@ export default function PurchaseForm({
     }
 
     const text = t(isEdit ? "PurchaseUpdated" : "PurchaseSaved", {
-      number: formatDocNo("purchase", res.data.number),
+      number: formatDocNo("purchase", res.data.number, res.data.docCode),
     });
     const path = `/invoices/purchases/${res.data.id}`;
     if (isEdit) {
@@ -558,7 +559,7 @@ export default function PurchaseForm({
       <PageHeader
         title={
           isEdit ? (
-            `${t("EditPurchase")} ${formatDocNo("purchase", purchase.number)}`
+            `${t("EditPurchase")} ${formatDocNo("purchase", purchase.number, purchase.docCode)}`
           ) : (
             <span className="flex flex-wrap items-center gap-3">
               {t("NewPurchase")} <NextDocNo type="purchase" />

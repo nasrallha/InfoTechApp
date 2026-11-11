@@ -5,6 +5,7 @@ import { useCan } from "@/components/auth/AuthProvider";
 import { useRouter } from "@/i18n/routing";
 import PageHeader from "@/components/common/PageHeader";
 import { ProductsExport } from "@/components/reports/ListExports";
+import ImportButton from "@/components/import/ImportButton";
 import ProductTable from "./ProductTable";
 
 // الجزء التفاعلي من صفحة المنتجات
@@ -22,7 +23,10 @@ export default function ProductsView({ products, warehouses = [] }) {
     <>
       <PageHeader
         extra={
-          <ProductsExport products={products} selectedIds={selectedIds} />
+          <div className="flex flex-wrap gap-2">
+            <ImportButton kind="products" />
+            <ProductsExport products={products} selectedIds={selectedIds} />
+          </div>
         }
         title={tSidebar("Products")}
         buttonTitle={can("products.create") ? tButtons("AddNewProduct") : null}

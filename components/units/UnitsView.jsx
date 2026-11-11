@@ -6,6 +6,7 @@ import { useCan } from "@/components/auth/AuthProvider";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
 import { UnitsExport } from "@/components/reports/ListExports";
+import ImportButton from "@/components/import/ImportButton";
 import AddUnitForm from "./AddUnitForm";
 import UnitTable from "./UnitTable";
 
@@ -23,7 +24,12 @@ export default function UnitsView({ units }) {
   return (
     <>
       <PageHeader
-        extra={<UnitsExport units={units} selectedIds={selectedIds} />}
+        extra={
+          <div className="flex flex-wrap gap-2">
+            <ImportButton kind="units" />
+            <UnitsExport units={units} selectedIds={selectedIds} />
+          </div>
+        }
         title={tSidebar("Units")}
         buttonTitle={can("units.create") ? tButtons("AddNewUnit") : null}
         onButtonClick={() => setAddUnitModalOpen(true)}

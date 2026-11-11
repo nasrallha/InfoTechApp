@@ -255,6 +255,7 @@ export default function PurchaseReturnForm({
       preview: true,
       type: "return",
       number: ctx.number,
+      docCode: ctx.docCode,
       date: date && date !== todayDay ? date : new Date().toISOString(),
       branch: ctx.branch,
       createdBy: ctx.user,
@@ -328,7 +329,7 @@ export default function PurchaseReturnForm({
       id: res.data.id,
       mode: mode,
       text: t("ReturnSaved", {
-        number: formatDocNo("return", res.data.number),
+        number: formatDocNo("return", res.data.number, res.data.docCode),
       }),
       seq: Date.now(),
     });
@@ -510,7 +511,7 @@ export default function PurchaseReturnForm({
                   title: t("PurchaseNo"),
                   key: "number",
                   width: 110,
-                  render: (_, r) => formatDocNo("purchase", r.number),
+                  render: (_, r) => formatDocNo("purchase", r.number, r.docCode),
                 },
                 {
                   title: t("Supplier"),
@@ -544,7 +545,7 @@ export default function PurchaseReturnForm({
               <div>
                 <span>{t("PurchaseNo")}</span>
                 <Link href={`/invoices/purchases/${purchase.id}`}>
-                  {formatDocNo("purchase", purchase.number)}
+                  {formatDocNo("purchase", purchase.number, purchase.docCode)}
                 </Link>
               </div>
               <div>

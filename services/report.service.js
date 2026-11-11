@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere } from "./sequence.service";
 import { partyBranchWhere } from "@/lib/party-scope";
 import { SUBSCRIPTION_METHOD_TYPE } from "./payment-method.service";
 import { hasModule } from "@/lib/modules";
@@ -11,7 +12,6 @@ import { getDayStartHour } from "@/lib/business-day-server";
 import {
   docSign,
   formatDocNo,
-  parseDocNo,
   purchaseDocNo,
   saleDocNo,
 } from "@/lib/doc-number";
@@ -122,7 +122,7 @@ export async function getReportOptions(user, { parties = [] } = {}) {
 // ------------------------------------------------------------
 export async function salesReport(f, user) {
   const h = await getDayStartHour();
-  const num = f.q ? parseDocNo(f.q) : null;
+  const num = f.q ? await docNumberWhere(f.q, user, f.branchId) : null;
   // المجموعة الرئيسية: الفواتير اللي فيها أصنافها، والمبالغ بتاعة سطورها بس
   const catIds = await categoryWithChildren(f.categoryId);
   const catLines = catIds ? { product: { categoryId: { in: catIds } } } : null;
@@ -135,7 +135,7 @@ export async function salesReport(f, user) {
     ...(f.paymentMethodId
       ? { payments: { some: { paymentMethodId: f.paymentMethodId } } }
       : {}),
-    ...(num ? { number: num } : {}),
+    ...(num ? { number: num.number, AND: [{ branchId: num.branchId }] } : {}),
     ...(catLines ? { items: { some: catLines } } : {}),
   };
   const showProfit = can(user, "reports.profit");
@@ -146,7 +146,7 @@ export async function salesReport(f, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       source: true,
       date: true,
       customerArName: true,
@@ -294,7 +294,7 @@ export async function salesReport(f, user) {
     return {
       id: d.id,
       type: d.type,
-      docNo: saleDocNo(d.type, d.number),
+      docNo: saleDocNo(d.type, d.number, d.docCode),
       source: d.source,
       date: d.date,
       customerArName: d.customerArName,
@@ -418,7 +418,7 @@ export async function topProducts(saleWhere, limit, withProfit = true) {
 // ------------------------------------------------------------
 export async function purchasesReport(f, user) {
   const h = await getDayStartHour();
-  const num = f.q ? parseDocNo(f.q) : null;
+  const num = f.q ? await docNumberWhere(f.q, user, f.branchId) : null;
   const where = {
     ...dateRange(f, h),
     ...reportBranch(user, f.branchId),
@@ -427,7 +427,7 @@ export async function purchasesReport(f, user) {
     ...(f.paymentMethodId
       ? { payments: { some: { paymentMethodId: f.paymentMethodId } } }
       : {}),
-    ...(num ? { number: num } : {}),
+    ...(num ? { number: num.number, AND: [{ branchId: num.branchId }] } : {}),
   };
   const docs = await prisma.purchase.findMany({
     where,
@@ -436,7 +436,7 @@ export async function purchasesReport(f, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       supplierArName: true,
       supplierEnName: true,
@@ -521,7 +521,7 @@ export async function purchasesReport(f, user) {
     return {
       id: d.id,
       type: d.type,
-      docNo: purchaseDocNo(d.type, d.number),
+      docNo: purchaseDocNo(d.type, d.number, d.docCode),
       date: d.date,
       supplierArName: d.supplierArName,
       supplierEnName: d.supplierEnName,
@@ -717,8 +717,162 @@ export async function vatReport(f, user) {
 // إجمالي الربح = صافي المبيعات (بدون ضريبة) - تكلفة المبيعات
 // صافي الربح = إجمالي الربح - خصم مسموح به + خصم مكتسب - المصروفات + إيرادات متنوعة
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// ربح الأصناف (تقرير الأرباح لما يتحدد صنف / مجموعة / فاتورة):
+// مبيعات الأصناف - مرتجعها، وتكلفتها وقت البيع ← مجمل الربح لكل صنف
+// (المصروفات والخصومات العامة مش بتتحمّل على صنف، فمش بتدخل هنا)
+// f.item: كود الصنف أو باركود وحدة أو جزء من اسمه
+// ------------------------------------------------------------
+async function itemsProfit(f, user, h) {
+  const num = f.q ? await docNumberWhere(f.q, user, f.branchId) : null;
+  const catIds = await categoryWithChildren(f.categoryId);
+  const item = f.item ? String(f.item).trim() : "";
+  const product = {
+    AND: [
+      ...(catIds ? [{ categoryId: { in: catIds } }] : []),
+      ...(item
+        ? [
+            {
+              OR: [
+                { code: item },
+                { productUnits: { some: { barcode: item } } },
+                { arName: { contains: item } },
+                { enName: { contains: item } },
+              ],
+            },
+          ]
+        : []),
+    ],
+  };
+  // فاتورة معيّنة: الفاتورة نفسها ومرتجعاتها (من غير قيد الفترة، عشان الفاتورة القديمة تظهر)
+  // غير كده: الفواتير والمرتجعات في الفترة
+  const invoice = num
+    ? {
+        ...reportBranch(user, f.branchId),
+        type: "sale",
+        number: num.number,
+        AND: [{ branchId: num.branchId }],
+      }
+    : null;
+  const saleWhere = (type) =>
+    invoice
+      ? type === "sale"
+        ? invoice
+        : { type: "return", returnOf: invoice }
+      : {
+          ...dateRange(f, h),
+          ...reportBranch(user, f.branchId),
+          type,
+        };
+  const group = (type) =>
+    prisma.saleItem.groupBy({
+      by: ["productId"],
+      where: { sale: saleWhere(type), product },
+      _sum: { baseQty: true, netAmount: true, costAmount: true },
+    });
+  const [sold, returned] = await Promise.all([group("sale"), group("return")]);
+
+  const rows = new Map();
+  const add = (g, sign) => {
+    const r = rows.get(g.productId) ?? {
+      productId: g.productId,
+      soldQty: 0,
+      returnedQty: 0,
+      qty: 0,
+      revenue: 0,
+      cost: 0,
+    };
+    // المباع والمرتجع كل واحد لوحده، والصافي = المباع - المرتجع
+    if (sign > 0) r.soldQty += n(g._sum.baseQty);
+    else r.returnedQty += n(g._sum.baseQty);
+    r.qty += sign * n(g._sum.baseQty);
+    r.revenue += sign * n(g._sum.netAmount);
+    r.cost += sign * n(g._sum.costAmount);
+    rows.set(g.productId, r);
+  };
+  sold.forEach((g) => add(g, 1));
+  returned.forEach((g) => add(g, -1));
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...rows.keys()] } },
+    select: {
+      id: true,
+      code: true,
+      arName: true,
+      enName: true,
+      baseUnit: { select: { arName: true, enName: true } },
+    },
+  });
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const items = [...rows.values()]
+    .map((r) => {
+      const gross = r.revenue - r.cost;
+      return {
+        ...r,
+        product: byId.get(r.productId) ?? null,
+        soldQty: round(r.soldQty, 3),
+        returnedQty: round(r.returnedQty, 3),
+        qty: round(r.qty, 3),
+        revenue: r2(r.revenue),
+        cost: r2(r.cost),
+        gross: r2(gross),
+        margin: r.revenue ? r2((gross / r.revenue) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.gross - a.gross);
+
+  const sum = (list, k) => list.reduce((s, g) => s + n(g._sum[k]), 0);
+  const salesNet = sum(sold, "netAmount");
+  const returnsNet = sum(returned, "netAmount");
+  const salesCost = sum(sold, "costAmount");
+  const returnsCost = sum(returned, "costAmount");
+  const revenue = salesNet - returnsNet;
+  const cost = salesCost - returnsCost;
+  const gross = revenue - cost;
+  // ملخص الفاتورة (البحث برقم فاتورة): رقمها وتاريخها وعميلها ومبيعاتها وربحها
+  const docs = invoice
+    ? (
+        await prisma.sale.findMany({
+          where: invoice,
+          take: 5,
+          select: {
+            id: true,
+            type: true,
+            number: true,
+            docCode: true,
+            date: true,
+            customerArName: true,
+            customerEnName: true,
+            netAmount: true,
+            costAmount: true,
+            branch: { select: { arName: true, enName: true } },
+          },
+        })
+      ).map((d) => ({
+        ...d,
+        docNo: saleDocNo(d.type, d.number, d.docCode),
+        netAmount: r2(n(d.netAmount)),
+        costAmount: r2(n(d.costAmount)),
+      }))
+    : [];
+  return {
+    mode: "items",
+    docs,
+    salesNet: r2(salesNet),
+    returnsNet: r2(returnsNet),
+    salesCost: r2(salesCost),
+    returnsCost: r2(returnsCost),
+    revenue: r2(revenue),
+    cost: r2(cost),
+    gross: r2(gross),
+    grossMargin: revenue ? r2((gross / revenue) * 100) : 0,
+    items,
+  };
+}
+
 export async function profitReport(f, user) {
   const h = await getDayStartHour();
+  // صنف / مجموعة / فاتورة ← ربح الأصناف بس
+  if (f.item || f.categoryId || f.q) return itemsProfit(f, user, h);
   const branch = reportBranch(user, f.branchId);
   const range = dateRange(f, h);
   const saleWhere = { ...range, ...branch };
@@ -965,7 +1119,7 @@ export async function dailyReport(f, user) {
         select: {
           id: true,
           type: true,
-          number: true,
+          number: true, docCode: true,
           partyType: true,
           partyArName: true,
           partyEnName: true,
@@ -989,7 +1143,7 @@ export async function dailyReport(f, user) {
           reason: true,
           createdAt: true,
           createdBy: userSelect,
-          shift: { select: { number: true } },
+          shift: { select: { number: true, docCode: true } },
         },
       }),
       prisma.shift.findMany({
@@ -1006,7 +1160,7 @@ export async function dailyReport(f, user) {
         orderBy: [{ businessDay: "asc" }, { closedAt: "asc" }],
         select: {
           id: true,
-          number: true,
+          number: true, docCode: true,
           businessDay: true,
           dayNo: true,
           user: userSelect,
@@ -1135,7 +1289,7 @@ export async function dailyReport(f, user) {
     vouchers: vouchers.map((v) => ({
       ...v,
       amount: n(v.amount),
-      docNo: formatDocNo(v.type, v.number),
+      docNo: formatDocNo(v.type, v.number, v.docCode),
       method: methods.find((m) => m.id === v.paymentMethodId) ?? null,
     })),
     movements: movements.map((m) => ({ ...m, amount: n(m.amount) })),
@@ -1315,7 +1469,7 @@ export async function tobaccoReport(f, user) {
         select: {
           id: true,
           type: true,
-          number: true,
+          number: true, docCode: true,
           date: true,
           customerArName: true,
           customerEnName: true,
@@ -1331,7 +1485,7 @@ export async function tobaccoReport(f, user) {
     const inv = invoices.get(l.sale.id) ?? {
       id: l.sale.id,
       type: l.sale.type,
-      docNo: saleDocNo(l.sale.type, l.sale.number),
+      docNo: saleDocNo(l.sale.type, l.sale.number, l.sale.docCode),
       date: l.sale.date,
       customerArName: l.sale.customerArName,
       customerEnName: l.sale.customerEnName,

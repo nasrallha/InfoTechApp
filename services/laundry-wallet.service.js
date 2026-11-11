@@ -1,4 +1,5 @@
 import "server-only";
+import { nextBranchNumber } from "./sequence.service";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { assertModule } from "@/lib/modules";
@@ -21,7 +22,6 @@ import { resolveCustomer } from "./laundry-order.service";
 // ============================================================
 
 const n = (v) => (v == null ? 0 : Number(v));
-const SEQ_KEY = "LW";
 const METHOD_KEY = "LAUNDRY_SUB";
 
 // اليوم بعد كام شهر (31 يناير + شهر = 28/29 فبراير)
@@ -188,7 +188,7 @@ export async function customerWallets(customerId) {
       take: 100,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         paidAmount: true,
         creditAmount: true,
         remaining: true,
@@ -196,7 +196,7 @@ export async function customerWallets(customerId) {
         status: true,
         notes: true,
         createdAt: true,
-        voucher: { select: { id: true, number: true } },
+        voucher: { select: { id: true, number: true, docCode: true } },
         branch: { select: { arName: true, enName: true } },
         uses: {
           orderBy: { id: "desc" },
@@ -206,7 +206,7 @@ export async function customerWallets(customerId) {
             value: true,
             bonus: true,
             createdAt: true,
-            sale: { select: { id: true, type: true, number: true } },
+            sale: { select: { id: true, type: true, number: true, docCode: true } },
           },
         },
       },
@@ -302,15 +302,16 @@ export async function createWallet(data, user) {
   );
   try {
     const wallet = await runTx(async (tx) => {
-      const seq = await tx.documentSequence.upsert({
-        where: { key: SEQ_KEY },
-        create: { key: SEQ_KEY, last: 1 },
-        update: { last: { increment: 1 } },
-        select: { last: true },
-      });
+      // الرقم التالي في فرع الاشتراك + رمز الفرع
+      const { number, docCode } = await nextBranchNumber(
+        tx,
+        "laundryWallet",
+        user.branch.id,
+      );
       return tx.laundryWallet.create({
         data: {
-          number: seq.last,
+          number,
+          docCode,
           customerId: customer.id,
           branchId: user.branch.id,
           paidAmount: paid,
@@ -321,7 +322,7 @@ export async function createWallet(data, user) {
           notes: data.notes ?? null,
           createdById: user.id,
         },
-        select: { id: true, number: true, expiresAt: true },
+        select: { id: true, number: true, docCode: true, expiresAt: true },
       });
     });
     return {

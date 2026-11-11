@@ -1,4 +1,6 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
+import { recomputeAvgCost } from "./cost.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
@@ -28,7 +30,7 @@ import {
   dbDateToDay,
   today,
 } from "@/lib/dates";
-import { formatDocNo, parseDocNo } from "@/lib/doc-number";
+import { formatDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
   getMainWarehouseId,
@@ -61,9 +63,10 @@ export const PURCHASE = "purchase";
 export const PURCHASE_RETURN = "return";
 
 // مفتاح المسلسل لكل نوع (موجود في جدول document_sequences)
+// نوع المستند ← مفتاحه في sequence.service (BRANCH_DOCS)
 const SEQUENCE_KEY = {
   [PURCHASE]: "purchase",
-  [PURCHASE_RETURN]: "purchase_return",
+  [PURCHASE_RETURN]: "purchaseReturn",
 };
 
 // الفاتورة الكبيرة (مئات الأصناف) تحتاج وقتاً أطول من الافتراضي (5 ثوان)
@@ -121,6 +124,7 @@ function purchaseMovements({
   type,
   id,
   number,
+  docCode = null,
   date,
   warehouseId,
   lines,
@@ -138,21 +142,15 @@ function purchaseMovements({
     type: type === PURCHASE ? "purchase" : "purchase_return",
     refType: "purchase",
     refId: id,
-    refNo: formatDocNo(type, number),
+    refNo: formatDocNo(type, number, docCode),
     date,
   }));
 }
 
 // الرقم التالي للمستند (داخل transaction: الصف يُقفل حتى نهاية العملية)
-async function nextNumber(tx, type) {
-  const key = SEQUENCE_KEY[type];
-  const seq = await tx.documentSequence.upsert({
-    where: { key },
-    create: { key, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
+// الرقم التالي في فرع المستند + رمز الفرع (DM-PI-5) - مفيش تكرار مهما كان عدد المستخدمين
+async function nextNumber(tx, type, branchId) {
+  return nextBranchNumber(tx, SEQUENCE_KEY[type], branchId);
 }
 
 // ------------------------------------------------------------
@@ -406,37 +404,12 @@ async function preparePurchase(data, user, existing = null) {
 }
 
 // ------------------------------------------------------------
-// تكلفة الصنف = آخر سعر شراء له (حسب تاريخ الفاتورة)
-// الصافي بعد كل الخصومات وبدون الضريبة ÷ الكمية بالوحدة الأساسية
-// نعيد حسابها بعد أي إضافة أو تعديل أو حذف (لو حذفنا آخر فاتورة ترجع لما قبلها)
-// لو الصنف ليس له أي فاتورة شراء: تبقى تكلفته كما هي
+// تكلفة الصنف = المتوسط المرجّح المتحرك (cost.service) - قبل الضريبة
+// بعد أي شراء أو تعديل أو حذف أو مرتجع شراء
+// from: تاريخ التغيير ← فواتير البيع من التاريخ ده ورايح تكلفتها بتتصحح
 // ------------------------------------------------------------
-async function refreshLastCost(tx, productIds) {
-  for (const productId of new Set(productIds)) {
-    const last = await tx.purchaseItem.findFirst({
-      where: { productId, purchase: { type: PURCHASE } },
-      orderBy: [{ purchase: { date: "desc" } }, { id: "desc" }],
-      select: { netAmount: true, baseQty: true },
-    });
-    if (!last || n(last.baseQty) <= 0) continue;
-
-    const cost = n(last.netAmount) / n(last.baseQty);
-    await tx.product.update({
-      where: { id: productId },
-      data: { cost: round(cost, 4) },
-    });
-    // تكلفة كل وحدة إضافية = تكلفة الوحدة الأساسية × معاملها
-    const units = await tx.productUnit.findMany({
-      where: { productId },
-      select: { id: true, conversionFactor: true },
-    });
-    for (const pu of units) {
-      await tx.productUnit.update({
-        where: { id: pu.id },
-        data: { cost: round(cost * n(pu.conversionFactor), 4) },
-      });
-    }
-  }
+async function refreshCost(tx, productIds, from) {
+  await recomputeAvgCost(tx, productIds, from ? new Date(from) : null);
 }
 
 // رقم فاتورة المورد مكرر لنفس المورد (القيد الوحيد الذي قد يتكرر هنا)
@@ -458,7 +431,7 @@ export function createPurchase(data, user) {
     "purchase",
     data.requestId,
     user,
-    { id: true, number: true },
+    { id: true, number: true, docCode: true },
     () => createPurchaseNow(data, user),
   );
 }
@@ -469,12 +442,17 @@ async function createPurchaseNow(data, user) {
 
   try {
     return await runTx(async (tx) => {
-      const number = await nextNumber(tx, PURCHASE);
+      const { number, docCode } = await nextNumber(
+        tx,
+        PURCHASE,
+        user.branch.id,
+      );
       const { items: createdItems, ...created } = await tx.purchase.create({
         data: {
           ...header,
           type: PURCHASE,
           number,
+          docCode,
           branchId: user.branch.id,
           createdById: user.id,
           requestId: data.requestId ?? null,
@@ -483,7 +461,7 @@ async function createPurchaseNow(data, user) {
         },
         select: {
           id: true,
-          number: true,
+          number: true, docCode: true,
           items: { orderBy: { id: "asc" }, select: { id: true } },
         },
       });
@@ -500,13 +478,14 @@ async function createPurchaseNow(data, user) {
           type: PURCHASE,
           id: created.id,
           number: created.number,
+          docCode: created.docCode,
           date: header.date,
           warehouseId: header.warehouseId,
           lines: itemRows.map((r, i) => ({ ...r, batches: lineBatches[i] })),
         }),
         { allowNegative: true },
       );
-      await refreshLastCost(tx, productIds);
+      await refreshCost(tx, productIds, header.date);
       return created;
     }, TX_OPTIONS);
   } catch (error) {
@@ -565,7 +544,7 @@ export async function updatePurchase({ id, ...data }, user) {
         },
         select: {
           id: true,
-          number: true,
+          number: true, docCode: true,
           items: { orderBy: { id: "asc" }, select: { id: true } },
         },
       });
@@ -585,6 +564,7 @@ export async function updatePurchase({ id, ...data }, user) {
           type: PURCHASE,
           id,
           number: updated.number,
+          docCode: updated.docCode,
           date: header.date,
           warehouseId: header.warehouseId,
           lines: itemRows.map((r, i) => ({ ...r, batches: lineBatches[i] })),
@@ -592,7 +572,11 @@ export async function updatePurchase({ id, ...data }, user) {
         { allowNegative },
       );
       // القديمة والجديدة (صنف اتشال من الفاتورة ترجع تكلفته لما قبلها)
-      await refreshLastCost(tx, [...oldProductIds, ...productIds]);
+      // من أقدم تاريخ (قبل التعديل أو بعده)
+      const from = new Date(
+        Math.min(new Date(existing.date).getTime(), new Date(header.date).getTime()),
+      );
+      await refreshCost(tx, [...oldProductIds, ...productIds], from);
       return updated;
     }, TX_OPTIONS);
   } catch (error) {
@@ -612,6 +596,7 @@ export async function deletePurchase(id, user) {
       where: { id, type: PURCHASE, ...branchScope(user) },
       select: {
         id: true,
+        date: true,
         settledAmount: true,
         _count: { select: { returns: true } },
         items: { select: { productId: true } },
@@ -630,9 +615,10 @@ export async function deletePurchase(id, user) {
     // الأصناف والمدفوعات تُحذف معها (Cascade)
     await tx.purchase.delete({ where: { id } });
     await dropUnusedPurchaseSerials(tx, serialIds);
-    await refreshLastCost(
+    await refreshCost(
       tx,
       purchase.items.map((i) => i.productId),
+      purchase.date,
     );
     return { deleted: 1 };
   }, TX_OPTIONS);
@@ -648,7 +634,8 @@ export async function deletePurchaseReturn(id, user) {
       select: {
         id: true,
         returnOfId: true,
-        items: { select: { qty: true, returnOfItemId: true } },
+        date: true,
+        items: { select: { qty: true, returnOfItemId: true, productId: true } },
       },
     });
     if (!ret) throw new AppError("PurchaseNotFound");
@@ -665,6 +652,12 @@ export async function deletePurchaseReturn(id, user) {
     // المخزون: البضاعة المرتجعة ترجع للمستودع
     await reverseMovements(tx, "purchase", id, { allowNegative: true });
     await tx.purchase.delete({ where: { id } });
+    // المتوسط: المرتجع اتلغى ← يتحسب تاني من تاريخه
+    await refreshCost(
+      tx,
+      ret.items.map((i) => i.productId),
+      ret.date,
+    );
     return { deleted: 1, purchaseId: ret.returnOfId };
   }, TX_OPTIONS);
 }
@@ -741,7 +734,7 @@ export function createPurchaseReturn(data, user) {
     "purchase",
     data.requestId,
     user,
-    { id: true, number: true },
+    { id: true, number: true, docCode: true },
     () => createPurchaseReturnNow(data, user),
   );
 }
@@ -862,12 +855,17 @@ async function createPurchaseReturnNow(data, user) {
     );
 
     // 4) الحفظ
-    const number = await nextNumber(tx, PURCHASE_RETURN);
+    const { number, docCode } = await nextNumber(
+      tx,
+      PURCHASE_RETURN,
+      user.branch.id,
+    );
     const date = dayToDateTime(day);
     const { items: returnItems, ...created } = await tx.purchase.create({
       data: {
         type: PURCHASE_RETURN,
         number,
+        docCode,
         branchId: user.branch.id,
         // المرتجع يخرج من نفس مستودع فاتورة الشراء
         warehouseId: original.warehouseId,
@@ -918,7 +916,7 @@ async function createPurchaseReturnNow(data, user) {
       },
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         items: { orderBy: { id: "asc" }, select: { id: true } },
       },
     });
@@ -936,6 +934,7 @@ async function createPurchaseReturnNow(data, user) {
         type: PURCHASE_RETURN,
         id: created.id,
         number,
+        docCode,
         date,
         warehouseId: original.warehouseId,
         lines: lines.map((l) => ({
@@ -947,6 +946,12 @@ async function createPurchaseReturnNow(data, user) {
         batchFrom: { refType: "purchase", refId: original.id },
       }),
       { allowNegative },
+    );
+    // المتوسط: المرتجع بيخرج بسعر شرائه والمتوسط بيتعدل على الباقي
+    await refreshCost(
+      tx,
+      lines.map((l) => l.o.productId),
+      date,
     );
     return created;
   }, TX_OPTIONS);
@@ -1060,8 +1065,8 @@ export async function listPurchases({
   branchId,
 }) {
   const query = q.trim();
-  // "PI-0015" أو "15" ← 15
-  const asNumber = parseDocNo(query);
+  // "DM-PI-15" ← فرع الرمز، و"PI-15" أو "15" ← الفرع المختار / فرع المستخدم
+  const asNumber = await docNumberWhere(query, user, branchId);
 
   // المستخدم العادي: فواتير فرعه فقط / المدير: كل الفروع أو فرع يختاره
   const scope = branchScope(user);
@@ -1072,7 +1077,7 @@ export async function listPurchases({
     ...(query
       ? {
           OR: [
-            ...(asNumber ? [{ number: asNumber }] : []),
+            ...(asNumber ? [asNumber] : []),
             { supplierInvoiceNo: { contains: query } },
             { supplierArName: { contains: query } },
             { supplierEnName: { contains: query } },
@@ -1090,7 +1095,7 @@ export async function listPurchases({
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         date: true,
         supplierArName: true,
         supplierEnName: true,
@@ -1101,7 +1106,7 @@ export async function listPurchases({
         paidAmount: true,
         remainingAmount: true,
         settledAmount: true,
-        returnOf: { select: { id: true, number: true } },
+        returnOf: { select: { id: true, number: true, docCode: true } },
         // المرتجعات بس (الإشعارات مربوطة بنفس العلاقة)
         _count: { select: { returns: { where: { type: PURCHASE_RETURN } } } },
       },
@@ -1118,7 +1123,7 @@ export async function getPurchase(id, type, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       supplierId: true,
       supplierArName: true,
@@ -1159,7 +1164,7 @@ export async function getPurchase(id, type, user) {
       warehouse: { select: { id: true, arName: true, enName: true } },
       createdBy: { select: { arFullname: true, enFullname: true } },
       returnOf: {
-        select: { id: true, number: true, supplierInvoiceNo: true, date: true },
+        select: { id: true, number: true, docCode: true, supplierInvoiceNo: true, date: true },
       },
       // المرتجعات والإشعارات على الفاتورة (بتتفصل تحت)
       returns: {
@@ -1167,7 +1172,7 @@ export async function getPurchase(id, type, user) {
         select: {
           id: true,
           type: true,
-          number: true,
+          number: true, docCode: true,
           date: true,
           totalAmount: true,
         },
@@ -1224,7 +1229,8 @@ export async function getPurchase(id, type, user) {
   return {
     ...dto,
     returns: linked.filter((r) => r.type === PURCHASE_RETURN),
-    notes: linked.filter((r) => r.type !== PURCHASE_RETURN),
+    // الإشعارات على الفاتورة (اسم منفصل: notes = ملاحظات الفاتورة نفسها)
+    linkedNotes: linked.filter((r) => r.type !== PURCHASE_RETURN),
   };
 }
 
@@ -1233,9 +1239,9 @@ export async function getPurchase(id, type, user) {
 export async function findPurchasesForReturn({ by, value }, user) {
   let where;
   if (by === "number") {
-    const number = parseDocNo(value);
-    if (!number) return [];
-    where = { type: PURCHASE, number, ...branchScope(user) };
+    const ref = await docNumberWhere(value, user);
+    if (!ref) return [];
+    where = { type: PURCHASE, ...ref, ...branchScope(user) };
   } else {
     where = { type: PURCHASE, supplierInvoiceNo: value, ...branchScope(user) };
   }
@@ -1245,7 +1251,7 @@ export async function findPurchasesForReturn({ by, value }, user) {
     take: 20,
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       supplierArName: true,
       supplierEnName: true,

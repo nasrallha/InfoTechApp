@@ -199,7 +199,7 @@ function SerialCard({ card, receiptPaper }) {
       ...(card.customer?.phone ? [[t("Phone"), card.customer.phone]] : []),
       ...(sale
         ? [
-            [t("Invoice"), saleDocNo(sale.type, sale.number)],
+            [t("Invoice"), saleDocNo(sale.type, sale.number, sale.docCode)],
             [t("SoldAt"), formatDate(sale.date)],
           ]
         : []),
@@ -291,7 +291,7 @@ function SerialCard({ card, receiptPaper }) {
                   label: t("Invoice"),
                   children: (
                     <Link href={`/invoices/sales/${sale.id}`}>
-                      <bdi>{saleDocNo(sale.type, sale.number)}</bdi>
+                      <bdi>{saleDocNo(sale.type, sale.number, sale.docCode)}</bdi>
                     </Link>
                   ),
                 },
@@ -347,7 +347,7 @@ function SerialCard({ card, receiptPaper }) {
                     <span>
                       <Link href={`/invoices/purchases/${card.purchase.id}`}>
                         <bdi>
-                          {formatDocNo("purchase", card.purchase.number)}
+                          {formatDocNo("purchase", card.purchase.number, card.purchase.docCode)}
                         </bdi>
                       </Link>{" "}
                       —{" "}
@@ -371,7 +371,7 @@ function SerialCard({ card, receiptPaper }) {
                     <span>
                       <Link href={`/inventory/adjustments/${card.damage.id}`}>
                         <bdi>
-                          {formatDocNo("adjustment", card.damage.number)}
+                          {formatDocNo("adjustment", card.damage.number, card.damage.docCode)}
                         </bdi>
                       </Link>{" "}
                       (<bdi>{formatDate(card.damage.date)}</bdi>)
@@ -389,7 +389,7 @@ function SerialCard({ card, receiptPaper }) {
                   children: (
                     <Link href={`/inventory/adjustments/${card.surplus.id}`}>
                       <bdi>
-                        {formatDocNo("adjustment", card.surplus.number)}
+                        {formatDocNo("adjustment", card.surplus.number, card.surplus.docCode)}
                       </bdi>
                     </Link>
                   ),
@@ -406,7 +406,7 @@ function SerialCard({ card, receiptPaper }) {
                       href={`/invoices/purchase-returns/${card.purchaseReturn.id}`}
                     >
                       <bdi>
-                        {formatDocNo("return", card.purchaseReturn.number)}
+                        {formatDocNo("return", card.purchaseReturn.number, card.purchaseReturn.docCode)}
                       </bdi>
                     </Link>
                   ),
@@ -437,7 +437,7 @@ function SerialCard({ card, receiptPaper }) {
                   <Link
                     href={`/invoices/${h.type === "return" ? "sales-returns" : "sales"}/${h.id}`}
                   >
-                    <bdi>{saleDocNo(h.type, h.number)}</bdi>
+                    <bdi>{saleDocNo(h.type, h.number, h.docCode)}</bdi>
                   </Link>{" "}
                   — <bdi>{formatDate(h.date)}</bdi>
                   {who ? ` — ${who}` : ""}

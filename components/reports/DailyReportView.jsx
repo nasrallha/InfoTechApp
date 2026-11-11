@@ -107,7 +107,7 @@ export default function DailyReportView({ data, filters, options }) {
       key: "n",
       render: (_, s) => (
         <Link href={`/sales/shifts/${s.id}`}>
-          {formatDocNo("shift", s.number)}
+          {formatDocNo("shift", s.number, s.docCode)}
           {s.dayNo ? ` (${s.dayNo})` : ""}
         </Link>
       ),
@@ -238,7 +238,7 @@ export default function DailyReportView({ data, filters, options }) {
         rows: data.shifts.map((s) => ({
           ...s,
           key: s.id,
-          no: `${formatDocNo("shift", s.number)}${s.dayNo ? ` (${s.dayNo})` : ""}`,
+          no: `${formatDocNo("shift", s.number, s.docCode)}${s.dayNo ? ` (${s.dayNo})` : ""}`,
           user: un(s.user),
         })),
       },

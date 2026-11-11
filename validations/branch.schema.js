@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SELLER_ID_SCHEMES, idValid } from "@/lib/zatca-tax";
+import { BRANCH_CODE_RE } from "@/lib/doc-number";
 import {
   nameField,
   idField,
@@ -36,6 +37,12 @@ const branchFields = z.object({
     .min(1, "RequiredField")
     .max(255, "TextTooLong"),
   isActive: z.boolean().default(true),
+  // رمز الفرع قبل أرقام مستنداته (DM-SI-5): فاضي ← بيتعمل تلقائي
+  // (بيتقفل مع أول مستند، وبعدها السيرفر بيتجاهل أي تغيير)
+  code: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().toUpperCase() || null : v),
+    z.string().regex(BRANCH_CODE_RE, "BranchCodeInvalid").nullish(),
+  ),
   // بيانات الفاتورة (لو فاضية تُؤخذ من بيانات الشركة)
   phone: optionalText(20),
   // معرّف الفرع: النوع + الرقم (فاضي = معرّف الشركة)

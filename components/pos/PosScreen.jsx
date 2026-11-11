@@ -527,6 +527,7 @@ export default function PosScreen({
       preview: true,
       type: "sale",
       number: ctx.number,
+      docCode: ctx.docCode,
       date: new Date().toISOString(),
       branch: ctx.branch,
       createdBy: ctx.user,
@@ -741,19 +742,19 @@ export default function PosScreen({
         <span>{locale === "ar" ? user.arFullname : user.enFullname}</span>
         {shift ? (
           <Tag color="green">
-            {t("ShiftNo")} {formatDocNo("shift", shift.number)}
+            {t("ShiftNo")} {formatDocNo("shift", shift.number, shift.docCode)}
             {/* ترتيب الوردية في يوم العمل */}
             {shift.dayNo ? ` (${shift.dayNo})` : ""}
           </Tag>
         ) : (
           <Tag color="red">{t("NoShift")}</Tag>
         )}
-        <NextDocNo type="sale" dark size="small" refreshKey={lastSale?.id} />
+        <NextDocNo type="sale" dark size="small" refreshKey={lastSale?.id} branch={false} />
         <span className="pos-top__spacer" />
         {lastSale && (
           <Link href={`/invoices/sales/${lastSale.id}`}>
             <Tag color="gold" style={{ cursor: "pointer" }}>
-              {t("LastSale")} {saleDocNo("sale", lastSale.number)}
+              {t("LastSale")} {saleDocNo("sale", lastSale.number, lastSale.docCode)}
               {lastSale.changeAmount > 0 &&
                 ` — ${t("Change")} ${money(lastSale.changeAmount)}`}
             </Tag>

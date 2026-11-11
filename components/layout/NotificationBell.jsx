@@ -303,13 +303,13 @@ export default function NotificationBell() {
     i.ref?.kind === "restaurantOrder"
       ? `#${i.ref.number}`
       : i.ref?.kind === "booking"
-      ? formatDocNo("booking", i.ref.number)
+      ? formatDocNo("booking", i.ref.number, i.ref.docCode)
       : i.ref?.kind === "sale"
-        ? saleDocNo("sale", i.ref.number)
+        ? saleDocNo("sale", i.ref.number, i.ref.docCode)
         : i.ref?.kind === "claim"
-          ? `WC-${i.ref.number}`
+          ? formatDocNo("claim", i.ref.number, i.ref.docCode)
           : i.ref
-            ? formatDocNo("contract", i.ref.number)
+            ? formatDocNo("contract", i.ref.number, i.ref.docCode)
             : "";
 
   const shown = items.filter(TABS[tab]);

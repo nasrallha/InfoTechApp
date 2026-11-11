@@ -115,7 +115,7 @@ export default function LaundryOrderDetails({ id, printSettings, onClose }) {
                 key: "i",
                 label: t("Invoice"),
                 children: order.sale ? (
-                  <bdi>{saleDocNo(order.sale.type, order.sale.number)}</bdi>
+                  <bdi>{saleDocNo(order.sale.type, order.sale.number, order.sale.docCode)}</bdi>
                 ) : (
                   t("NotInvoiced")
                 ),

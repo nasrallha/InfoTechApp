@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { assertModule } from "@/lib/modules";
@@ -29,7 +30,6 @@ export const BOOKING_STATUSES = [
 ];
 // الحالات اللي بتحجز الوقت
 const ACTIVE = ["booked", "arrived"];
-const SEQUENCE_KEY = "booking";
 const MIN_MS = 60_000;
 const n = (v) => (v == null ? 0 : Number(v));
 
@@ -174,7 +174,7 @@ async function assertFree(db, { technicianId, startAt, endAt, excludeId }) {
       endAt: { gt: startAt },
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
-    select: { number: true, startAt: true },
+    select: { number: true, docCode: true, startAt: true },
   });
   if (clash)
     throw new AppError(
@@ -291,7 +291,7 @@ async function prepareBooking(data, { online = false } = {}) {
 
 const bookingSelect = {
   id: true,
-  number: true,
+  number: true, docCode: true,
   branchId: true,
   branch: { select: { id: true, arName: true, enName: true } },
   customerId: true,
@@ -309,7 +309,7 @@ const bookingSelect = {
   notes: true,
   source: true,
   saleId: true,
-  sale: { select: { id: true, number: true, totalAmount: true } },
+  sale: { select: { id: true, number: true, docCode: true, totalAmount: true } },
   createdAt: true,
   items: {
     orderBy: { id: "asc" },
@@ -340,16 +340,13 @@ async function createNow(data, { user, branchId, online }) {
   const { header, items } = await prepareBooking(data, { online });
   return prisma.$transaction(async (tx) => {
     await assertFree(tx, header);
-    const seq = await tx.documentSequence.upsert({
-      where: { key: SEQUENCE_KEY },
-      create: { key: SEQUENCE_KEY, last: 1 },
-      update: { last: { increment: 1 } },
-      select: { last: true },
-    });
+    // الرقم التالي في فرع الحجز + رمز الفرع (DM-BK-5)
+    const { number, docCode } = await nextBranchNumber(tx, "booking", branchId);
     const b = await tx.booking.create({
       data: {
         ...header,
-        number: seq.last,
+        number,
+        docCode,
         branchId,
         source: online ? "online" : "staff",
         createdById: user?.id ?? null,
@@ -423,14 +420,15 @@ export async function listBookings(
 ) {
   await assertModule("bookings");
   const text = q.trim();
-  const num = Number(text.replace(/^bk-?/i, ""));
+  // رقم الحجز: في فرع الرمز (DM-BK-5) أو فرع المستخدم
+  const ref = text ? await docNumberWhere(text, user) : null;
   const where = {
     ...branchScope(user),
     ...(technicianId ? { technicianId } : {}),
     ...(text
       ? {
           OR: [
-            ...(Number.isInteger(num) && num > 0 ? [{ number: num }] : []),
+            ...(ref ? [ref] : []),
             { phone: { contains: text } },
             { customerName: { contains: text } },
           ],
@@ -503,7 +501,8 @@ export async function posBookings({ q = "", customerId }, user) {
   await assertModule("bookings");
   const text = q.trim();
   const todayDay = today();
-  const num = Number(text.replace(/^bk-?/i, ""));
+  // رقم الحجز: في فرع الرمز (DM-BK-5) أو فرع المستخدم
+  const ref = text ? await docNumberWhere(text, user) : null;
   const rows = await prisma.booking.findMany({
     where: {
       branchId: user.branch.id,
@@ -511,7 +510,7 @@ export async function posBookings({ q = "", customerId }, user) {
       ...(text
         ? {
             OR: [
-              ...(Number.isInteger(num) && num > 0 ? [{ number: num }] : []),
+              ...(ref ? [ref] : []),
               { phone: { contains: text } },
               { customerName: { contains: text } },
               { customer: { arName: { contains: text } } },
@@ -599,7 +598,7 @@ export async function todayBookings(user) {
       phone: b.phone,
       address: b.atHome ? b.address : null,
       technician: b.technician,
-      ref: { kind: "booking", number: b.number },
+      ref: { kind: "booking", number: b.number, docCode: b.docCode },
       href: `/bookings?q=BK-${b.number}`,
     };
   });
@@ -676,15 +675,24 @@ const publicView = (b) => ({
 // - برقم الجوال: حجوزات النهارده واللي جاية (أي حالة)، ولو مفيش: آخر 3
 // - الجوال بيتقارن بآخر 9 أرقام (05xxxxxxxx = +9665xxxxxxxx = ٠٥...)
 export async function publicFindBooking({ number, phone }) {
-  if (number) {
-    const b = await prisma.booking.findFirst({
-      where: { number },
-      select: bookingSelect,
-    });
-    if (!b) throw new AppError("BookingNotFound");
-    return [publicView(toDTO(b))];
-  }
   const tail = normPhone(phone).replace(/\D/g, "").slice(-9);
+  // برقم الحجز: الرقم بيتكرر بين الفروع ← لو الجوال مكتوب لازم يطابق
+  if (number) {
+    const list = (
+      await prisma.booking.findMany({
+        where: { number },
+        orderBy: { id: "desc" },
+        take: 10,
+        select: bookingSelect,
+      })
+    ).filter(
+      (b) =>
+        tail.length < 5 ||
+        normPhone(b.phone).replace(/\D/g, "").slice(-9) === tail,
+    );
+    if (!list.length) throw new AppError("BookingNotFound");
+    return list.map((b) => publicView(toDTO(b)));
+  }
   if (tail.length < 5) throw new AppError("BookingNotFound");
   const samePhone = (b) =>
     normPhone(b.phone).replace(/\D/g, "").slice(-9) === tail;

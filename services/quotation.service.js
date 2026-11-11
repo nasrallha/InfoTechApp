@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
@@ -6,7 +7,6 @@ import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
 import { calcInvoice, round } from "@/lib/invoice-calc";
 import { dayOf, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
-import { parseDocNo } from "@/lib/doc-number";
 import {
   getBranchSaleContext,
   saleProductSelect,
@@ -202,23 +202,24 @@ async function prepareQuotation(data, user, existing = null) {
 export async function createQuotation(data, user) {
   const { header, itemRows } = await prepareQuotation(data, user);
   return prisma.$transaction(async (tx) => {
-    const seq = await tx.documentSequence.upsert({
-      where: { key: "quotation" },
-      create: { key: "quotation", last: 1 },
-      update: { last: { increment: 1 } },
-      select: { last: true },
-    });
+    // الرقم التالي في فرع العرض + رمز الفرع (DM-QT-5) - مفيش تكرار
+    const { number, docCode } = await nextBranchNumber(
+      tx,
+      "quotation",
+      user.branch.id,
+    );
     return tx.quotation.create({
       data: {
         ...header,
-        number: seq.last,
+        number,
+        docCode,
         status: "open",
         branchId: user.branch.id,
         date: new Date(),
         createdById: user.id,
         items: { create: itemRows },
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
   }, TX_OPTIONS);
 }
@@ -249,7 +250,7 @@ export async function updateQuotation({ id, ...data }, user) {
   return prisma.quotation.update({
     where: { id },
     data: { ...header, items: { deleteMany: {}, create: itemRows } },
-    select: { id: true, number: true },
+    select: { id: true, number: true, docCode: true },
   });
 }
 
@@ -266,13 +267,13 @@ export async function listQuotations({
   user,
 }) {
   const query = q.trim();
-  const asNumber = parseDocNo(query);
+  const asNumber = await docNumberWhere(query, user);
   const where = {
     ...branchScope(user),
     ...(query
       ? {
           OR: [
-            ...(asNumber ? [{ number: asNumber }] : []),
+            ...(asNumber ? [asNumber] : []),
             { customerArName: { contains: query } },
             { customerEnName: { contains: query } },
           ],
@@ -288,14 +289,14 @@ export async function listQuotations({
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         status: true,
         date: true,
         validUntil: true,
         customerArName: true,
         customerEnName: true,
         totalAmount: true,
-        sale: { select: { id: true, number: true } },
+        sale: { select: { id: true, number: true, docCode: true } },
       },
     }),
   ]);
@@ -312,7 +313,7 @@ export async function getQuotation(id, user) {
     where: { id, ...branchScope(user) },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       date: true,
       validUntil: true,
@@ -346,7 +347,7 @@ export async function getQuotation(id, user) {
       },
       createdBy: { select: { arFullname: true, enFullname: true } },
       customer: { select: { id: true, code: true, phone: true } },
-      sale: { select: { id: true, number: true } },
+      sale: { select: { id: true, number: true, docCode: true } },
       items: {
         orderBy: { id: "asc" },
         select: {

@@ -53,10 +53,10 @@ function SavedJob({ job, onClose }) {
   const docNo = !doc
     ? ""
     : job.kind === "quotation"
-      ? formatDocNo("quotation", doc.number)
+      ? formatDocNo("quotation", doc.number, doc.docCode)
       : isPurchase
-        ? purchaseDocNo(doc.type, doc.number)
-        : saleDocNo(doc.type, doc.number);
+        ? purchaseDocNo(doc.type, doc.number, doc.docCode)
+        : saleDocNo(doc.type, doc.number, doc.docCode);
 
   // الضريبية قبل اعتماد الهيئة: متطبعش تلقائياً (زي صفحة الفاتورة)
   const zdoc = doc?.zatcaDocument;

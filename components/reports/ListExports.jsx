@@ -2,11 +2,13 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { formatDateTime } from "@/lib/dates";
+import { useCan } from "@/components/auth/AuthProvider";
 import ExportButtons from "./ExportButtons";
 
 // ============================================================
 // تصدير القوائم (Excel + طباعة A4 + PDF):
 // العملاء، الموردين، المستخدمين، المنتجات
+// (الأصناف والعملاء والموردين والوحدات والأقسام: بصلاحية <المجموعة>.exportList)
 // ============================================================
 
 const useNames = () => {
@@ -37,6 +39,7 @@ const useScope = () => {
 
 // kind: "customers" | "suppliers"
 export function PartiesExport({ kind, parties, selectedIds }) {
+  const can = useCan();
   const t = useTranslations("Exports");
   const tSidebar = useTranslations("Sidebar");
   const { nm } = useNames();
@@ -94,6 +97,7 @@ export function PartiesExport({ kind, parties, selectedIds }) {
       },
     };
   };
+  if (!can(`${kind}.exportList`)) return null;
   return <ExportButtons build={build} disabled={!parties.length} />;
 }
 
@@ -130,6 +134,7 @@ export function UsersExport({ users, selectedIds }) {
 }
 
 export function ProductsExport({ products, selectedIds }) {
+  const can = useCan();
   const t = useTranslations("Exports");
   const tSidebar = useTranslations("Sidebar");
   const { nm } = useNames();
@@ -164,10 +169,12 @@ export function ProductsExport({ products, selectedIds }) {
       })),
     };
   };
+  if (!can("products.exportList")) return null;
   return <ExportButtons build={build} disabled={!products.length} />;
 }
 
 export function UnitsExport({ units, selectedIds }) {
+  const can = useCan();
   const t = useTranslations("Exports");
   const tSidebar = useTranslations("Sidebar");
   const scope = useScope();
@@ -191,11 +198,13 @@ export function UnitsExport({ units, selectedIds }) {
       })),
     };
   };
+  if (!can("units.exportList")) return null;
   return <ExportButtons build={build} disabled={!units.length} />;
 }
 
 // الأقسام: الرئيسية وتحت كل واحد أقسامه الفرعية
 export function CategoriesExport({ categories, selectedIds }) {
+  const can = useCan();
   const t = useTranslations("Exports");
   const tSidebar = useTranslations("Sidebar");
   const { nm } = useNames();
@@ -224,5 +233,6 @@ export function CategoriesExport({ categories, selectedIds }) {
       })),
     };
   };
+  if (!can("categories.exportList")) return null;
   return <ExportButtons build={build} disabled={!categories.length} />;
 }

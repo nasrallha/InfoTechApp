@@ -116,7 +116,7 @@ export default function LaundryReturnModal({
     });
     setSaving(false);
     if (!res.success) return showActionError(res, tAlerts, locale);
-    message.success(t("ReturnSavedN", { n: saleDocNo("return", res.data.number) }));
+    message.success(t("ReturnSavedN", { n: saleDocNo("return", res.data.number, res.data.docCode) }));
     const full = await getSaleAction(res.data.id);
     if (full.success && full.data) setPrinting(full.data);
     else onClose();
@@ -148,7 +148,7 @@ export default function LaundryReturnModal({
         <Space direction="vertical" className="mb-3" style={{ width: "100%" }}>
           {found.map((s) => (
             <Button key={s.id} block onClick={() => open(s.id)}>
-              <bdi>{saleDocNo("sale", s.number)}</bdi> —{" "}
+              <bdi>{saleDocNo("sale", s.number, s.docCode)}</bdi> —{" "}
               {formatDateTime(s.date)} —{" "}
               {locale === "ar" ? s.customerArName : s.customerEnName} —{" "}
               <bdi>{money(s.totalAmount)}</bdi>
@@ -168,7 +168,7 @@ export default function LaundryReturnModal({
               {
                 key: "n",
                 label: t("Invoice"),
-                children: <bdi>{saleDocNo("sale", sale.number)}</bdi>,
+                children: <bdi>{saleDocNo("sale", sale.number, sale.docCode)}</bdi>,
               },
               {
                 key: "c",

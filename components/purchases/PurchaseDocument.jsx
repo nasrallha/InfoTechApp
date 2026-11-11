@@ -152,7 +152,7 @@ export default function PurchaseDocument({ settings, company, purchase }) {
                 ? L("رقم الإشعار", "Note No")
                 : L("رقم الفاتورة", "Invoice No")}
           </span>
-          <bdi>{purchaseDocNo(purchase.type, purchase.number)}</bdi>
+          <bdi>{purchaseDocNo(purchase.type, purchase.number, purchase.docCode)}</bdi>
         </div>
         <div>
           <span>{L("التاريخ", "Date")}</span>
@@ -163,7 +163,7 @@ export default function PurchaseDocument({ settings, company, purchase }) {
             <span>{L("فاتورة الشراء", "Purchase Invoice")}</span>
             <bdi>
               {purchase.returnOf
-                ? purchaseDocNo("purchase", purchase.returnOf.number)
+                ? purchaseDocNo("purchase", purchase.returnOf.number, purchase.returnOf.docCode)
                 : purchase.billingRef}
             </bdi>
           </div>

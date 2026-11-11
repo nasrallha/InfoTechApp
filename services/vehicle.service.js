@@ -294,7 +294,7 @@ export async function vehicleHistory(id, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       odometer: true,
       totalAmount: true,

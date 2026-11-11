@@ -55,6 +55,10 @@ model Branch {
   id       Int     @id @default(autoincrement())
   arName   String  @unique @db.VarChar(100)
   enName   String  @unique @db.VarChar(100)
+  // رمز الفرع قبل أرقام مستنداته (DM-SI-5): حروف إنجليزي وأرقام
+  // فاضي ← بيتعمل تلقائي، وبيتقفل (codeLocked) مع أول مستند مترقّم على الفرع
+  code       String? @unique @db.VarChar(10)
+  codeLocked Boolean @default(false)
   address  String  @db.VarChar(255)
   isActive Boolean @default(true)
 
@@ -117,6 +121,10 @@ model Branch {
   // العملاء والموردين المتاحين في الفرع (اللي مش "كل الفروع")
   customerLinks CustomerBranch[]
   supplierLinks SupplierBranch[]
+  // التحويلات والتوالف والجرد المسجلة على الفرع
+  stockTransfers StockTransfer[]
+  stockAdjustments StockAdjustment[]
+  inventoryCounts InventoryCount[]
 }
 
 // ============================================================
@@ -1021,7 +1029,9 @@ model DocumentSequence {
 model Purchase {
   id     Int    @id @default(autoincrement())
   type   String @db.VarChar(10)
-  number Int // مسلسل مستقل لكل نوع
+  number Int // مسلسل مستقل لكل نوع ولكل فرع
+  // رمز الفرع وقت الترقيم (DM-PI-5) - فاضي = مستند قبل ترقيم الفروع (PI-5)
+  docCode String? @db.VarChar(10)
 
   branchId Int
   branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -1089,7 +1099,7 @@ model Purchase {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([type, number])
+  @@unique([branchId, type, number])
   // نفس رقم فاتورة المورد لا يتكرر لنفس المورد
   @@unique([type, supplierId, supplierInvoiceNo])
   @@index([supplierInvoiceNo])
@@ -1297,7 +1307,13 @@ model StockMovement {
 
 model StockTransfer {
   id     Int    @id @default(autoincrement())
-  number Int    @unique
+  // فرع المستند (اللي اتعمل منه) - الترقيم لكل فرع
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   status String @default("sent") @db.VarChar(10)
 
   fromWarehouseId Int
@@ -1326,6 +1342,9 @@ model StockTransfer {
   @@index([receivedById])
   @@index([status])
   @@map("stock_transfers")
+
+  @@unique([branchId, number])
+  @@index([branchId])
 }
 
 model StockTransferItem {
@@ -1363,7 +1382,13 @@ model StockTransferItem {
 // ============================================================
 model StockAdjustment {
   id     Int    @id @default(autoincrement())
-  number Int    @unique // AJ-1
+  // فرع المستند (اللي اتعمل منه) - الترقيم لكل فرع
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   type   String @db.VarChar(10) // damage | surplus
   status String @default("posted") @db.VarChar(10) // posted | cancelled
 
@@ -1387,6 +1412,9 @@ model StockAdjustment {
   @@index([type, status])
   @@index([date])
   @@map("stock_adjustments")
+
+  @@unique([branchId, number])
+  @@index([branchId])
 }
 
 model StockAdjustmentItem {
@@ -1428,7 +1456,13 @@ model StockAdjustmentItem {
 
 model InventoryCount {
   id     Int    @id @default(autoincrement())
-  number Int    @unique
+  // فرع المستند (اللي اتعمل منه) - الترقيم لكل فرع
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   status String @default("draft") @db.VarChar(10) // draft / posted
 
   warehouseId Int
@@ -1452,6 +1486,9 @@ model InventoryCount {
   @@index([createdById])
   @@index([postedById])
   @@map("inventory_counts")
+
+  @@unique([branchId, number])
+  @@index([branchId])
 }
 
 model InventoryCountItem {
@@ -1526,7 +1563,9 @@ model ProductPrice {
 model Sale {
   id     Int    @id @default(autoincrement())
   type   String @db.VarChar(10)
-  number Int // مسلسل مستقل لكل نوع (SI-15 / SR-7)
+  number Int // مسلسل مستقل لكل نوع ولكل فرع (DM-SI-15 / DM-SR-7)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع (SI-15)
+  docCode String? @db.VarChar(10)
 
   // من أين سُجلت: pos = شاشة الكاشير / invoice = فاتورة عادية
   source String @default("invoice") @db.VarChar(10)
@@ -1634,7 +1673,7 @@ model Sale {
   restaurantOrder RestaurantOrder?
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWalletUses LaundryWalletUse[]
-  @@unique([type, number])
+  @@unique([branchId, type, number])
   @@index([date])
   @@index([branchId])
   @@index([warehouseId])
@@ -1765,7 +1804,9 @@ model SalePayment {
 // ============================================================
 model Quotation {
   id     Int    @id @default(autoincrement())
-  number Int    @unique // QT-3
+  number Int // مسلسل لكل فرع (DM-QT-3)
+  // رمز الفرع وقت الترقيم - فاضي = عرض قبل ترقيم الفروع (QT-3)
+  docCode String? @db.VarChar(10)
   status String @default("open") @db.VarChar(10)
 
   branchId Int
@@ -1807,6 +1848,7 @@ model Quotation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([branchId, number])
   @@index([branchId])
   @@index([customerId])
   @@index([createdById])
@@ -1866,7 +1908,9 @@ model QuotationItem {
 // ============================================================
 model Shift {
   id     Int    @id @default(autoincrement())
-  number Int    @unique
+  number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   status String @default("open") @db.VarChar(10)
 
   branchId Int
@@ -1919,6 +1963,8 @@ model Shift {
   @@unique([branchId, businessDay, dayNo])
   @@index([businessDay])
   @@map("shifts")
+
+  @@unique([branchId, number])
 }
 
 // ============================================================
@@ -1945,6 +1991,8 @@ model Voucher {
   id        Int    @id @default(autoincrement())
   type      String @db.VarChar(12)
   number    Int
+  // رمز الفرع وقت الترقيم (DM-RV-3) - فاضي = سند قبل ترقيم الفروع (RV-3)
+  docCode   String? @db.VarChar(10)
   partyType String @db.VarChar(10)
 
   branchId Int
@@ -1986,7 +2034,7 @@ model Voucher {
 
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWallet LaundryWallet?
-  @@unique([type, number])
+  @@unique([branchId, type, number])
   @@index([branchId])
   @@index([shiftId])
   @@index([customerId])
@@ -2425,7 +2473,9 @@ model SaleItemSerial {
 // ============================================================
 model WarrantyClaim {
   id     Int    @id @default(autoincrement())
-  number Int    @unique // WC-1
+  number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   kind   String @default("warranty") @db.VarChar(10)
   status String @default("received") @db.VarChar(12)
 
@@ -2496,6 +2546,8 @@ model WarrantyClaim {
   @@index([createdById])
   @@index([newSerialId])
   @@map("warranty_claims")
+
+  @@unique([branchId, number])
 }
 
 // قطع الغيار والمصنعية في طلب الصيانة (بتتحول لفاتورة)
@@ -2598,7 +2650,9 @@ model TechnicianRate {
 // ============================================================
 model MaintenanceContract {
   id     Int @id @default(autoincrement())
-  number Int @unique // MC-1
+  number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
 
   branchId Int
   branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -2640,6 +2694,8 @@ model MaintenanceContract {
   @@index([createdById])
   @@index([status])
   @@map("maintenance_contracts")
+
+  @@unique([branchId, number])
 }
 
 // زيارة صيانة دورية: pending مستنية | done اتنفذت | skipped اتلغت
@@ -2781,7 +2837,9 @@ model Vehicle {
 // ============================================================
 model Booking {
   id           Int         @id @default(autoincrement())
-  number       Int         @unique
+  number       Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   branchId     Int
   branch       Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
   customerId   Int?
@@ -2818,6 +2876,8 @@ model Booking {
   @@index([saleId])
   @@index([createdById])
   @@map("bookings")
+
+  @@unique([branchId, number])
 }
 
 model BookingItem {
@@ -3010,7 +3070,9 @@ model LaundryOrderItem {
 // ============================================================
 model LaundryWallet {
   id           Int       @id @default(autoincrement())
-  number       Int       @unique
+  number       Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
+  // رمز الفرع وقت الترقيم - فاضي = مستند قبل ترقيم الفروع
+  docCode String? @db.VarChar(10)
   customerId   Int
   customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
   branchId     Int
@@ -3035,6 +3097,8 @@ model LaundryWallet {
   @@index([branchId])
   @@index([createdById])
   @@map("laundry_wallets")
+
+  @@unique([branchId, number])
 }
 
 // الصرف من الاشتراك في فاتورة: credit = اللي اتخصم من الرصيد

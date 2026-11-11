@@ -375,7 +375,7 @@ export async function listFollowUps(
           phone: true,
         },
       },
-      originSale: { select: { id: true, number: true } },
+      originSale: { select: { id: true, number: true, docCode: true } },
       branch: nameSelect,
       // عدد مرات الصيانة: فواتير صيانة (تجديد أو تسجيل) + "تمت المتابعة"
       _count: {
@@ -557,7 +557,7 @@ export async function followUpLogs(id, user) {
       date: true,
       note: true,
       nextDate: true,
-      sale: { select: { id: true, type: true, number: true } },
+      sale: { select: { id: true, type: true, number: true, docCode: true } },
       user: { select: { arFullname: true, enFullname: true } },
     },
   });
@@ -703,7 +703,7 @@ export async function followUpReport(
           select: {
             date: true,
             followUpId: true,
-            sale: { select: { id: true, number: true } },
+            sale: { select: { id: true, number: true, docCode: true } },
             followUp: { select },
           },
         }),

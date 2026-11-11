@@ -321,7 +321,7 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
           setEditModalOpen(false);
           setSelected(null);
         }}
-        width={760}
+        width={900}
         title={
           <Flex align="center" gap="small">
             <UserOutlined style={{ fontSize: 22 }} />

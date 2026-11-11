@@ -91,6 +91,14 @@ const BranchTable = ({ branches = [], warehouses = [], priceLists = [] }) => {
       }),
     },
     {
+      title: tBranches("Code"),
+      dataIndex: "code",
+      key: "code",
+      align: "center",
+      width: 90,
+      render: (v) => (v ? <bdi className="font-bold">{v}</bdi> : "—"),
+    },
+    {
       title: tTable("Address"),
       dataIndex: "address",
       key: "address",

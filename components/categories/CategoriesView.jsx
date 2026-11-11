@@ -6,6 +6,7 @@ import { useCan } from "@/components/auth/AuthProvider";
 import PageHeader from "@/components/common/PageHeader";
 import FormModal from "@/components/common/FormModal";
 import { CategoriesExport } from "@/components/reports/ListExports";
+import ImportButton from "@/components/import/ImportButton";
 import AddCategoryForm from "./AddCategoryForm";
 import CategoriesTree from "./CategoriesTree";
 
@@ -27,7 +28,10 @@ export default function CategoriesView({ categories }) {
     <>
       <PageHeader
         extra={
-          <CategoriesExport categories={categories} selectedIds={selectedIds} />
+          <div className="flex flex-wrap gap-2">
+            <ImportButton kind="categories" />
+            <CategoriesExport categories={categories} selectedIds={selectedIds} />
+          </div>
         }
         title={tSidebar("Categories")}
         buttonTitle={can("categories.create") ? tButtons("AddNewCategory") : null}

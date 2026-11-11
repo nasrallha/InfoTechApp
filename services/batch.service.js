@@ -371,6 +371,15 @@ export async function listBatches(filters, warehouseIds, db) {
   const rows = await db.productBatch.findMany({
     where: {
       qty: { gt: 0 },
+      // تاريخ الانتهاء: من / إلى (أو قبل تاريخ = "إلى" بس) - الدفعات من غير تاريخ بتطلع برّه
+      ...(filters.from || filters.to
+        ? {
+            expDate: {
+              ...(filters.from ? { gte: dayToDbDate(filters.from) } : {}),
+              ...(filters.to ? { lte: dayToDbDate(filters.to) } : {}),
+            },
+          }
+        : {}),
       warehouseId: filters.warehouseId
         ? filters.warehouseId
         : { in: warehouseIds },

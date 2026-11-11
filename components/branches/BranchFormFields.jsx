@@ -10,6 +10,7 @@ import PhoneField from "@/components/common/PhoneField";
 export const branchPayload = (values) => ({
   arName: values.arName,
   enName: values.enName,
+  code: values.code ?? "",
   address: values.address,
   isActive: values.isActive,
   phone: values.phone ?? "",
@@ -34,6 +35,7 @@ export const NEW_WAREHOUSE = "new";
 export const branchFormValues = (branch) => ({
   arName: branch?.arName ?? "",
   enName: branch?.enName ?? "",
+  code: branch?.code ?? "",
   address: branch?.address ?? "",
   isActive: branch?.isActive ?? true,
   phone: branch?.phone ?? "",
@@ -52,11 +54,13 @@ export const branchFormValues = (branch) => ({
 
 // حقول فورم الفرع (مشتركة بين الإضافة والتعديل)
 // warehouses / priceLists: قوائم الاختيار
+// codeLocked: الفرع عليه مستندات مترقّمة ← الرمز مقفول
 export default function BranchFormFields({
   tForm,
   tAlerts,
   warehouses = [],
   priceLists = [],
+  codeLocked = false,
 }) {
   const locale = useLocale();
   const t = useTranslations("Branches");
@@ -86,7 +90,24 @@ export default function BranchFormFields({
             <Input dir="ltr" />
           </Form.Item>
         </Col>
-        <Col xs={18} sm={18} lg={9}>
+        {/* رمز الفرع قبل أرقام المستندات (DM-SI-5) */}
+        <Col xs={8} sm={6} lg={3}>
+          <Form.Item
+            label={t("Code")}
+            name="code"
+            tooltip={codeLocked ? t("CodeLockedHint") : t("CodeHint")}
+            normalize={(v) => (v ? v.toUpperCase() : v)}
+            rules={[{ pattern: /^[A-Z][A-Z0-9]{0,5}$/, message: tAlerts("BranchCodeInvalid") }]}
+          >
+            <Input
+              dir="ltr"
+              maxLength={6}
+              disabled={codeLocked}
+              placeholder={t("CodeAuto")}
+            />
+          </Form.Item>
+        </Col>
+        <Col xs={16} sm={18} lg={6}>
           <Form.Item
             label={tForm("Address")}
             name="address"

@@ -129,7 +129,7 @@ export async function openItems(kind, id, db = prisma, excludeVoucherId) {
       select: {
         id: true,
         type: true,
-        number: true,
+        number: true, docCode: true,
         date: true,
         totalAmount: true,
         remainingAmount: true,
@@ -178,8 +178,8 @@ export async function openItems(kind, id, db = prisma, excludeVoucherId) {
         number: d.number,
         docNo:
           kind === "customer"
-            ? saleDocNo(d.type, d.number)
-            : purchaseDocNo(d.type, d.number),
+            ? saleDocNo(d.type, d.number, d.docCode)
+            : purchaseDocNo(d.type, d.number, d.docCode),
         date: d.date,
         total: n(d.totalAmount),
         credit: n(d.remainingAmount),
@@ -286,7 +286,7 @@ export async function getStatement(
       select: {
         id: true,
         type: true,
-        number: true,
+        number: true, docCode: true,
         date: true,
         totalAmount: true,
         paidAmount: true,
@@ -307,7 +307,7 @@ export async function getStatement(
       select: {
         id: true,
         type: true,
-        number: true,
+        number: true, docCode: true,
         date: true,
         amount: true,
         notes: true,
@@ -323,8 +323,8 @@ export async function getStatement(
       // المرتجع والإشعار الدائن بيقللوا الرصيد
       const isCredit = P.creditTypes.includes(d.type);
       const docNo = isSale
-        ? saleDocNo(d.type, d.number)
-        : purchaseDocNo(d.type, d.number);
+        ? saleDocNo(d.type, d.number, d.docCode)
+        : purchaseDocNo(d.type, d.number, d.docCode);
       const href = isSale
         ? saleDocHref(d.type, d.id)
         : purchaseDocHref(d.type, d.id);
@@ -351,7 +351,7 @@ export async function getStatement(
       key: `v${v.id}`,
       date: v.date,
       kind: v.type,
-      docNo: formatDocNo(v.type, v.number),
+      docNo: formatDocNo(v.type, v.number, v.docCode),
       href: `/accounts/vouchers/${v.id}`,
       debit: 0,
       credit: n(v.amount),

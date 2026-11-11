@@ -1,4 +1,5 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
@@ -20,7 +21,6 @@ import {
 // - الفلوس: مفيش أي مبلغ قبل فاتورة الصيانة (القطع والمصنعية ← فاتورة بيع)
 // ============================================================
 
-const SEQUENCE_KEY = "warranty_claim";
 const n = (v) => (v == null ? 0 : Number(v));
 
 export const CLAIM_STATUSES = [
@@ -48,15 +48,6 @@ const OPEN = ["received", "inspecting", "at_agent", "back", "ready"];
 const branchScope = (user) =>
   can(user, "allBranches.view") ? {} : { branchId: user.branch.id };
 
-async function nextNumber(tx) {
-  const seq = await tx.documentSequence.upsert({
-    where: { key: SEQUENCE_KEY },
-    create: { key: SEQUENCE_KEY, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
-}
 
 const dateOnly = (d) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -92,7 +83,7 @@ export async function lookupDevice(q) {
           sale: {
             select: {
               id: true,
-              number: true,
+              number: true, docCode: true,
               date: true,
               customerArName: true,
               customerEnName: true,
@@ -163,10 +154,15 @@ export async function createClaim(data, user) {
   const kind = data.kind ?? (inWarranty ? "warranty" : "paid");
 
   return runTx(async (tx) => {
-    const number = await nextNumber(tx);
+    const { number, docCode } = await nextBranchNumber(
+      tx,
+      "claim",
+      user.branch.id,
+    );
     const claim = await tx.warrantyClaim.create({
       data: {
         number,
+        docCode,
         kind,
         status: "received",
         branchId: user.branch.id,
@@ -190,7 +186,7 @@ export async function createClaim(data, user) {
         createdById: user.id,
         logs: { create: { status: "received", userId: user.id } },
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
     return claim;
   });
@@ -414,7 +410,8 @@ export async function listClaims(
 ) {
   await assertModule("warrantyClaims");
   const text = q.trim();
-  const num = Number(text.replace(/^wc-?/i, ""));
+  // رقم الطلب: في فرع الرمز (DM-WC-5) أو فرع المستخدم
+  const ref = text ? await docNumberWhere(text, user) : null;
   const where = {
     ...branchScope(user),
     ...(status === "open"
@@ -425,7 +422,7 @@ export async function listClaims(
     ...(text
       ? {
           OR: [
-            ...(Number.isInteger(num) && num > 0 ? [{ number: num }] : []),
+            ...(ref ? [ref] : []),
             { serialText: { contains: text } },
             { serial2Text: { contains: text } },
             { customerName: { contains: text } },
@@ -447,7 +444,7 @@ export async function listClaims(
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         kind: true,
         status: true,
         result: true,
@@ -462,7 +459,7 @@ export async function listClaims(
         customer: { select: { arName: true, enName: true, phone: true } },
         product: nameSelect,
         supplier: nameSelect,
-        sale: { select: { id: true, number: true } },
+        sale: { select: { id: true, number: true, docCode: true } },
       },
     }),
     prisma.warrantyClaim.groupBy({
@@ -527,13 +524,13 @@ export async function getClaim(id, user) {
           status: true,
           saleItem: {
             select: {
-              sale: { select: { id: true, number: true, date: true } },
+              sale: { select: { id: true, number: true, docCode: true, date: true } },
             },
           },
         },
       },
       newSerial: { select: { id: true, serial: true, serial2: true } },
-      sale: { select: { id: true, number: true, totalAmount: true } },
+      sale: { select: { id: true, number: true, docCode: true, totalAmount: true } },
       createdBy: { select: { arFullname: true, enFullname: true } },
       items: {
         orderBy: { id: "asc" },

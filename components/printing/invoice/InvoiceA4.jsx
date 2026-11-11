@@ -115,10 +115,10 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
   }[kind];
 
   const number = isQuotation
-    ? formatDocNo("quotation", doc.number)
+    ? formatDocNo("quotation", doc.number, doc.docCode)
     : isSale
-      ? saleDocNo(doc.type, doc.number)
-      : purchaseDocNo(doc.type, doc.number);
+      ? saleDocNo(doc.type, doc.number, doc.docCode)
+      : purchaseDocNo(doc.type, doc.number, doc.docCode);
 
   // QR الزكاة لفواتير البيع والإشعارات
   const [qr, setQr] = useState(null);
@@ -176,12 +176,12 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
     kind === "return" &&
       doc.returnOf && [
         L("الفاتورة الأصلية", "Original invoice"),
-        <bdi key="o">{saleDocNo("sale", doc.returnOf.number)}</bdi>,
+        <bdi key="o">{saleDocNo("sale", doc.returnOf.number, doc.returnOf.docCode)}</bdi>,
       ],
     kind === "purchaseReturn" &&
       doc.returnOf && [
         L("فاتورة الشراء", "Purchase invoice"),
-        <bdi key="o">{formatDocNo("purchase", doc.returnOf.number)}</bdi>,
+        <bdi key="o">{formatDocNo("purchase", doc.returnOf.number, doc.returnOf.docCode)}</bdi>,
       ],
     // الإشعار: الفاتورة الأصلية (أو المرجع) والسبب
     isNote &&
@@ -190,8 +190,8 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
         <bdi key="ref">
           {doc.returnOf
             ? isSale
-              ? saleDocNo("sale", doc.returnOf.number)
-              : purchaseDocNo("purchase", doc.returnOf.number)
+              ? saleDocNo("sale", doc.returnOf.number, doc.returnOf.docCode)
+              : purchaseDocNo("purchase", doc.returnOf.number, doc.returnOf.docCode)
             : doc.billingRef}
         </bdi>,
       ],

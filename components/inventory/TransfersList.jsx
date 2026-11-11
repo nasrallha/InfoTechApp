@@ -47,7 +47,7 @@ export default function TransfersList({ data, q, status, canCreate }) {
       render: (_, r) => (
         <Link href={`/inventory/transfers/${r.id}`}>
           <b>
-            <bdi>{formatDocNo("transfer", r.number)}</bdi>
+            <bdi>{formatDocNo("transfer", r.number, r.docCode)}</bdi>
           </b>
         </Link>
       ),

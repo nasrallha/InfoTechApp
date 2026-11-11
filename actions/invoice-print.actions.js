@@ -11,7 +11,7 @@ import {
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCompany } from "@/services/company.service";
-import { peekNextNumber } from "@/services/sequence.service";
+import { peekNextDoc } from "@/services/sequence.service";
 import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { getSale } from "@/services/sale.service";
@@ -47,7 +47,7 @@ const previewTypeSchema = z.enum([
 
 export async function getPreviewContextAction(type) {
   return runAction(previewTypeSchema, type, async (t, user) => {
-    const [settings, company, branch, number] = await Promise.all([
+    const [settings, company, branch, next] = await Promise.all([
       getInvoicePrintSettings(),
       getCompany(),
       prisma.branch.findUnique({
@@ -66,13 +66,15 @@ export async function getPreviewContextAction(type) {
           postalCode: true,
         },
       }),
-      peekNextNumber(t),
+      // الرقم المتوقع في فرع المستخدم + رمز الفرع (DM-SI-5)
+      peekNextDoc(t, user.branch.id),
     ]);
     return {
       settings,
       company,
       branch,
-      number,
+      number: next.number,
+      docCode: next.code,
       user: { arFullname: user.arFullname, enFullname: user.enFullname },
     };
   });

@@ -80,7 +80,7 @@ export default function PurchaseDetails({
   // مرتجعات أو إشعارات على الفاتورة ← مقفولة (لا تعديل ولا حذف)
   const hasReturns =
     !isReturn &&
-    (purchase.returns?.length ?? 0) + (purchase.notes?.length ?? 0) > 0;
+    (purchase.returns?.length ?? 0) + (purchase.linkedNotes?.length ?? 0) > 0;
 
   // الحذف: فاتورة الشراء ← قائمة المشتريات، المرتجع ← فاتورته الأصلية
   const remove = async () => {
@@ -234,7 +234,7 @@ export default function PurchaseDetails({
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">
           {isReturn ? t("ReturnNo") : t("PurchaseNo")}{" "}
-          <bdi>{formatDocNo(purchase.type, purchase.number)}</bdi>{" "}
+          <bdi>{formatDocNo(purchase.type, purchase.number, purchase.docCode)}</bdi>{" "}
           {!isReturn && (
             <Tag color={PAYMENT_STATUS_COLOR[payStatus]}>
               {t(`paymentStatus.${payStatus}`)}
@@ -249,7 +249,7 @@ export default function PurchaseDetails({
           <PrintActions
             autoPrint={autoPrint}
             defaultPaper={"A4"}
-            fileName={formatDocNo(purchase.type, purchase.number)}
+            fileName={formatDocNo(purchase.type, purchase.number, purchase.docCode)}
             renderDoc={(paper) =>
               paper === "A4" ? (
                 <InvoiceA4
@@ -398,7 +398,7 @@ export default function PurchaseDetails({
             <div>
               <span>{t("OriginalInvoice")}</span>
               <Link href={`/invoices/purchases/${purchase.returnOf.id}`}>
-                {formatDocNo("purchase", purchase.returnOf.number)}
+                {formatDocNo("purchase", purchase.returnOf.number, purchase.returnOf.docCode)}
               </Link>
             </div>
           )}
@@ -477,7 +477,7 @@ export default function PurchaseDetails({
                   <div key={r.id} className="pur-totals">
                     <div>
                       <Link href={`/invoices/purchase-returns/${r.id}`}>
-                        {t("ReturnNo")} {formatDocNo("return", r.number)}
+                        {t("ReturnNo")} {formatDocNo("return", r.number, r.docCode)}
                       </Link>
                       <span>
                         <bdi>{formatDateTime(r.date)}</bdi> —{" "}
@@ -489,7 +489,7 @@ export default function PurchaseDetails({
               </div>
             )}
             {!isReturn && (
-              <LinkedNotes side="purchase" notes={purchase.notes} />
+              <LinkedNotes side="purchase" notes={purchase.linkedNotes} />
             )}
           </Card>
         </Col>

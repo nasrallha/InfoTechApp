@@ -391,11 +391,34 @@ export async function resetData({ keys, resetNumbers }, user) {
           (i) => i.sequences,
         );
         if (keysToReset.length) {
+          // المسلسل القديم (للشركة) + مسلسلات الفروع ("النوع@الفرع")
           await tx.documentSequence.deleteMany({
-            where: { key: { in: keysToReset } },
+            where: {
+              OR: [
+                { key: { in: keysToReset } },
+                ...keysToReset.map((k) => ({ key: { startsWith: `${k}@` } })),
+              ],
+            },
           });
         }
       }
+
+      // ---------- 11) رمز الفرع: يتفتح تاني لو الفرع مبقاش عليه ولا مستند مترقّم ----------
+      await tx.$executeRaw`
+        UPDATE branches b SET codeLocked = false
+        WHERE codeLocked = true
+          AND NOT EXISTS (SELECT 1 FROM sales s WHERE s.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM purchases p WHERE p.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM vouchers v WHERE v.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM quotations q WHERE q.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM stock_transfers x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM stock_adjustments x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM inventory_counts x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM shifts x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM bookings x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM warranty_claims x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM maintenance_contracts x WHERE x.branchId = b.id)
+          AND NOT EXISTS (SELECT 1 FROM laundry_wallets x WHERE x.branchId = b.id)`;
     },
     { maxWait: 15000, timeout: 300000 },
   );

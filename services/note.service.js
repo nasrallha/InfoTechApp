@@ -15,7 +15,6 @@ import {
 } from "@/lib/dates";
 import {
   docSign,
-  parseDocNo,
   purchaseDocNo,
   saleDocNo,
 } from "@/lib/doc-number";
@@ -29,7 +28,7 @@ import {
 import { productTax } from "@/lib/zatca-tax";
 import { getBaseCurrency } from "./currency.service";
 import { getBranchSaleContext } from "./sale-catalog.service";
-import { SEQUENCE_KEYS } from "./sequence.service";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { searchPurchaseProducts } from "./purchase.service";
 import {
   assertNotProductionLive,
@@ -85,15 +84,9 @@ const SIDE = {
 const branchScope = (user) =>
   !user || can(user, "allBranches.view") ? {} : { branchId: user.branch.id };
 
-async function nextNumber(tx, side, type) {
-  const key = SEQUENCE_KEYS[SIDE[side].seq[type]];
-  const seq = await tx.documentSequence.upsert({
-    where: { key },
-    create: { key, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
+// الرقم التالي في فرع الإشعار + رمز الفرع (DM-CN-5) - مفيش تكرار مهما كان عدد المستخدمين
+async function nextNumber(tx, side, type, branchId) {
+  return nextBranchNumber(tx, SIDE[side].seq[type], branchId);
 }
 
 // ------------------------------------------------------------
@@ -167,7 +160,7 @@ async function openShiftId(user) {
 const saleInvoiceSelect = {
   id: true,
   type: true,
-  number: true,
+  number: true, docCode: true,
   date: true,
   branchId: true,
   warehouseId: true,
@@ -202,7 +195,7 @@ const saleInvoiceSelect = {
 const purchaseInvoiceSelect = {
   id: true,
   type: true,
-  number: true,
+  number: true, docCode: true,
   date: true,
   branchId: true,
   warehouseId: true,
@@ -241,7 +234,7 @@ function toInvoice(side, inv, value) {
   return {
     id: inv.id,
     number: inv.number,
-    docNo: SIDE[side].docNo(inv.type, inv.number),
+    docNo: SIDE[side].docNo(inv.type, inv.number, inv.docCode),
     date: inv.date,
     partyId: isSale ? inv.customerId : inv.supplierId,
     partyArName: isSale ? inv.customerArName : inv.supplierArName,
@@ -287,9 +280,9 @@ export async function getNoteInvoice(side, id, user, { excludeNoteId } = {}) {
 // البحث عن الفاتورة برقمها (والمشتريات: برقم فاتورة المورد كمان)
 export async function findNoteInvoices(side, { value }, user) {
   const S = SIDE[side];
-  const number = parseDocNo(value);
+  const ref = await docNumberWhere(value, user);
   const or = [
-    ...(number ? [{ number }] : []),
+    ...(ref ? [ref] : []),
     ...(side === "purchase" ? [{ supplierInvoiceNo: value.trim() }] : []),
   ];
   if (!or.length) return [];
@@ -301,7 +294,7 @@ export async function findNoteInvoices(side, { value }, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       totalAmount: true,
       ...(isSale
@@ -315,7 +308,7 @@ export async function findNoteInvoices(side, { value }, user) {
   });
   return rows.map((r) => ({
     id: r.id,
-    docNo: S.docNo(r.type, r.number),
+    docNo: S.docNo(r.type, r.number, r.docCode),
     date: r.date,
     totalAmount: r.totalAmount,
     partyArName: isSale ? r.customerArName : r.supplierArName,
@@ -527,7 +520,7 @@ export function createNote(side, data, user) {
     SIDE[side].model,
     data.requestId,
     user,
-    { id: true, number: true, type: true },
+    { id: true, number: true, docCode: true, type: true },
     () => createNoteNow(side, data, user),
   );
 }
@@ -544,7 +537,7 @@ export async function updateNote(side, { id, ...data }, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       returnOfId: true,
       totalAmount: true,
@@ -809,9 +802,9 @@ async function createNoteNow(side, data, user, existing = null) {
           : "CashCustomerFullPay",
       );
 
-    const number = existing
-      ? existing.number
-      : await nextNumber(tx, side, data.type);
+    const { number, docCode } = existing
+      ? { number: existing.number, docCode: existing.docCode ?? null }
+      : await nextNumber(tx, side, data.type, user.branch.id);
     const itemRows = lines.map((l) => ({
       lineKind: l.lineKind,
       productId: l.productId,
@@ -860,6 +853,7 @@ async function createNoteNow(side, data, user, existing = null) {
     const common = {
       type: data.type,
       number,
+      docCode,
       ...(existing ? {} : { branchId: user.branch.id }),
       warehouseId,
       date,
@@ -888,11 +882,11 @@ async function createNoteNow(side, data, user, existing = null) {
         ? tx[model].update({
             where: { id: existing.id },
             data: payload,
-            select: { id: true, number: true, type: true },
+            select: { id: true, number: true, docCode: true, type: true },
           })
         : tx[model].create({
             data: payload,
-            select: { id: true, number: true, type: true },
+            select: { id: true, number: true, docCode: true, type: true },
           });
     const created = isSale
       ? await write("sale", {
@@ -981,7 +975,7 @@ export async function listNotes(
   const S = SIDE[side];
   const isSale = side === "sale";
   const query = q.trim();
-  const asNumber = parseDocNo(query);
+  const asNumber = await docNumberWhere(query, user, branchId);
   const scope = branchScope(user);
   const where = {
     type: type ?? { in: ["credit", "debit"] },
@@ -990,7 +984,7 @@ export async function listNotes(
     ...(query
       ? {
           OR: [
-            ...(asNumber ? [{ number: asNumber }] : []),
+            ...(asNumber ? [asNumber] : []),
             ...(isSale
               ? [
                   { customerArName: { contains: query } },
@@ -1016,7 +1010,7 @@ export async function listNotes(
       select: {
         id: true,
         type: true,
-        number: true,
+        number: true, docCode: true,
         date: true,
         ...(isSale
           ? { customerArName: true, customerEnName: true }
@@ -1032,7 +1026,7 @@ export async function listNotes(
         taxAmount: true,
         branch: { select: { arName: true, enName: true } },
         createdBy: { select: { arFullname: true, enFullname: true } },
-        returnOf: { select: { id: true, type: true, number: true } },
+        returnOf: { select: { id: true, type: true, number: true, docCode: true } },
         ...(isSale
           ? { zatcaDocument: { select: { status: true, kind: true } } }
           : {}),
@@ -1100,7 +1094,7 @@ export async function getNote(side, id, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       noteReason: true,
       noteReasonEn: true,
@@ -1137,7 +1131,7 @@ export async function getNote(side, id, user) {
         select: {
           id: true,
           type: true,
-          number: true,
+          number: true, docCode: true,
           date: true,
           ...(isSale ? {} : { supplierInvoiceNo: true }),
         },
@@ -1162,7 +1156,7 @@ export async function getNote(side, id, user) {
             tenderedAmount: true,
             changeAmount: true,
             customer: { select: { id: true, ...partyAddress } },
-            shift: { select: { id: true, number: true, status: true } },
+            shift: { select: { id: true, number: true, docCode: true, status: true } },
             zatcaDocument: {
               select: {
                 status: true,
@@ -1198,7 +1192,7 @@ export async function getNote(side, id, user) {
     // أسماء البنود المضافة من المستخدم في السطور
     kindNames: await customKindNames(doc.items),
     side,
-    docNo: S.docNo(doc.type, doc.number),
+    docNo: S.docNo(doc.type, doc.number, doc.docCode),
     supplierInvoiceDate: doc.supplierInvoiceDate
       ? dbDateToDay(doc.supplierInvoiceDate)
       : null,
@@ -1217,7 +1211,7 @@ export async function getNoteForEdit(side, id, user) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       date: true,
       returnOfId: true,
       billingRef: true,
@@ -1318,7 +1312,7 @@ export async function getNoteForEdit(side, id, user) {
   return {
     id: doc.id,
     type: doc.type,
-    docNo: S.docNo(doc.type, doc.number),
+    docNo: S.docNo(doc.type, doc.number, doc.docCode),
     locked,
     day: dayOf(doc.date),
     originalId: doc.returnOfId,

@@ -122,7 +122,7 @@ export default function VoucherDocument({
         <div>
           <span>{L("رقم السند", "Voucher No")}</span>
           <b>
-            <bdi>{formatDocNo(v.type, v.number)}</bdi>
+            <bdi>{formatDocNo(v.type, v.number, v.docCode)}</bdi>
           </b>
         </div>
         <div>
@@ -194,9 +194,9 @@ export default function VoucherDocument({
                 <td>
                   <bdi>
                     {a.sale
-                      ? saleDocNo(a.sale.type, a.sale.number)
+                      ? saleDocNo(a.sale.type, a.sale.number, a.sale.docCode)
                       : a.purchase
-                        ? purchaseDocNo(a.purchase.type, a.purchase.number)
+                        ? purchaseDocNo(a.purchase.type, a.purchase.number, a.purchase.docCode)
                         : L("الرصيد الافتتاحي", "Opening balance")}
                   </bdi>
                 </td>

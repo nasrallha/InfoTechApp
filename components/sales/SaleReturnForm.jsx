@@ -256,6 +256,7 @@ export default function SaleReturnForm({
       preview: true,
       type: "return",
       number: ctx.number,
+      docCode: ctx.docCode,
       date: date && date !== todayDay ? date : new Date().toISOString(),
       branch: ctx.branch,
       createdBy: ctx.user,
@@ -330,7 +331,7 @@ export default function SaleReturnForm({
       id: res.data.id,
       mode: mode,
       text: tS("ReturnSaved", {
-        number: saleDocNo("return", res.data.number),
+        number: saleDocNo("return", res.data.number, res.data.docCode),
       }),
       seq: Date.now(),
     });
@@ -512,7 +513,7 @@ export default function SaleReturnForm({
                   title: tS("SaleNo"),
                   key: "number",
                   width: 110,
-                  render: (_, r) => saleDocNo("sale", r.number),
+                  render: (_, r) => saleDocNo("sale", r.number, r.docCode),
                 },
                 {
                   title: tS("Customer"),
@@ -543,7 +544,7 @@ export default function SaleReturnForm({
               <div>
                 <span>{tS("SaleNo")}</span>
                 <Link href={`/invoices/sales/${purchase.id}`}>
-                  {saleDocNo("sale", purchase.number)}
+                  {saleDocNo("sale", purchase.number, purchase.docCode)}
                 </Link>
               </div>
               <div>

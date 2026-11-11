@@ -96,8 +96,8 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
     message.success(
       t("ShiftOpened", {
         number: res.data.dayNo
-          ? `${formatDocNo("shift", res.data.number)} (${res.data.dayNo})`
-          : formatDocNo("shift", res.data.number),
+          ? `${formatDocNo("shift", res.data.number, res.data.docCode)} (${res.data.dayNo})`
+          : formatDocNo("shift", res.data.number, res.data.docCode),
       }),
     );
     onOpened?.(res.data);
@@ -135,7 +135,11 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
               className="mb-3"
               title={t("PreviousLeft", {
                 amount: `${money(suggestion.leftCash)} ${symbol}`,
-                number: formatDocNo("shift", suggestion.previousNumber),
+                number: formatDocNo(
+                  "shift",
+                  suggestion.previousNumber,
+                  suggestion.previousDocCode,
+                ),
                 cashier: userName(suggestion.previousCashier, locale),
               })}
               description={
@@ -331,7 +335,7 @@ export function CloseShiftModal({ shiftId, open, onClose, onClosed }) {
           <LockOutlined /> {t("CloseShift")}{" "}
           {data && (
             <Tag>
-              {formatDocNo("shift", data.number)}
+              {formatDocNo("shift", data.number, data.docCode)}
               {data.dayNo ? ` (${data.dayNo})` : ""}
             </Tag>
           )}

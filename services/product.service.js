@@ -365,7 +365,7 @@ const SERIAL_FIELDS = [
   "warrantyMonths",
   "warrantyType",
 ];
-async function withoutDisabledFields(input) {
+export async function withoutDisabledFields(input) {
   // الخدمة مالهاش رصيد افتتاحي ولا أرقام تسلسلية
   const data = input.isService
     ? { ...input, startStock: 0, serialCount: 0 }
@@ -420,7 +420,7 @@ export async function findOrCreate(model, arName, enName) {
 
 // الخدمة: الوحدة دايماً "خدمة"، والقسم "خدمات" لو ما اختارش، ومالهاش
 // وحدات إضافية ولا تكلفة ولا رصيد ولا أرقام تسلسلية
-async function serviceDefaults(data, rawUnits) {
+export async function serviceDefaults(data, rawUnits) {
   if (!data.isService) return { data, units: rawUnits };
   const [baseUnitId, categoryId] = await Promise.all([
     findOrCreate("unit", "خدمة", "Service"),

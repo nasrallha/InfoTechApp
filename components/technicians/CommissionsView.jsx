@@ -97,7 +97,7 @@ export default function CommissionsView({ technicians = [] }) {
       ],
       rows: r.lines.map((l) => ({
         key: l.id,
-        inv: saleDocNo(l.sale.type, l.sale.number),
+        inv: saleDocNo(l.sale.type, l.sale.number, l.sale.docCode),
         date: formatDate(l.sale.date),
         item: nm(l.name),
         customer:
@@ -200,7 +200,7 @@ export default function CommissionsView({ technicians = [] }) {
                     <Link
                       href={`/invoices/${l.sale.type === "return" ? "sales-returns" : "sales"}/${l.sale.id}`}
                     >
-                      <bdi>{saleDocNo(l.sale.type, l.sale.number)}</bdi>
+                      <bdi>{saleDocNo(l.sale.type, l.sale.number, l.sale.docCode)}</bdi>
                     </Link>
                   ),
                 },

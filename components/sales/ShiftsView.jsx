@@ -72,7 +72,7 @@ export function ShiftsList({ data, status, day, dayNo, canPos }) {
       render: (_, s) => (
         <>
           <Link href={`/sales/shifts/${s.id}`}>
-            <b>{formatDocNo("shift", s.number)}</b>
+            <b>{formatDocNo("shift", s.number, s.docCode)}</b>
           </Link>
           {s.dayNo && (
             <div style={{ fontSize: 12, color: C.muted }}>
@@ -224,7 +224,7 @@ export function ShiftDetails({ shift, company, printSettings, autoPrint }) {
     <div style={{ maxWidth: 860 }}>
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">
-          {t("Shift")} <bdi>{formatDocNo("shift", shift.number)}</bdi>{" "}
+          {t("Shift")} <bdi>{formatDocNo("shift", shift.number, shift.docCode)}</bdi>{" "}
           {shift.dayNo && (
             <Tag color="blue">
               {t("DayShift", {
@@ -244,7 +244,7 @@ export function ShiftDetails({ shift, company, printSettings, autoPrint }) {
             <PrintActions
               autoPrint={autoPrint}
               defaultPaper={printSettings.paperSize}
-              fileName={formatDocNo("shift", shift.number)}
+              fileName={formatDocNo("shift", shift.number, shift.docCode)}
               renderDoc={(paper) => (
                 <ShiftPrint
                   shift={shift}

@@ -1,10 +1,12 @@
 import "server-only";
+import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
 import { dayOf, dayToDateTime, today } from "@/lib/dates";
+import { formatDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
   isNegativeStockAllowed,
@@ -25,14 +27,10 @@ const round = (v, d) =>
 export const TR_PREFIX = "TR";
 export const IC_PREFIX = "IC";
 
-async function nextNumber(tx, key) {
-  const seq = await tx.documentSequence.upsert({
-    where: { key },
-    create: { key, last: 1 },
-    update: { last: { increment: 1 } },
-    select: { last: true },
-  });
-  return seq.last;
+// الرقم التالي في فرع المستند + رمز الفرع (DM-TR-5) - مفيش تكرار
+// key: transfer / count
+async function nextNumber(tx, key, branchId) {
+  return nextBranchNumber(tx, key, branchId);
 }
 
 // ------------------------------------------------------------
@@ -130,10 +128,16 @@ export async function createTransfer(data, user) {
   const date = dayToDateTime(day);
 
   return runTx(async (tx) => {
-    const number = await nextNumber(tx, "transfer");
+    const { number, docCode } = await nextNumber(
+      tx,
+      "transfer",
+      user.branch.id,
+    );
     const created = await tx.stockTransfer.create({
       data: {
         number,
+        docCode,
+        branchId: user.branch.id,
         status: "sent",
         fromWarehouseId: data.fromWarehouseId,
         toWarehouseId: data.toWarehouseId,
@@ -154,7 +158,7 @@ export async function createTransfer(data, user) {
           })),
         },
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
     await applyMovements(
       tx,
@@ -166,7 +170,7 @@ export async function createTransfer(data, user) {
         type: "transfer_out",
         refType: "transfer",
         refId: created.id,
-        refNo: `${TR_PREFIX}-${number}`,
+        refNo: formatDocNo("transfer", number, docCode),
         date,
       })),
       { allowNegative },
@@ -182,7 +186,7 @@ export async function receiveTransfer({ id, items }, user) {
     where: { id },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       toWarehouseId: true,
       items: {
@@ -236,14 +240,14 @@ export async function receiveTransfer({ id, items }, user) {
         type: "transfer_in",
         refType: "transfer",
         refId: id,
-        refNo: `${TR_PREFIX}-${transfer.number}`,
+        refNo: formatDocNo("transfer", transfer.number, transfer.docCode),
         date,
         // الأصناف المتتبعة: نفس دفعات الإرسال بتاريخها
         batchFrom: { refType: "transfer", refId: id },
       })),
       { allowNegative: true },
     );
-    return { id, number: transfer.number };
+    return { id, number: transfer.number, docCode: transfer.docCode };
   }, TX_OPTIONS);
 }
 
@@ -255,7 +259,7 @@ export async function receiveTransfer({ id, items }, user) {
 export async function updateTransfer({ id, ...data }, user) {
   const current = await prisma.stockTransfer.findUnique({
     where: { id },
-    select: { id: true, number: true, status: true, fromWarehouseId: true },
+    select: { id: true, number: true, docCode: true, status: true, fromWarehouseId: true },
   });
   if (!current) throw new AppError("TransferNotFound");
   if (current.status !== "sent") throw new AppError("TransferNotPending");
@@ -329,12 +333,12 @@ export async function updateTransfer({ id, ...data }, user) {
         type: "transfer_out",
         refType: "transfer",
         refId: id,
-        refNo: `${TR_PREFIX}-${current.number}`,
+        refNo: formatDocNo("transfer", current.number, current.docCode),
         date,
       })),
       { allowNegative },
     );
-    return { id, number: current.number };
+    return { id, number: current.number, docCode: current.docCode };
   }, TX_OPTIONS);
 }
 
@@ -344,7 +348,7 @@ export async function getTransferForEdit(id, user) {
     where: { id },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       date: true,
       notes: true,
@@ -419,7 +423,8 @@ export async function listTransfers({
   pageSize = 20,
 }) {
   const ids = await userWarehouseIds(user);
-  const number = /^\D*(\d+)$/.exec(q.trim())?.[1];
+  // رقم التحويل: في فرع الرمز (DM-TR-5) أو فرع المستخدم
+  const ref = q.trim() ? await docNumberWhere(q, user) : null;
   const where = {
     ...(ids === null
       ? {}
@@ -430,7 +435,7 @@ export async function listTransfers({
           ],
         }),
     ...(status ? { status } : {}),
-    ...(number ? { number: Number(number) } : {}),
+    ...(ref ? { number: ref.number, AND: [{ branchId: ref.branchId }] } : {}),
   };
   const [total, rows] = await Promise.all([
     prisma.stockTransfer.count({ where }),
@@ -441,7 +446,7 @@ export async function listTransfers({
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         status: true,
         date: true,
         receivedAt: true,
@@ -470,7 +475,7 @@ export async function getTransfer(id, user) {
     },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       date: true,
       receivedAt: true,
@@ -576,17 +581,19 @@ export async function createCount(data, user) {
   await assertCountWarehouse(data.warehouseId, user);
   await assertCountQty(data.items);
   return runTx(async (tx) => {
-    const number = await nextNumber(tx, "count");
+    const { number, docCode } = await nextNumber(tx, "count", user.branch.id);
     return tx.inventoryCount.create({
       data: {
         number,
+        docCode,
+        branchId: user.branch.id,
         warehouseId: data.warehouseId,
         date: new Date(),
         notes: data.notes,
         createdById: user.id,
         items: { create: countItemsData(data.items) },
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, docCode: true },
     });
   }, TX_OPTIONS);
 }
@@ -607,7 +614,7 @@ export async function updateCount({ id, ...data }, user) {
       notes: data.notes,
       items: { deleteMany: {}, create: countItemsData(data.items) },
     },
-    select: { id: true, number: true },
+    select: { id: true, number: true, docCode: true },
   });
 }
 
@@ -617,7 +624,7 @@ export async function postCount(id, user) {
     where: { id },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       warehouseId: true,
       items: {
@@ -668,12 +675,12 @@ export async function postCount(id, user) {
         type: "count",
         refType: "count",
         refId: id,
-        refNo: `${IC_PREFIX}-${count.number}`,
+        refNo: formatDocNo("count", count.number, count.docCode),
         date,
       });
     }
     await applyMovements(tx, movements, { allowNegative: true });
-    return { id, number: count.number };
+    return { id, number: count.number, docCode: count.docCode };
   }, TX_OPTIONS);
 }
 
@@ -702,7 +709,7 @@ export async function listCounts({ user, page = 1, pageSize = 20 }) {
       take: pageSize,
       select: {
         id: true,
-        number: true,
+        number: true, docCode: true,
         status: true,
         date: true,
         postedAt: true,
@@ -720,7 +727,7 @@ export async function getCount(id, user) {
     where: { id, ...(ids === null ? {} : { warehouseId: { in: ids } }) },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       status: true,
       date: true,
       postedAt: true,

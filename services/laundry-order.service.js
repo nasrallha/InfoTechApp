@@ -71,7 +71,7 @@ const orderSel = {
   cancelReason: true,
   createdAt: true,
   createdBy: { select: { arFullname: true, enFullname: true } },
-  sale: { select: { id: true, type: true, number: true } },
+  sale: { select: { id: true, type: true, number: true, docCode: true } },
 };
 
 const itemSel = {

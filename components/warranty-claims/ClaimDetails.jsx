@@ -319,7 +319,7 @@ export default function ClaimDetails({
                         href={`/invoices/sales/${c.serial.saleItem.sale.id}`}
                       >
                         <bdi>
-                          {saleDocNo("sale", c.serial.saleItem.sale.number)}
+                          {saleDocNo("sale", c.serial.saleItem.sale.number, c.serial.saleItem.sale.docCode)}
                         </bdi>
                       </Link>
                     ),
@@ -671,7 +671,7 @@ function ClaimItems({ claim: c, editable }) {
         c.sale ? (
           <Link href={`/invoices/sales/${c.sale.id}`}>
             <Tag color="gold">
-              {t("Invoice")} <bdi>{saleDocNo("sale", c.sale.number)}</bdi> —{" "}
+              {t("Invoice")} <bdi>{saleDocNo("sale", c.sale.number, c.sale.docCode)}</bdi> —{" "}
               {money(c.sale.totalAmount)}
             </Tag>
           </Link>

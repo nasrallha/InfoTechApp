@@ -215,7 +215,7 @@ export default function ClaimsListView() {
             title: t("Invoice"),
             width: 90,
             render: (_, r) =>
-              r.sale ? <bdi>{saleDocNo("sale", r.sale.number)}</bdi> : "—",
+              r.sale ? <bdi>{saleDocNo("sale", r.sale.number, r.sale.docCode)}</bdi> : "—",
           },
         ]}
       />

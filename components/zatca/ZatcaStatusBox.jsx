@@ -42,7 +42,7 @@ export default function ZatcaStatusBox({ sale, canSend, canExport, renderA4 }) {
   const tAlerts = useTranslations("Alerts");
   const doc = sale.zatcaDocument;
   const status = doc?.status ?? "unsigned";
-  const docNo = saleDocNo(sale.type, sale.number);
+  const docNo = saleDocNo(sale.type, sale.number, sale.docCode);
   const searchParams = useSearchParams();
   const autoRan = useRef(false);
 

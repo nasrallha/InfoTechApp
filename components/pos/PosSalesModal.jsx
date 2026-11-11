@@ -137,7 +137,7 @@ export default function PosSalesModal({
                   <div key={r.id} className="pos-line">
                     <div>
                       <div className="pos-line__name">
-                        <bdi>{saleDocNo("sale", r.number)}</bdi> ·{" "}
+                        <bdi>{saleDocNo("sale", r.number, r.docCode)}</bdi> ·{" "}
                         {nm(
                           r.customerArName ?? r.customer?.arName,
                           r.customerEnName ?? r.customer?.enName,

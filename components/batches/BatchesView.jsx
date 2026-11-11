@@ -16,6 +16,8 @@ import {
 } from "antd";
 import { DeleteOutlined, PrinterOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
+import DayPicker from "@/components/common/DayPicker";
+import ExportButtons from "@/components/reports/ExportButtons";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { formatDay } from "@/lib/dates";
 import { qtyText } from "@/lib/unit-qty";
@@ -40,7 +42,9 @@ const STATUS_COLOR = {
 // تقرير الصلاحية والدفعات: كل دفعة فيها رصيد، وحالتها
 // - قرب الانتهاء: خلال أسبوع / شهر / أيام تكتبها (أو أيام تنبيه الصنف)
 // - المنتهي
-// الفلاتر في الرابط (?warehouse=&status=&days=&q=)
+// - تاريخ الانتهاء: من / إلى (قبل تاريخ = "إلى" بس، وفي يوم معيّن = نفس اليوم في الاتنين)
+// الفلاتر في الرابط (?warehouse=&status=&days=&q=&from=&to=)
+// تصدير Excel / PDF / طباعة بنفس الفلاتر
 // ============================================================
 export default function BatchesView({
   data,
@@ -90,9 +94,21 @@ export default function BatchesView({
     if (f.status && f.status !== "all") query.set("status", f.status);
     if (f.days) query.set("days", String(f.days));
     if (f.q) query.set("q", f.q);
+    if (f.from) query.set("from", f.from);
+    if (f.to) query.set("to", f.to);
     const qs = query.toString();
     router.push(`${pathname}${qs ? `?${qs}` : ""}`);
   };
+
+  // نص المتبقي (للجدول والتصدير)
+  const leftText = (r) =>
+    r.daysLeft == null
+      ? t("status.none")
+      : r.daysLeft < 0
+        ? t("ExpiredSince", { days: -r.daysLeft })
+        : r.daysLeft === 0
+          ? t("ExpiresToday")
+          : t("DaysLeftN", { days: r.daysLeft });
 
   const columns = [
     {
@@ -146,15 +162,7 @@ export default function BatchesView({
       width: 120,
       align: "center",
       render: (_, r) => (
-        <Tag color={STATUS_COLOR[r.status]}>
-          {r.daysLeft == null
-            ? t("status.none")
-            : r.daysLeft < 0
-              ? t("ExpiredSince", { days: -r.daysLeft })
-              : r.daysLeft === 0
-                ? t("ExpiresToday")
-                : t("DaysLeftN", { days: r.daysLeft })}
-        </Tag>
+        <Tag color={STATUS_COLOR[r.status]}>{leftText(r)}</Tag>
       ),
     },
     {
@@ -209,21 +217,72 @@ export default function BatchesView({
   ];
   const TABLE_WIDTH = columns.reduce((s, c) => s + c.width, 0);
 
+  // التصدير: الصفوف المعروضة بنفس الفلاتر، والفلاتر مكتوبة في رأس التقرير
+  const buildExport = () => {
+    const wh = warehouses.find((w) => w.id === filters.warehouseId);
+    const day = (d) => (d ? formatDay(d) : "...");
+    return {
+      title: t("Title"),
+      fileName: "expiry-batches",
+      info: [
+        [t("StatusLabel"), t(`status.${filters.status}`)],
+        ...(filters.status === "near" && filters.days
+          ? [[t("NearWithin"), t("DaysN", { days: filters.days })]]
+          : []),
+        ...(filters.from || filters.to
+          ? [[t("ExpPeriod"), `${day(filters.from)} - ${day(filters.to)}`]]
+          : []),
+        [t("Warehouse"), wh ? nameOf(wh) : t("AllWarehouses")],
+        ...(filters.q ? [[t("SearchLabel"), filters.q]] : []),
+        [t("BatchesCount"), String(data.rows.length)],
+      ],
+      columns: [
+        { title: t("Code"), key: "code", type: "text", width: 14 },
+        { title: t("Item"), key: "item", type: "text", width: 30 },
+        { title: t("BatchNo"), key: "batch", type: "text", width: 14 },
+        { title: t("Warehouse"), key: "wh", type: "text", width: 16 },
+        { title: t("MfgDate"), key: "mfg", type: "text", width: 12 },
+        { title: t("ExpDate"), key: "exp", type: "text", width: 12 },
+        { title: t("DaysLeft"), key: "left", type: "text", width: 16 },
+        { title: t("Qty"), key: "qty", type: "qty" },
+        { title: t("Unit"), key: "unit", type: "text", width: 10 },
+        { title: t("Value"), key: "value", type: "money" },
+      ],
+      rows: data.rows.map((r) => ({
+        key: r.id,
+        code: r.product.code,
+        item: nameOf(r.product),
+        batch: r.batchNo === "-" ? t("NoBatch") : r.batchNo,
+        wh: nameOf(r.warehouse),
+        mfg: r.mfgDate ? formatDay(r.mfgDate) : "",
+        exp: r.expDate ? formatDay(r.expDate) : "",
+        left: leftText(r),
+        qty: r.qty,
+        unit: nameOf(r.product.unit),
+        value: r.value,
+      })),
+      totals: { value: data.rows.reduce((s, r) => s + r.value, 0) },
+    };
+  };
+
   return (
     <div>
       <PageHeader
         title={t("Title")}
         extra={
-          canDispose && expiredRows.length > 0 ? (
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              loading={busy}
-              onClick={() => dispose(expiredRows)}
-            >
-              {t("DisposeAllExpired", { count: expiredRows.length })}
-            </Button>
-          ) : null
+          <Space wrap>
+            <ExportButtons build={buildExport} disabled={!data.rows.length} />
+            {canDispose && expiredRows.length > 0 && (
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                loading={busy}
+                onClick={() => dispose(expiredRows)}
+              >
+                {t("DisposeAllExpired", { count: expiredRows.length })}
+              </Button>
+            )}
+          </Space>
         }
       />
 
@@ -299,6 +358,25 @@ export default function BatchesView({
             <Button onClick={() => go({ status: "near", days: days || null })}>
               {t("Days")}
             </Button>
+          </Space.Compact>
+          {/* تاريخ الانتهاء: من / إلى */}
+          <Space.Compact>
+            <DayPicker
+              allowClear
+              placeholder={t("ExpFrom")}
+              value={filters.from}
+              max={filters.to ?? undefined}
+              onChange={(v) => go({ from: v ?? null })}
+              style={{ width: 150 }}
+            />
+            <DayPicker
+              allowClear
+              placeholder={t("ExpTo")}
+              value={filters.to}
+              min={filters.from ?? undefined}
+              onChange={(v) => go({ to: v ?? null })}
+              style={{ width: 150 }}
+            />
           </Space.Compact>
           {warehouses.length > 1 && (
             <Select

@@ -454,6 +454,7 @@ export default function SaleForm({
       isExport: exportMode,
       exportKind: exportMode ? exportKind : null,
       number: isEdit ? source.number : ctx.number,
+      docCode: isEdit ? source.docCode : ctx.docCode,
       date:
         header.date && header.date !== todayDay
           ? header.date
@@ -657,7 +658,7 @@ export default function SaleForm({
       : Boolean(sale);
     if (isQuotation) {
       const text = t("QuotationSaved", {
-        number: formatDocNo("quotation", res.data.number),
+        number: formatDocNo("quotation", res.data.number, res.data.docCode),
       });
       const path = `/invoices/quotations/${res.data.id}`;
       if (editing) {
@@ -674,7 +675,7 @@ export default function SaleForm({
       clearForm();
     } else {
       const text = t(sale ? "SaleUpdated" : "SaleSaved", {
-        number: saleDocNo("sale", res.data.number),
+        number: saleDocNo("sale", res.data.number, res.data.docCode),
       });
       showZatcaResult(res.data.zatca, { t: tZ });
       const path = `/invoices/sales/${res.data.id}`;
@@ -928,16 +929,16 @@ export default function SaleForm({
 
   const title = isQuotation
     ? isEdit
-      ? `${t("EditQuotation")} ${formatDocNo("quotation", quotation.number)}`
+      ? `${t("EditQuotation")} ${formatDocNo("quotation", quotation.number, quotation.docCode)}`
       : t("NewQuotation")
     : sale
-      ? `${t("EditSale")} ${saleDocNo("sale", sale.number)}${exportMode ? ` — ${t("Export")}` : ""}`
+      ? `${t("EditSale")} ${saleDocNo("sale", sale.number, sale.docCode)}${exportMode ? ` — ${t("Export")}` : ""}`
       : converting
-        ? `${t("NewSale")} — ${t("FromQuotation")} ${formatDocNo("quotation", quotation.number)}`
+        ? `${t("NewSale")} — ${t("FromQuotation")} ${formatDocNo("quotation", quotation.number, quotation.docCode)}`
         : claim && !sale
-          ? `${t("NewSale")} — ${t("FromClaim")} ${formatDocNo("claim", claim.number)}`
+          ? `${t("NewSale")} — ${t("FromClaim")} ${formatDocNo("claim", claim.number, claim.docCode)}`
           : booking
-            ? `${t("NewSale")} — ${formatDocNo("booking", booking.number)}`
+            ? `${t("NewSale")} — ${formatDocNo("booking", booking.number, booking.docCode)}`
             : exportMode
               ? t("NewExportSale")
               : t("NewSale");
@@ -988,7 +989,7 @@ export default function SaleForm({
           className="mb-3"
           type="info"
           showIcon
-          title={t("OnShift", { number: formatDocNo("shift", shift.number) })}
+          title={t("OnShift", { number: formatDocNo("shift", shift.number, shift.docCode) })}
         />
       )}
 

@@ -121,7 +121,7 @@ export default function WarrantyReportView({
       product: `${nm(r.product)} (${r.product.code})`,
       customer: nm(r.customer) || t("CashCustomer"),
       phone: r.customer?.phone ?? "",
-      invoice: r.sale ? saleDocNo("sale", r.sale.number) : "",
+      invoice: r.sale ? saleDocNo("sale", r.sale.number, r.sale.docCode) : "",
       soldAt: r.soldAt ? formatDate(r.soldAt) : "",
       warranty: warrantyText(r),
       endsAt: r.warrantyEndsAt ?? "",
@@ -261,7 +261,7 @@ export default function WarrantyReportView({
             render: (_, r) =>
               r.sale ? (
                 <Link href={`/invoices/sales/${r.sale.id}`}>
-                  <bdi>{saleDocNo("sale", r.sale.number)}</bdi>
+                  <bdi>{saleDocNo("sale", r.sale.number, r.sale.docCode)}</bdi>
                 </Link>
               ) : (
                 "—"

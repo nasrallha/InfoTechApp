@@ -50,7 +50,7 @@ export default function PreviewBeforeSave({
       c = res.data;
       setCtx(c);
     }
-    const built = buildDoc({ ...c, number: c.number });
+    const built = buildDoc({ ...c, number: c.number, docCode: c.docCode });
     if (!built) return message.warning(tAlerts("NoItems"));
     setDoc(built);
   };

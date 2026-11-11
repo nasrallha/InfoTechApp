@@ -94,7 +94,7 @@ export default function ContractDetails({ contract: c, technicians = [] }) {
         title={
           <Space wrap>
             <span>
-              {t("Contract")} <bdi>{formatDocNo("contract", c.number)}</bdi>
+              {t("Contract")} <bdi>{formatDocNo("contract", c.number, c.docCode)}</bdi>
             </span>
             <Tag color={CONTRACT_COLORS[c.status]}>
               {t(`Status_${c.status}`)}

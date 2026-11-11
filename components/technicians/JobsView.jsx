@@ -260,11 +260,11 @@ export default function JobsView({ technicians = [] }) {
             render: (_, r) =>
               r.ref.kind === "sale" ? (
                 <Link href={`/invoices/sales/${r.ref.id}`}>
-                  <bdi>{saleDocNo("sale", r.ref.number)}</bdi>
+                  <bdi>{saleDocNo("sale", r.ref.number, r.ref.docCode)}</bdi>
                 </Link>
               ) : (
                 <Link href={`/maintenance-contracts/${r.ref.id}`}>
-                  <bdi>{formatDocNo("contract", r.ref.number)}</bdi>
+                  <bdi>{formatDocNo("contract", r.ref.number, r.ref.docCode)}</bdi>
                 </Link>
               ),
           },

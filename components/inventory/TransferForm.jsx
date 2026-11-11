@@ -36,6 +36,7 @@ import ProductBrowser from "@/components/purchases/ProductBrowser";
 import "@/components/purchases/purchases.css";
 import "@/components/common/table.css";
 import { C } from "@/lib/theme";
+import DocBranchSelect from "@/components/common/DocBranchSelect";
 
 let lineKey = 0;
 
@@ -189,7 +190,7 @@ export default function TransferForm({
     }
     message.success(
       t(isEdit ? "TransferUpdated" : "TransferSent", {
-        number: formatDocNo("transfer", res.data.number),
+        number: formatDocNo("transfer", res.data.number, res.data.docCode),
       }),
     );
     router.push(`/inventory/transfers/${res.data.id}`);
@@ -317,12 +318,14 @@ export default function TransferForm({
           {isEdit ? (
             <>
               {t("EditTransfer")}{" "}
-              <bdi>{formatDocNo("transfer", transfer.number)}</bdi>
+              <bdi>{formatDocNo("transfer", transfer.number, transfer.docCode)}</bdi>
             </>
           ) : (
             t("NewTransfer")
           )}
         </h1>
+        {/* مدير النظام: فرع المستند (الجديد بس) */}
+        {!isEdit && <DocBranchSelect />}
         <Space>
           <Button size="large" icon={<UndoOutlined />} onClick={reset}>
             {t("Reset")}

@@ -154,7 +154,7 @@ export default function QuotationDetails({
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">
           {t("QuotationNo")}{" "}
-          <bdi>{formatDocNo("quotation", quotation.number)}</bdi>{" "}
+          <bdi>{formatDocNo("quotation", quotation.number, quotation.docCode)}</bdi>{" "}
           {quotation.status === "converted" ? (
             <Tag color="green">{t("Converted")}</Tag>
           ) : expired ? (
@@ -167,7 +167,7 @@ export default function QuotationDetails({
           <PrintActions
             autoPrint={autoPrint}
             defaultPaper={"A4"}
-            fileName={formatDocNo("quotation", quotation.number)}
+            fileName={formatDocNo("quotation", quotation.number, quotation.docCode)}
             renderDoc={(paper) =>
               paper === "A4" ? (
                 <InvoiceA4
@@ -269,7 +269,7 @@ export default function QuotationDetails({
             <div>
               <span>{t("ConvertedTo")}</span>
               <Link href={`/invoices/sales/${quotation.sale.id}`}>
-                {saleDocNo("sale", quotation.sale.number)}
+                {saleDocNo("sale", quotation.sale.number, quotation.sale.docCode)}
               </Link>
             </div>
           )}

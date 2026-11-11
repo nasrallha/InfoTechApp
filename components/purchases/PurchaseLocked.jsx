@@ -12,7 +12,7 @@ export default function PurchaseLocked({ purchase }) {
     <Result
       status="warning"
       title={t("CannotEditTitle", {
-        number: formatDocNo("purchase", purchase.number),
+        number: formatDocNo("purchase", purchase.number, purchase.docCode),
       })}
       subTitle={t("CannotEditHasReturns")}
       extra={

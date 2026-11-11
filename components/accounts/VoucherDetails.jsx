@@ -53,7 +53,7 @@ export default function VoucherDetails({
   const tAlerts = useTranslations("Alerts");
   const { amount: money, symbol } = useCurrency();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
-  const docNo = formatDocNo(v.type, v.number);
+  const docNo = formatDocNo(v.type, v.number, v.docCode);
   const shiftClosed = v.shift && v.shift.status !== "open";
   // التعديل ممنوع لو الوردية اتقفلت أو السند مربوط باشتراك مغسلة
   const editLocked = shiftClosed || Boolean(v.laundryWallet);
@@ -132,7 +132,7 @@ export default function VoucherDetails({
       label: t("Shift"),
       children: (
         <Link href={`/sales/shifts/${v.shift.id}`}>
-          {formatDocNo("shift", v.shift.number)}
+          {formatDocNo("shift", v.shift.number, v.shift.docCode)}
         </Link>
       ),
     },
@@ -246,13 +246,13 @@ export default function VoucherDetails({
                 render: (_, a) =>
                   a.sale ? (
                     <Link href={saleDocHref(a.sale.type, a.sale.id)}>
-                      {saleDocNo(a.sale.type, a.sale.number)}
+                      {saleDocNo(a.sale.type, a.sale.number, a.sale.docCode)}
                     </Link>
                   ) : a.purchase ? (
                     <Link
                       href={purchaseDocHref(a.purchase.type, a.purchase.id)}
                     >
-                      {purchaseDocNo(a.purchase.type, a.purchase.number)}
+                      {purchaseDocNo(a.purchase.type, a.purchase.number, a.purchase.docCode)}
                     </Link>
                   ) : (
                     t("OpeningBalance")

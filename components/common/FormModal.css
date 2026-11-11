@@ -49,3 +49,18 @@
   border-color: var(--c-primary);
   background: var(--c-primary-soft);
 }
+
+/* فورم مضغوط جوه النافذة (العملاء/الموردين/المستخدمين): مسافات أقل بين الحقول */
+.compact-modal-form .ant-form-item {
+  margin-bottom: 10px;
+}
+.compact-modal-form .ant-form-item-label {
+  padding-bottom: 2px !important;
+}
+.compact-modal-form .ant-divider {
+  margin: 2px 0 8px !important;
+}
+.compact-modal-form .ant-alert {
+  margin-bottom: 8px !important;
+  padding-block: 4px;
+}

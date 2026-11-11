@@ -92,6 +92,7 @@ export default function ReportFilters({
       category: next.categoryId,
       source: next.source,
       q: next.q,
+      item: next.item,
     };
     for (const [k, v] of Object.entries(map)) if (v) q.set(k, String(v));
     router.push(`${pathname}?${q.toString()}`);
@@ -241,6 +242,17 @@ export default function ReportFilters({
               { value: "pos", label: t("SourcePos") },
               { value: "invoice", label: t("SourceInvoice") },
             ]}
+          />
+        )}
+        {/* الصنف: الكود أو الباركود أو جزء من الاسم (Enter = عرض) */}
+        {fields.includes("item") && (
+          <Input
+            allowClear
+            style={{ width: 200 }}
+            placeholder={t("ItemFilter")}
+            value={f.item ?? ""}
+            onChange={(e) => set("item", e.target.value)}
+            onPressEnter={() => go(f)}
           />
         )}
         {fields.includes("q") && (

@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useCan } from "@/components/auth/AuthProvider";
 import PageHeader from "@/components/common/PageHeader";
 import { PartiesExport } from "@/components/reports/ListExports";
+import ImportButton from "@/components/import/ImportButton";
 import FormModal from "@/components/common/FormModal";
 import PartyForm from "./PartyForm";
 import PartyTable from "./PartyTable";
@@ -36,11 +37,14 @@ export default function PartiesView({
     <>
       <PageHeader
         extra={
-          <PartiesExport
-            kind={kind}
-            parties={parties}
-            selectedIds={selectedIds}
-          />
+          <div className="flex flex-wrap gap-2">
+            <ImportButton kind={kind} />
+            <PartiesExport
+              kind={kind}
+              parties={parties}
+              selectedIds={selectedIds}
+            />
+          </div>
         }
         title={tSidebar(config.title)}
         buttonTitle={can(`${config.permission}.create`) ? tButtons(config.addButton) : null}
@@ -50,7 +54,7 @@ export default function PartiesView({
       <FormModal
         open={addModalOpen}
         onCancel={() => setAddModalOpen(false)}
-        width={900}
+        width={1000}
         title={
           <>
             <Icon style={{ fontSize: 22, marginInlineEnd: 6 }} />

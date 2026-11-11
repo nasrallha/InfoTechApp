@@ -168,6 +168,7 @@ const PartyForm = ({
       id={formId}
       layout="vertical"
       autoComplete="off"
+      className="compact-modal-form"
       onFinish={onFinish}
       initialValues={{
         code: nextCode,
@@ -212,10 +213,10 @@ const PartyForm = ({
           </Form.Item>
         </Col>
 
-        <Col xs={24} md={8}>
+        <Col xs={24} md={config.b2b ? 6 : 8}>
           <PhoneField label={tForm("Phone")} />
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={config.b2b ? 6 : 8}>
           <Form.Item
             name="taxNo"
             label={tForm("TaxNo")}
@@ -241,76 +242,77 @@ const PartyForm = ({
             </Form.Item>
           </Col>
         )}
+        {/* الدولة ومعرّف العميل (العملاء بس) في نفس الصف */}
+        {config.b2b && (
+          <>
+            <Col xs={24} md={4}>
+              <Form.Item
+                name="countryCode"
+                label={tForm("Country")}
+                tooltip={tForm("CountryHint")}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  onChange={(v) =>
+                    v !== "SA" && form.setFieldValue("taxNo", "")
+                  }
+                  options={COUNTRIES.map(([code, ar, en]) => ({
+                    value: code,
+                    label: `${locale === "ar" ? ar : en} (${code})`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={12} md={4}>
+              <Form.Item
+                name="idScheme"
+                label={tForm("IdScheme")}
+                tooltip={tForm("IdSchemeHint")}
+              >
+                <Select
+                  allowClear
+                  options={BUYER_ID_SCHEMES.map((code) => ({
+                    value: code,
+                    label: `${tForm(`idSchemes.${code}`)} (${code})`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={12} md={4}>
+              <Form.Item
+                name="idNumber"
+                label={
+                  idScheme
+                    ? tForm("IdNumberOf", {
+                        type: tForm(`idSchemes.${idScheme}`),
+                      })
+                    : tForm("IdNumber")
+                }
+                rules={
+                  idScheme
+                    ? [
+                        {
+                          required: true,
+                          whitespace: true,
+                          message: tAlerts("RequiredField"),
+                        },
+                        ...maxText(30),
+                      ]
+                    : maxText(30)
+                }
+              >
+                <Input
+                  maxLength={30}
+                  disabled={!idScheme}
+                  dir="ltr"
+                  placeholder={ID_EXAMPLES[idScheme] ?? ""}
+                />
+              </Form.Item>
+            </Col>
+          </>
+        )}
       </Row>
-
-      {/* الدولة ومعرّف العميل (العملاء بس) */}
-      {config.b2b && (
-        <Row gutter={[16, 0]}>
-          <Col xs={24} md={8}>
-            <Form.Item
-              name="countryCode"
-              label={tForm("Country")}
-              tooltip={tForm("CountryHint")}
-            >
-              <Select
-                showSearch
-                optionFilterProp="label"
-                onChange={(v) => v !== "SA" && form.setFieldValue("taxNo", "")}
-                options={COUNTRIES.map(([code, ar, en]) => ({
-                  value: code,
-                  label: `${locale === "ar" ? ar : en} (${code})`,
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={12} md={8}>
-            <Form.Item
-              name="idScheme"
-              label={tForm("IdScheme")}
-              tooltip={tForm("IdSchemeHint")}
-            >
-              <Select
-                allowClear
-                options={BUYER_ID_SCHEMES.map((code) => ({
-                  value: code,
-                  label: `${tForm(`idSchemes.${code}`)} (${code})`,
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={12} md={8}>
-            <Form.Item
-              name="idNumber"
-              label={
-                idScheme
-                  ? tForm("IdNumberOf", {
-                      type: tForm(`idSchemes.${idScheme}`),
-                    })
-                  : tForm("IdNumber")
-              }
-              rules={
-                idScheme
-                  ? [
-                      {
-                        required: true,
-                        whitespace: true,
-                        message: tAlerts("RequiredField"),
-                      },
-                      ...maxText(30),
-                    ]
-                  : maxText(30)
-              }
-            >
-              <Input
-                maxLength={30}
-                disabled={!idScheme}
-                dir="ltr"
-                placeholder={ID_EXAMPLES[idScheme] ?? ""}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-      )}
 
       {/* العنوان الوطني (أو عنوان العميل برّه المملكة) */}
       <Divider titlePlacement="start">
@@ -326,7 +328,7 @@ const PartyForm = ({
       )}
       <Row gutter={[16, 0]}>
         {/* العنوان الوطني كله اختياري */}
-        <Col xs={24} md={8}>
+        <Col xs={24} md={4}>
           <Form.Item
             name="city"
             label={tForm("City")}
@@ -335,7 +337,7 @@ const PartyForm = ({
             <Input />
           </Form.Item>
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={12} md={4}>
           <Form.Item
             name="district"
             label={tForm("District")}
@@ -344,7 +346,7 @@ const PartyForm = ({
             <Input />
           </Form.Item>
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={12} md={6}>
           <Form.Item
             name="street"
             label={tForm("Street")}
@@ -353,7 +355,7 @@ const PartyForm = ({
             <Input />
           </Form.Item>
         </Col>
-        <Col xs={8}>
+        <Col xs={8} md={3}>
           <Form.Item
             name="buildingNo"
             label={tForm("BuildingNo")}
@@ -365,7 +367,7 @@ const PartyForm = ({
             <Input maxLength={foreign ? 10 : 4} />
           </Form.Item>
         </Col>
-        <Col xs={8}>
+        <Col xs={8} md={3}>
           <Form.Item
             name="additionalNo"
             label={tForm("AdditionalNo")}
@@ -374,7 +376,7 @@ const PartyForm = ({
             <Input maxLength={foreign ? 10 : 4} />
           </Form.Item>
         </Col>
-        <Col xs={8}>
+        <Col xs={8} md={4}>
           <Form.Item
             name="postalCode"
             label={tForm("PostalCode")}
@@ -389,9 +391,8 @@ const PartyForm = ({
       </Row>
 
       {/* الرصيد والحالة والإتاحة في الفروع */}
-      <Divider />
       <Row gutter={[16, 0]} align="middle">
-        <Col xs={24} md={branches ? 6 : 12}>
+        <Col xs={12} md={6}>
           <Form.Item
             name="openingBalance"
             label={tForm("OpeningBalance")}
@@ -400,7 +401,7 @@ const PartyForm = ({
             <InputNumber style={{ width: "100%" }} />
           </Form.Item>
         </Col>
-        <Col xs={24} md={branches ? 4 : 12}>
+        <Col xs={12} md={branches ? 3 : 6}>
           <Form.Item
             name="isActive"
             label={tForm("Active")}
@@ -427,7 +428,7 @@ const PartyForm = ({
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={9}>
               {allBranchesValue === false && (
                 <Form.Item
                   name="branchIds"

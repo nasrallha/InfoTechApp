@@ -42,6 +42,7 @@ import { productBatchesAction } from "@/actions/inventory.actions";
 import { ADJUSTMENT_COLORS } from "./AdjustmentsList";
 import "@/components/purchases/purchases.css";
 import "@/components/common/table.css";
+import DocBranchSelect from "@/components/common/DocBranchSelect";
 
 let lineKey = 0;
 
@@ -274,7 +275,7 @@ export default function AdjustmentForm({
       }
       return showActionError(res, tAlerts, locale);
     }
-    const no = formatDocNo("adjustment", res.data.number);
+    const no = formatDocNo("adjustment", res.data.number, res.data.docCode);
     message.success(
       isEdit ? t("Updated", { number: no }) : t("Saved", { number: no }),
     );
@@ -484,12 +485,14 @@ export default function AdjustmentForm({
           {isEdit ? (
             <>
               {t("Edit")} {t(`Type_${type}`)}{" "}
-              <bdi>{formatDocNo("adjustment", adjustment.number)}</bdi>
+              <bdi>{formatDocNo("adjustment", adjustment.number, adjustment.docCode)}</bdi>
             </>
           ) : (
             t("New")
           )}
         </h1>
+        {/* مدير النظام: فرع المستند (الجديد بس) */}
+        {!isEdit && <DocBranchSelect />}
         <Space>
           {isEdit ? (
             <Button

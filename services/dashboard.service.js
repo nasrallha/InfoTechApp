@@ -45,7 +45,7 @@ const change = (now, before) =>
 const userSelect = { select: { id: true, arFullname: true, enFullname: true } };
 // رقم الوردية + ترتيبها في يوم العمل: SH-124 (2)
 const shiftDocNo = (s) =>
-  `${formatDocNo("shift", s.number)}${s.dayNo ? ` (${s.dayNo})` : ""}`;
+  `${formatDocNo("shift", s.number, s.docCode)}${s.dayNo ? ` (${s.dayNo})` : ""}`;
 
 export async function dashboardData(user) {
   const branch = reportBranch(user, null);
@@ -118,7 +118,7 @@ async function myShift(user) {
     orderBy: { id: "desc" },
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       openedAt: true,
       openingCash: true,
       branch: { select: { arName: true, enName: true } },
@@ -149,7 +149,7 @@ async function lastSales(branch) {
     select: {
       id: true,
       type: true,
-      number: true,
+      number: true, docCode: true,
       source: true,
       date: true,
       customerArName: true,
@@ -161,7 +161,7 @@ async function lastSales(branch) {
   return rows.map((r) => ({
     ...r,
     totalAmount: n(r.totalAmount),
-    docNo: saleDocNo(r.type, r.number),
+    docNo: saleDocNo(r.type, r.number, r.docCode),
   }));
 }
 
@@ -173,7 +173,7 @@ async function currentShifts(user, branch) {
     take: 10,
     select: {
       id: true,
-      number: true,
+      number: true, docCode: true,
       openedAt: true,
       user: userSelect,
       branch: { select: { arName: true, enName: true } },

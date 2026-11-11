@@ -27,7 +27,7 @@ export default function CountsList({ data, canCreate }) {
       render: (_, r) => (
         <Link href={`/inventory/counts/${r.id}`}>
           <b>
-            <bdi>{formatDocNo("count", r.number)}</bdi>
+            <bdi>{formatDocNo("count", r.number, r.docCode)}</bdi>
           </b>
         </Link>
       ),

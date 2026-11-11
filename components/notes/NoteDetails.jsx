@@ -371,7 +371,7 @@ export default function NoteDetails({
             <div>
               <span>{t("Shift")}</span>
               <Link href={`/sales/shifts/${note.shift.id}`}>
-                {formatDocNo("shift", note.shift.number)}
+                {formatDocNo("shift", note.shift.number, note.shift.docCode)}
               </Link>
             </div>
           )}

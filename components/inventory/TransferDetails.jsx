@@ -64,7 +64,7 @@ export default function TransferDetails({
     u ? (locale === "ar" ? u.arFullname : u.enFullname) : "";
 
   const pending = transfer.status === "sent";
-  const no = formatDocNo("transfer", transfer.number);
+  const no = formatDocNo("transfer", transfer.number, transfer.docCode);
   const showReceive = pending && canReceive && transfer.canReceiveHere;
   const showCancel = pending && canCancel && transfer.canCancelHere;
   const isReceived = transfer.status === "received";

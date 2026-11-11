@@ -161,7 +161,7 @@ export default function LaundryOrdersView({
       pdf: invoiceSettings
         ? {
             paperSize: invoiceSettings.paperSize,
-            fileName: saleDocNo("sale", doc.number),
+            fileName: saleDocNo("sale", doc.number, doc.docCode),
             doc: (
               <SaleDocument
                 settings={invoiceSettings}
@@ -397,7 +397,7 @@ export default function LaundryOrdersView({
             width: 120,
             render: (_, r) =>
               r.sale ? (
-                <bdi>{saleDocNo(r.sale.type, r.sale.number)}</bdi>
+                <bdi>{saleDocNo(r.sale.type, r.sale.number, r.sale.docCode)}</bdi>
               ) : (
                 <Tag>{t("NotInvoiced")}</Tag>
               ),
