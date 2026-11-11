@@ -74,7 +74,8 @@ export default function ExpenseCategoriesView({ categories }) {
   };
 
   const columns = [
-    { title: "#", dataIndex: "id", width: 60, align: "center" },
+    // المسلسل حسب الصفوف (مش رقم السجل)
+    { title: "#", key: "rowNo", width: 60, align: "center", render: (_, __, i) => i + 1 },
     { title: t("ArName"), dataIndex: "arName" },
     { title: t("EnName"), dataIndex: "enName" },
     {

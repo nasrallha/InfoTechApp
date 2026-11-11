@@ -189,9 +189,9 @@ export function UnitsExport({ units, selectedIds }) {
         { title: t("EnName"), key: "enName", type: "text", width: 28 },
         { title: t("Status"), key: "status", type: "text", width: 12 },
       ],
-      rows: list.map((u) => ({
+      rows: list.map((u, i) => ({
         key: u.id,
-        id: u.id,
+        id: i + 1,
         arName: u.arName,
         enName: u.enName,
         status: u.isActive ? t("Active") : t("Inactive"),
@@ -224,9 +224,9 @@ export function CategoriesExport({ categories, selectedIds }) {
         { title: t("MainCategory"), key: "parent", type: "text", width: 26 },
         { title: t("Status"), key: "status", type: "text", width: 12 },
       ],
-      rows: list.map((c) => ({
+      rows: list.map((c, i) => ({
         key: c.id,
-        id: c.id,
+        id: i + 1,
         name: c.parent ? `— ${nm(c)}` : nm(c),
         parent: c.parent ? nm(c.parent) : t("MainLevel"),
         status: c.isActive ? t("Active") : t("Inactive"),

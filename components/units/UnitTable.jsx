@@ -63,11 +63,13 @@ const UnitTable = ({ units = [], onSelectionChange }) => {
 
   const columns = [
     {
+      // المسلسل 1، 2، 3 ... حسب الصفوف المعروضة (مش رقم السجل في القاعدة)
+      // ومكمّل في الصفحات اللي بعدها (الصفحة 2 تبدأ بعد آخر رقم في الأولى)
       title: tTable("ID"),
-      dataIndex: "id",
-      key: "id",
+      key: "rowNo",
       width: 70,
-      sorter: (a, b) => a.id - b.id,
+      align: "center",
+      render: (_, __, i) => (page - 1) * pageSize + i + 1,
     },
     {
       title: tTable("ArUnitName"),
