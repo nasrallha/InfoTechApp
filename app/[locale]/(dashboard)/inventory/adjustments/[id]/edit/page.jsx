@@ -12,6 +12,8 @@ import {
 } from "@/services/purchase.service";
 import { getAdjustment } from "@/services/stock-adjustment.service";
 import AdjustmentForm from "@/components/inventory/AdjustmentForm";
+import { prisma } from "@/lib/prisma";
+import { docBatches } from "@/services/batch.service";
 import NoAccess from "@/components/common/NoAccess";
 import TableSkeleton from "@/components/common/TableSkeleton";
 
@@ -26,10 +28,17 @@ async function Content({ params }) {
   const adjustment = await getAdjustment(adjustmentId, user);
   if (!adjustment || adjustment.status !== "posted") notFound();
 
-  const [visible, categories, products] = await Promise.all([
+  const [visible, categories, products, batches] = await Promise.all([
     getVisibleWarehouses(user),
     getPurchaseCategories(),
     pickerProductsByIds(adjustment.items.map((i) => i.productId)),
+    // تتبع الصلاحية: دفعات المستند (الزيادة: اللي دخل / التالف: اللي خرج)
+    docBatches(
+      prisma,
+      "adjustment",
+      adjustment.id,
+      adjustment.type === "surplus" ? 1 : -1,
+    ),
   ]);
 
   return (
@@ -37,6 +46,7 @@ async function Content({ params }) {
       key={`${adjustment.id}-${adjustment.updatedAt ?? ""}`}
       adjustment={adjustment}
       products={products}
+      docBatches={batches}
       warehouses={visible.filter(
         (w) => w.isActive || w.id === adjustment.warehouse.id,
       )}

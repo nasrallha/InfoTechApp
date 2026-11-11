@@ -29,6 +29,11 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   // اللغة الافتراضية
   defaultLocale: "en",
   localeDetection: true,
+  // تتبع الصلاحية (ميزة expiry)
+  expiryBlockSale: true,
+  expiryAutoDispose: false,
+  expiryAlertDays: 30,
+  expiryBarcode: "simple",
 };
 
 const select = {
@@ -55,6 +60,10 @@ const select = {
   scaleMoneyDecimals: true,
   defaultLocale: true,
   localeDetection: true,
+  expiryBlockSale: true,
+  expiryAutoDispose: true,
+  expiryAlertDays: true,
+  expiryBarcode: true,
   updatedAt: true,
 };
 

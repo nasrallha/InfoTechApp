@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { batchEntrySchema } from "./purchase.schema";
 import { idField, optionalText } from "./common.schema";
 import { isDay } from "@/lib/dates";
 
@@ -117,6 +118,9 @@ const adjustmentFields = {
         reason: optionalText(255),
         // التالف: القطع المختارة من اللي في المحل
         serialIds: z.array(idField).max(1000).default([]),
+        // تتبع الصلاحية: الزيادة ← دفعاتها / التالف ← دفعة معيّنة (فاضي = الأقرب انتهاءً)
+        batches: z.array(batchEntrySchema).max(100).default([]),
+        batchId: idField.nullish(),
         // الزيادة: أرقام جديدة (اختياري)
         serials: z
           .array(

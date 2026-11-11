@@ -6,7 +6,11 @@ import { connection } from "next/server";
 import { getLocale } from "next-intl/server";
 import { getPageAccess } from "@/lib/auth";
 import { getActiveBarcodeLabels } from "@/services/barcode-label.service";
-import { getLabelProductsByIds } from "@/services/barcode-print.service";
+import {
+  getLabelBatchesByIds,
+  getLabelProductsByIds,
+} from "@/services/barcode-print.service";
+import { getVisibleWarehouses } from "@/services/stock.service";
 import { getCompany } from "@/services/company.service";
 import BarcodePrintView from "@/components/printing/BarcodePrintView";
 import NoAccess from "@/components/common/NoAccess";
@@ -21,22 +25,38 @@ const parseIds = (value) =>
 
 async function BarcodePrintContent({ searchParams }) {
   // لازم يكون مسجل دخول ويملك صلاحية "barcodes.print"
-  const { allowed } = await getPageAccess("barcodes.print");
+  const { user, allowed } = await getPageAccess("barcodes.print");
   if (!allowed) return <NoAccess />;
 
   await connection();
-  const { ids } = await searchParams;
+  // batches: ملصقات دفعات (تتبع الصلاحية) من تقرير الصلاحية
+  const { ids, batches } = await searchParams;
+  const batchIds = parseIds(batches);
 
-  const [labels, products, company, locale] = await Promise.all([
+  const [labels, products, batchProducts, company, locale] = await Promise.all([
     getActiveBarcodeLabels(),
     getLabelProductsByIds(parseIds(ids)),
+    batchIds.length
+      ? getVisibleWarehouses(user).then((ws) =>
+          getLabelBatchesByIds(
+            batchIds,
+            ws.map((w) => w.id),
+          ),
+        )
+      : [],
     getCompany(),
     getLocale(),
   ]);
 
   const companyName = company ? (locale === "ar" ? company.arName : company.enName) : null;
 
-  return <BarcodePrintView labels={labels} initialProducts={products} companyName={companyName} />;
+  return (
+    <BarcodePrintView
+      labels={labels}
+      initialProducts={[...products, ...batchProducts]}
+      companyName={companyName}
+    />
+  );
 }
 
 export default function BarcodePrintPage({ searchParams }) {

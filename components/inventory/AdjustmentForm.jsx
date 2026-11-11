@@ -20,7 +20,7 @@ import {
 import { DeleteOutlined, SaveOutlined, UndoOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
-import { today } from "@/lib/dates";
+import { formatDay, today } from "@/lib/dates";
 import { formatDocNo } from "@/lib/doc-number";
 import {
   browseStockProductsAction,
@@ -37,6 +37,8 @@ import { showActionError } from "@/components/common/actionError";
 import ProductPicker from "@/components/purchases/ProductPicker";
 import ProductBrowser from "@/components/purchases/ProductBrowser";
 import LineSerials from "@/components/serials/LineSerials";
+import LineBatches, { batchesComplete } from "@/components/batches/LineBatches";
+import { productBatchesAction } from "@/actions/inventory.actions";
 import { ADJUSTMENT_COLORS } from "./AdjustmentsList";
 import "@/components/purchases/purchases.css";
 import "@/components/common/table.css";
@@ -60,6 +62,11 @@ const newLine = (product, unitId, qty) => ({
   serialIds: [], // التالف: القطع المختارة
   serialOpts: null, // التالف: القطع اللي في المحل (بتتجاب أول ما الصنف يتضاف)
   serials: [], // الزيادة: أرقام جديدة
+  // تتبع الصلاحية: الزيادة ← دفعاتها / التالف ← دفعة معيّنة (فاضي = الأقرب انتهاءً)
+  batches: [],
+  batchId: null,
+  batchOpts: null, // دفعات الصنف في المستودع (للتالف)
+  batchWh: null, // المستودع اللي اتجابت دفعاته
 });
 
 // ============================================================
@@ -78,6 +85,8 @@ export default function AdjustmentForm({
   initialType = "damage",
   adjustment = null,
   products = [],
+  // التعديل: دفعات المستند لكل صنف (تتبع الصلاحية)
+  docBatches = {},
 }) {
   const isEdit = Boolean(adjustment);
   const [form] = Form.useForm();
@@ -100,6 +109,25 @@ export default function AdjustmentForm({
                 serial2: s.serial2,
                 isUsed: s.isUsed,
               })),
+              // تتبع الصلاحية: دفعات المستند المحفوظة
+              ...(product.trackExpiry
+                ? (() => {
+                    const f =
+                      product.units.find((u) => u.unit.id === it.unitId)
+                        ?.factor ?? 1;
+                    const list = docBatches[it.productId] ?? [];
+                    return adjustment.type === "surplus"
+                      ? {
+                          batches: list.map((b) => ({
+                            batchNo: b.batchNo,
+                            mfgDate: b.mfgDate,
+                            expDate: b.expDate,
+                            qty: Math.round((b.qty / f) * 1000) / 1000,
+                          })),
+                        }
+                      : { batchId: list.length === 1 ? list[0].batchId : null };
+                  })()
+                : {}),
             };
           })
           .filter(Boolean)
@@ -114,6 +142,7 @@ export default function AdjustmentForm({
   const tI = useTranslations("Inventory");
   const tS = useTranslations("Serials");
   const tAlerts = useTranslations("Alerts");
+  const tBatches = useTranslations("Batches");
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
   const todayDay = today();
   const isDamage = type === "damage";
@@ -163,6 +192,25 @@ export default function AdjustmentForm({
 
   const remove = (key) => setLines((prev) => prev.filter((l) => l.key !== key));
 
+  // تتبع الصلاحية: دفعات الأصناف المتتبعة في المستودع المختار (للتالف)
+  const warehouseId = Form.useWatch("warehouseId", form);
+  useEffect(() => {
+    if (!isDamage || !warehouseId) return;
+    for (const l of lines) {
+      if (!l.product.trackExpiry || l.batchWh === warehouseId) continue;
+      productBatchesAction({
+        productId: l.product.id,
+        warehouseId,
+      }).then((res) =>
+        patch(l.key, {
+          batchOpts: res.success ? res.data : [],
+          batchWh: warehouseId,
+        }),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDamage, warehouseId, lines.length]);
+
   const reset = () => {
     setLines([]);
     setTried(false);
@@ -183,6 +231,19 @@ export default function AdjustmentForm({
     if (isDamage && lines.some((l) => !l.reason.trim()))
       return message.warning(t("ReasonRequired"));
     if (lines.some(serialsBad)) return message.warning(t("PickSerials"));
+    // الزيادة: دفعات الأصناف المتتبعة بالصلاحية لازم تكون كاملة
+    if (
+      !isDamage &&
+      lines.some(
+        (l) =>
+          !batchesComplete({
+            trackExpiry: l.product.trackExpiry,
+            qty: l.qty,
+            batches: l.batches,
+          }),
+      )
+    )
+      return message.warning(tBatches("CompleteBatches"));
     setSaving(true);
     const payload = {
       ...values,
@@ -195,6 +256,8 @@ export default function AdjustmentForm({
         reason: l.reason.trim() || null,
         serialIds: isDamage && tracked(l) ? l.serialIds : [],
         serials: !isDamage && tracked(l) ? l.serials : [],
+        batches: !isDamage && l.product.trackExpiry ? l.batches : [],
+        batchId: isDamage && l.product.trackExpiry ? l.batchId : null,
       })),
     };
     const res = isEdit
@@ -232,6 +295,35 @@ export default function AdjustmentForm({
           <div className="pur-line__code">
             <bdi>{l.product.code}</bdi>
           </div>
+          {/* تتبع الصلاحية: الزيادة ← دفعاتها بتاريخها */}
+          {!isDamage && (
+            <LineBatches
+              line={{
+                trackExpiry: l.product.trackExpiry,
+                qty: l.qty,
+                batches: l.batches,
+              }}
+              onChange={({ batches }) => patch(l.key, { batches })}
+            />
+          )}
+          {/* التالف: من دفعة معيّنة (أو الأقرب انتهاءً تلقائياً) */}
+          {isDamage && l.product.trackExpiry && (
+            <Select
+              size="small"
+              className="mt-1"
+              style={{ width: "100%" }}
+              loading={l.batchOpts === null}
+              value={l.batchId ?? 0}
+              onChange={(v) => patch(l.key, { batchId: v || null })}
+              options={[
+                { value: 0, label: tBatches("AutoFefo") },
+                ...(l.batchOpts ?? []).map((b) => ({
+                  value: b.id,
+                  label: `${b.batchNo === "-" ? tBatches("NoBatchLabel") : b.batchNo}${b.expDate ? ` — ${formatDay(b.expDate)}` : ""} (${b.qty})`,
+                })),
+              ]}
+            />
+          )}
           {/* الزيادة: أرقام القطع الجديدة (اختياري زي الشراء) */}
           {!isDamage && tracked(l) && (
             <LineSerials

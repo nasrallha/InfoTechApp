@@ -32,7 +32,12 @@ import { getBaseCurrency } from "./currency.service";
 import { assertNoCodesInNumbers } from "./scan-guard.service";
 import { getActivePromotions, loyaltyStatus } from "./promotion.service";
 import { applyPromotions } from "@/lib/promotions";
-import { EXPORT_TAX, buyerMissing, exportBuyerMissing } from "@/lib/zatca-tax";
+import {
+  EXPORT_TAX,
+  buyerMissing,
+  exportBuyerMissing,
+  exportKindOf,
+} from "@/lib/zatca-tax";
 import { isZatcaActive } from "./zatca.service";
 import {
   attachReturnSerials,
@@ -108,9 +113,22 @@ async function nextNumber(tx, type) {
 }
 
 // حركات المخزون: البيع يخرج من المستودع، والمرتجع يدخل
-function saleMovements({ type, id, number, date, warehouseId, lines }) {
+// batchFrom (المرتجع): الأصناف المتتبعة بالصلاحية ترجع لنفس دفعات الفاتورة
+function saleMovements({
+  type,
+  id,
+  number,
+  date,
+  warehouseId,
+  lines,
+  batchFrom = null,
+  // دفعات ممسوحة لكل سطر (بالوحدة الأساسية) - نفس ترتيب السطور
+  batchPicks = null,
+}) {
   const sign = type === SALE ? -1 : 1;
-  return lines.map((l) => ({
+  return lines.map((l, i) => ({
+    ...(batchFrom ? { batchFrom } : {}),
+    ...(batchPicks?.[i]?.length ? { batchIds: batchPicks[i] } : {}),
     productId: l.productId,
     warehouseId,
     qty: sign * n(l.baseQty),
@@ -202,6 +220,13 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
   const isExport = existing
     ? Boolean(existing.isExport)
     : Boolean(data.isExport);
+  // نوع فاتورة التصدير: بيتحدد من العميل تحت (له معرّف ← ضريبية / مالوش ← مبسطة)
+  // التعديل: بيفضل زي ما اتسجل (اتسجل في سلسلة الزكاة)
+  let exportKind = !isExport
+    ? null
+    : existing
+      ? (existing.exportKind ?? "standard")
+      : "standard";
   if (isExport && !data.customerId) {
     throw new AppError("ExportCustomerRequired", null, {
       customerId: "ExportCustomerRequired",
@@ -244,7 +269,8 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
     }
     // عميل التصدير: برّه المملكة ومن غير رقم ضريبي سعودي وله عنوان
     if (isExport) {
-      const exportMissing = exportBuyerMissing(customer);
+      if (!existing) exportKind = exportKindOf(customer);
+      const exportMissing = exportBuyerMissing(customer, exportKind);
       if (exportMissing.length) {
         throw new AppError(
           "ExportCustomerIncomplete",
@@ -572,6 +598,7 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
     vehicleType: vehicle?.vehicleType ?? null,
     odometer,
     isExport,
+    exportKind,
     date,
     discountType: applied.discountType,
     discountValue: applied.discountValue,
@@ -596,6 +623,13 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
   return {
     header,
     itemRows,
+    // تتبع الصلاحية: الدفعات الممسوحة لكل سطر (بالوحدة الأساسية)
+    batchPicks: itemRows.map((r, i) =>
+      (data.items[i]?.batchIds ?? []).map((b) => ({
+        batchId: b.batchId,
+        qty: round(b.qty * r.factor, 4),
+      })),
+    ),
     payments,
     quotation,
     claim,
@@ -643,6 +677,7 @@ async function createSaleNow(data, user) {
   const {
     header,
     itemRows,
+    batchPicks,
     payments,
     quotation,
     claim,
@@ -695,6 +730,7 @@ async function createSaleNow(data, user) {
         date: header.date,
         warehouseId: header.warehouseId,
         lines: itemRows,
+        batchPicks,
       }),
       { allowNegative },
     );
@@ -775,13 +811,14 @@ export async function updateSale({ id, ...data }, user) {
       shiftId: true,
       date: true,
       isExport: true,
+      exportKind: true,
       items: { select: { productId: true, unitId: true, price: true } },
       quotation: { select: { id: true } },
     },
   });
   if (!existing) throw new AppError("SaleNotFound");
 
-  const { header, itemRows, payments, serialLines, followUpLines } =
+  const { header, itemRows, batchPicks, payments, serialLines, followUpLines } =
     await prepareSale(
       { ...data, quotationId: existing.quotation?.id ?? data.quotationId },
       user,
@@ -831,6 +868,7 @@ export async function updateSale({ id, ...data }, user) {
         date: header.date,
         warehouseId: header.warehouseId,
         lines: itemRows,
+        batchPicks,
       }),
       { allowNegative },
     );
@@ -893,6 +931,7 @@ async function createSaleReturnNow(data, user) {
       customerEnName: true,
       customerTaxNo: true,
       isExport: true,
+      exportKind: true,
       date: true,
       items: { select: { id: true } },
     },
@@ -1127,6 +1166,7 @@ async function createSaleReturnNow(data, user) {
         date,
         warehouseId: original.warehouseId,
         lines: itemRows,
+        batchFrom: { refType: "sale", refId: original.id },
       }),
       { allowNegative: true },
     );
@@ -1288,6 +1328,7 @@ const saleDetailSelect = {
   vehicleType: true,
   odometer: true,
   isExport: true,
+  exportKind: true,
   discountType: true,
   discountValue: true,
   subtotal: true,

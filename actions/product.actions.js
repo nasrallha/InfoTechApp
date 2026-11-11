@@ -63,6 +63,11 @@ function readProductForm(formData) {
     startStock: num("startStock"),
     isActive: bool("isActive"),
     isService: bool("isService"),
+    // تتبع الصلاحية (الميزة مقفولة: السيرفر بيتجاهلها)
+    trackExpiry: bool("trackExpiry"),
+    expiryAlertDays: formData.get("expiryAlertDays")
+      ? num("expiryAlertDays")
+      : null,
     image: image instanceof File && image.size > 0 ? image : null,
     removeImage: bool("removeImage"),
     units,

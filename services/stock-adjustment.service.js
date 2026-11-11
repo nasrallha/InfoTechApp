@@ -4,7 +4,7 @@ import { runTx } from "@/lib/transaction";
 import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
-import { dayOf, dayToDateTime, today } from "@/lib/dates";
+import { dayOf, dayToDateTime, dayToDbDate, today } from "@/lib/dates";
 import { DOC_PREFIX } from "@/lib/doc-number";
 import {
   applyMovements,
@@ -62,6 +62,7 @@ async function resolveItems(items) {
       isService: true,
       baseUnitId: true,
       serialCount: true,
+      trackExpiry: true,
       productUnits: { select: { unitId: true, conversionFactor: true } },
     },
   });
@@ -107,6 +108,16 @@ async function prepare(data, user) {
   });
   if (!wh) throw new AppError("WarehouseNotFound");
   const items = await resolveItems(data.items);
+  // تتبع الصلاحية: الزيادة لازم دفعاتها تغطي الكمية بالظبط
+  if (data.type === "surplus")
+    items.forEach((it, i) => {
+      if (!it.product.trackExpiry) return;
+      const sum = (it.batches ?? []).reduce((s, b) => s + n(b.qty), 0);
+      if (Math.abs(sum - n(it.qty)) > 0.0005)
+        throw new AppError("BatchQtyMismatch", null, {
+          [`items.${i}.batches`]: "BatchQtyMismatch",
+        });
+    });
   const now = today();
   const day = can(user, "stockAdjustments.changeDate")
     ? (data.date ?? now)
@@ -165,6 +176,24 @@ async function writeLines(tx, { id, number, type, warehouseId, date }, p) {
       refId: id,
       refNo: docNo(number),
       date,
+      // تتبع الصلاحية: الزيادة بدفعاتها، والتالف من دفعة معيّنة (أو الأقرب انتهاءً)
+      ...(it.product.trackExpiry && type === "surplus"
+        ? {
+            batches: (it.batches ?? []).map((b) => ({
+              batchNo: b.batchNo ?? null,
+              mfgDate: b.mfgDate ?? null,
+              expDate: b.expDate,
+              qty: round(n(b.qty) * it.factor, 4),
+            })),
+          }
+        : {}),
+      ...(it.product.trackExpiry && type === "damage" && it.batchId
+        ? {
+            batchIds: [
+              { batchId: it.batchId, qty: round(it.qty * it.factor, 4) },
+            ],
+          }
+        : {}),
     })),
     { allowNegative },
   );
@@ -409,4 +438,82 @@ export async function getAdjustment(id, user) {
       2,
     ),
   };
+}
+
+// ============================================================
+// إتلاف دفعات (تتبع الصلاحية): مستند تالف لكل مستودع، سطر لكل دفعة بكل رصيدها
+// batchIds: الدفعات (من تقرير الصلاحية) / reason: سبب التالف
+// ============================================================
+export async function disposeBatches(batchIds, user, reason) {
+  const ids = await userWarehouseIds(user);
+  const batches = await prisma.productBatch.findMany({
+    where: {
+      id: { in: batchIds },
+      qty: { gt: 0 },
+      ...(ids === null ? {} : { warehouseId: { in: ids } }),
+    },
+    select: {
+      id: true,
+      warehouseId: true,
+      qty: true,
+      product: { select: { id: true, baseUnitId: true } },
+    },
+  });
+  if (!batches.length) return { created: [] };
+  const byWarehouse = new Map();
+  for (const b of batches) {
+    const list = byWarehouse.get(b.warehouseId) ?? [];
+    list.push(b);
+    byWarehouse.set(b.warehouseId, list);
+  }
+  const created = [];
+  for (const [warehouseId, list] of byWarehouse) {
+    created.push(
+      await createAdjustment(
+        {
+          type: "damage",
+          warehouseId,
+          notes: reason,
+          items: list.map((b) => ({
+            productId: b.product.id,
+            unitId: b.product.baseUnitId,
+            qty: Math.round(n(b.qty) * 1000) / 1000,
+            reason,
+            serialIds: [],
+            serials: [],
+            batches: [],
+            batchId: b.id,
+          })),
+        },
+        user,
+      ),
+    );
+  }
+  return { created };
+}
+
+// الإتلاف التلقائي (إعداد "إتلاف المنتهي تلقائياً"): الدفعات المنتهية في مستودعات المستخدم
+// بيتنادى من تقرير الصلاحية وتنبيهات الجرس (مرة كل ما حد يفتحهم)
+export async function autoDisposeExpired(user, reason) {
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: 1 },
+    select: { expiryAutoDispose: true },
+  });
+  if (!settings?.expiryAutoDispose) return null;
+  const ids = await userWarehouseIds(user);
+  const expired = await prisma.productBatch.findMany({
+    where: {
+      qty: { gt: 0 },
+      expDate: { lt: dayToDbDate(today()) },
+      product: { trackExpiry: true },
+      ...(ids === null ? {} : { warehouseId: { in: ids } }),
+    },
+    select: { id: true },
+  });
+  if (!expired.length) return null;
+  return disposeBatches(
+    expired.map((b) => b.id),
+    user,
+    reason,
+  );
 }

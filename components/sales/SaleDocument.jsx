@@ -79,8 +79,12 @@ export default function SaleDocument({ settings, company, doc, kind }) {
   const info = documentInfo(company, doc.branch);
   const address = addressLine(info.address, L("رقم فرعي", "Add. No"));
   // ضريبية: عميل له رقم ضريبي / تصدير / الهيئة سجلتها ضريبية (عميل بمعرّف)
+  // التصدير: ضريبية أو مبسطة حسب اختيار الفاتورة
+  const simplifiedExport = doc.isExport && doc.exportKind === "simplified";
   const isStandard = Boolean(
-    doc.customerTaxNo || doc.isExport || doc.zatcaDocument?.kind === "standard",
+    doc.customerTaxNo ||
+      (doc.isExport && !simplifiedExport) ||
+      doc.zatcaDocument?.kind === "standard",
   );
   // الفاتورة الإلكترونية: الـ QR الرسمي (الموقّع / المعتمد من الهيئة)
   // والضريبية قبل اعتماد الهيئة: بدون QR وعليها "غير معتمدة"
@@ -96,7 +100,9 @@ export default function SaleDocument({ settings, company, doc, kind }) {
     : isReturn
       ? L("إشعار دائن (مرتجع مبيعات)", "Credit Note (Sales Return)")
       : doc.isExport
-        ? L("فاتورة ضريبية - تصدير", "Tax Invoice - Export")
+        ? simplifiedExport
+          ? L("فاتورة ضريبية مبسطة - تصدير", "Simplified Tax Invoice - Export")
+          : L("فاتورة ضريبية - تصدير", "Tax Invoice - Export")
         : isStandard
           ? L("فاتورة ضريبية", "Tax Invoice")
           : L("فاتورة ضريبية مبسطة", "Simplified Tax Invoice");

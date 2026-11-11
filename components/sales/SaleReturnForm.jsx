@@ -45,7 +45,7 @@ import "@/components/purchases/purchases.css";
 import { saleDocNo } from "@/lib/doc-number";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
-import { afterSave } from "@/components/common/afterSave";
+import SavedDocPrint from "@/components/printing/SavedDocPrint";
 import { previewPayments, previewTotals } from "@/lib/preview-doc";
 import { showZatcaResult } from "@/components/zatca/zatcaUi";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
@@ -77,9 +77,8 @@ export default function SaleReturnForm({
   canChangeDate = false,
 }) {
   const locale = useLocale();
-  // رسالة الحفظ: "عرض" / "طباعة"
-  const tButtons = useTranslations("Buttons");
-  const tExports = useTranslations("Exports");
+  // بعد حفظ مستند جديد: شريط "تم الحفظ" + الطباعة في نفس الشاشة
+  const [printJob, setPrintJob] = useState(null);
   const t = useTranslations("Purchases");
   const tZ = useTranslations("Zatca");
   const tS = useTranslations("Sales");
@@ -325,15 +324,15 @@ export default function SaleReturnForm({
     }
 
     showZatcaResult(res.data.zatca, { t: tZ });
-    // الشاشة بتفضل فاضية لمرتجع جديد (الطباعة في تبويب جديد)
-    afterSave({
-      path: `/invoices/sales-returns/${res.data.id}`,
-      mode,
-      locale,
+    // الشاشة بتفضل فاضية لمرتجع جديد (الطباعة من نفس الشاشة)
+    setPrintJob({
+      kind: "return",
+      id: res.data.id,
+      mode: mode,
       text: tS("ReturnSaved", {
         number: saleDocNo("return", res.data.number),
       }),
-      labels: { view: tButtons("View"), print: tExports("Print") },
+      seq: Date.now(),
     });
     resetAll();
     setSaving(null);
@@ -462,6 +461,7 @@ export default function SaleReturnForm({
 
   return (
     <div className="pur">
+      <SavedDocPrint job={printJob} onClose={() => setPrintJob(null)} />
       <h1 className="font-bold text-xl mb-4 flex flex-wrap items-center gap-3">
         {tS("NewReturn")} <NextDocNo type="saleReturn" />
       </h1>

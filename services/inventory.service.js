@@ -238,6 +238,8 @@ export async function receiveTransfer({ id, items }, user) {
         refId: id,
         refNo: `${TR_PREFIX}-${transfer.number}`,
         date,
+        // الأصناف المتتبعة: نفس دفعات الإرسال بتاريخها
+        batchFrom: { refType: "transfer", refId: id },
       })),
       { allowNegative: true },
     );

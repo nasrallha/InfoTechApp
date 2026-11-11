@@ -90,6 +90,8 @@ export default function ProductPicker({
     const options = {
       ...(product.scaleQty ? { qty: product.scaleQty } : {}),
       ...(product.scannedSerial ? { serial: product.scannedSerial } : {}),
+      // باركود GS1: الدفعة اللي اتمسحت
+      ...(product.scannedBatch ? { batch: product.scannedBatch } : {}),
     };
     onAdd(
       product,

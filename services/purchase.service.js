@@ -116,9 +116,20 @@ async function resolveWarehouse(data, user, existing) {
 
 // حركات المخزون لفاتورة شراء (دخول) أو مرتجع (خروج)
 // lines: { productId, baseQty, netAmount }
-function purchaseMovements({ type, id, number, date, warehouseId, lines }) {
+// batchFrom: مرتجع ← من دفعات الفاتورة الأصلية / l.batches: دفعات السطر (الشراء)
+function purchaseMovements({
+  type,
+  id,
+  number,
+  date,
+  warehouseId,
+  lines,
+  batchFrom = null,
+}) {
   const sign = type === PURCHASE ? 1 : -1;
   return lines.map((l) => ({
+    ...(l.batches ? { batches: l.batches } : {}),
+    ...(batchFrom ? { batchFrom } : {}),
     productId: l.productId,
     warehouseId,
     qty: sign * n(l.baseQty),
@@ -268,6 +279,7 @@ async function preparePurchase(data, user, existing = null) {
       taxRate: true,
       baseUnitId: true,
       serialCount: true,
+      trackExpiry: true,
       productUnits: {
         select: { id: true, unitId: true, conversionFactor: true },
       },
@@ -293,8 +305,27 @@ async function preparePurchase(data, user, existing = null) {
       }
       factor = n(pu.conversionFactor);
     }
+    // الصنف المتتبع بالصلاحية: دفعاته لازم تغطي كمية السطر بالظبط
+    if (product.trackExpiry) {
+      const sum = (it.batches ?? []).reduce((s, b) => s + n(b.qty), 0);
+      if (Math.abs(sum - n(it.qty)) > 0.0005)
+        throw new AppError("BatchQtyMismatch", null, {
+          [`items.${i}.batches`]: "BatchQtyMismatch",
+        });
+    }
     return { ...it, product, factor, taxRate: n(product.taxRate) };
   });
+  // دفعات كل سطر بالوحدة الأساسية (لحركات المخزون)
+  const lineBatches = items.map((it) =>
+    it.product.trackExpiry
+      ? (it.batches ?? []).map((b) => ({
+          batchNo: b.batchNo ?? null,
+          mfgDate: b.mfgDate ?? null,
+          expDate: b.expDate,
+          qty: round(n(b.qty) * it.factor, 4),
+        }))
+      : null,
+  );
   // الوحدة متقبلش كسور (حبة) ← الكمية لازم رقم صحيح
   await assertUnitQty(
     items.map((it) => ({
@@ -371,7 +402,7 @@ async function preparePurchase(data, user, existing = null) {
     totalAmount: l.total,
   }));
 
-  return { header, itemRows, payments, productIds, serialLines };
+  return { header, itemRows, payments, productIds, serialLines, lineBatches };
 }
 
 // ------------------------------------------------------------
@@ -433,7 +464,7 @@ export function createPurchase(data, user) {
 }
 
 async function createPurchaseNow(data, user) {
-  const { header, itemRows, payments, productIds, serialLines } =
+  const { header, itemRows, payments, productIds, serialLines, lineBatches } =
     await preparePurchase(data, user);
 
   try {
@@ -471,7 +502,7 @@ async function createPurchaseNow(data, user) {
           number: created.number,
           date: header.date,
           warehouseId: header.warehouseId,
-          lines: itemRows,
+          lines: itemRows.map((r, i) => ({ ...r, batches: lineBatches[i] })),
         }),
         { allowNegative: true },
       );
@@ -503,7 +534,7 @@ export async function updatePurchase({ id, ...data }, user) {
   if (!existing) throw new AppError("PurchaseNotFound");
   const oldProductIds = existing.items.map((i) => i.productId);
 
-  const { header, itemRows, payments, productIds, serialLines } =
+  const { header, itemRows, payments, productIds, serialLines, lineBatches } =
     await preparePurchase(data, user, {
       ...existing,
       productIds: oldProductIds,
@@ -556,7 +587,7 @@ export async function updatePurchase({ id, ...data }, user) {
           number: updated.number,
           date: header.date,
           warehouseId: header.warehouseId,
-          lines: itemRows,
+          lines: itemRows.map((r, i) => ({ ...r, batches: lineBatches[i] })),
         }),
         { allowNegative },
       );
@@ -648,6 +679,28 @@ export async function getPurchaseForEdit(id, user) {
     select: pickerSelect,
   });
   const byId = new Map(products.map((p) => [p.id, toPickerProduct(p)]));
+  // دفعات الفاتورة (الأصناف المتتبعة): لكل صنف، وبتتحط على أول سطر ليه
+  const moves = await prisma.batchMove.findMany({
+    where: { refType: "purchase", refId: id, qty: { gt: 0 } },
+    select: {
+      qty: true,
+      batch: {
+        select: { productId: true, batchNo: true, mfgDate: true, expDate: true },
+      },
+    },
+  });
+  const batchesOf = new Map();
+  for (const mv of moves) {
+    const list = batchesOf.get(mv.batch.productId) ?? [];
+    list.push({
+      batchNo: mv.batch.batchNo === "-" ? null : mv.batch.batchNo,
+      mfgDate: mv.batch.mfgDate ? dbDateToDay(mv.batch.mfgDate) : null,
+      expDate: mv.batch.expDate ? dbDateToDay(mv.batch.expDate) : null,
+      baseQty: Number(mv.qty),
+    });
+    batchesOf.set(mv.batch.productId, list);
+  }
+  const usedBatches = new Set();
 
   return {
     ...purchase,
@@ -659,6 +712,19 @@ export async function getPurchaseForEdit(id, user) {
       serialCount: byId.get(i.productId)?.serialCount ?? 0,
       serialLabel1: byId.get(i.productId)?.serialLabel1 ?? null,
       serialLabel2: byId.get(i.productId)?.serialLabel2 ?? null,
+      trackExpiry: byId.get(i.productId)?.trackExpiry ?? false,
+      // الدفعات بوحدة السطر (أول سطر للصنف ياخدها)
+      batches: (() => {
+        if (usedBatches.has(i.productId)) return [];
+        usedBatches.add(i.productId);
+        const f = Number(i.factor) || 1;
+        return (batchesOf.get(i.productId) ?? []).map((b) => ({
+          batchNo: b.batchNo,
+          mfgDate: b.mfgDate,
+          expDate: b.expDate,
+          qty: Math.round((b.baseQty / f) * 1000) / 1000,
+        }));
+      })(),
       units: byId.get(i.productId)?.units ?? [
         { unit: i.unit, factor: i.factor, cost: 0, barcode: null },
       ],
@@ -877,6 +943,8 @@ async function createPurchaseReturnNow(data, user) {
           baseQty: round(l.qty * n(l.o.factor), 4),
           netAmount: l.net,
         })),
+        // الأصناف المتتبعة: الخروج من دفعات الفاتورة الأصلية
+        batchFrom: { refType: "purchase", refId: original.id },
       }),
       { allowNegative },
     );
@@ -1249,6 +1317,8 @@ const pickerSelect = {
   serialLabel2: true,
   // الخدمة (مالهاش مخزون): التوالف والزيادات بترفضها
   isService: true,
+  // تتبع الصلاحية: السطر بيطلب الدفعات (الانتهاء...)
+  trackExpiry: true,
   // المقاسات والألوان (وحدة variants)
   ...modelFields,
   category: { select: { id: true, arName: true, enName: true } },
@@ -1287,6 +1357,7 @@ function toPickerProduct(p, q = "") {
     serialLabel1: p.serialLabel1 ?? null,
     serialLabel2: p.serialLabel2 ?? null,
     isService: Boolean(p.isService),
+    trackExpiry: Boolean(p.trackExpiry),
     units,
     exactUnitId: exact?.unit.id ?? null,
     modelId: p.modelId ?? null,

@@ -13,6 +13,8 @@ import {
   Space,
   Table,
   Tag,
+  Segmented,
+  Checkbox,
 } from "antd";
 import { message } from "@/components/common/feedback";
 import {
@@ -28,6 +30,8 @@ import { searchLabelProductsAction } from "@/actions/barcode-print.actions";
 import BarcodeLabelView from "./BarcodeLabelView";
 import PrintLabels from "./PrintLabels";
 import { useCurrency } from "@/components/common/CurrencyProvider";
+import { useModuleSettings } from "@/components/auth/AuthProvider";
+import { formatDay } from "@/lib/dates";
 import "./printing.css";
 import "@/components/common/table.css";
 
@@ -82,9 +86,20 @@ export default function BarcodePrintView({
   const label = labels.find((l) => l.id === labelId) ?? null;
 
   // المنتجات الجاية من جدول المنتجات: مفاتيح ثابتة حسب ترتيبها (i0, i1, ...)
+  // ملصقات الدفعات: العدد = رصيد الدفعة
   const [rows, setRows] = useState(() =>
-    initialProducts.map((p, i) => newRow(`i${i}`, p)),
+    initialProducts.map((p, i) => newRow(`i${i}`, p, undefined, p.labelQty ?? 1)),
   );
+  // نوع باركود ملصق الدفعة (إعداد الصلاحية): simple | gs1 | both (يختار وقت الطباعة)
+  const { expiry } = useModuleSettings();
+  const barcodeSetting = expiry?.barcode ?? "simple";
+  const [batchMode, setBatchMode] = useState(
+    barcodeSetting === "gs1" ? "gs1" : "simple",
+  );
+  const hasBatches = rows.some((r) => r.product.batch);
+  // التواريخ اللي تتطبع على ملصق الدفعة: الانتهاء (افتراضي) و/أو الإنتاج
+  const [showMfg, setShowMfg] = useState(false);
+  const [showExp, setShowExp] = useState(true);
   // المنتجات المضافة من البحث: n1, n2, ... (تُنشأ في المتصفح فقط)
   const rowCounter = useRef(0);
   const [search, setSearch] = useState("");
@@ -100,10 +115,17 @@ export default function BarcodePrintView({
   // فعند عمل refresh تظهر نفس المنتجات الموجودة الآن (وليس المنتجات الأولى)
   // replaceState: يغيّر الرابط فقط بدون إعادة تحميل الصفحة
   useEffect(() => {
-    const ids = [...new Set(rows.map((r) => r.product.id))];
+    const ids = [
+      ...new Set(rows.filter((r) => !r.product.batch).map((r) => r.product.id)),
+    ];
+    const batchIds = rows
+      .filter((r) => r.product.batch)
+      .map((r) => r.product.batch.id);
     const url = new URL(window.location.href);
     if (ids.length) url.searchParams.set("ids", ids.join(","));
     else url.searchParams.delete("ids");
+    if (batchIds.length) url.searchParams.set("batches", batchIds.join(","));
+    else url.searchParams.delete("batches");
     if (url.href !== window.location.href)
       window.history.replaceState(null, "", url);
   }, [rows]);
@@ -115,7 +137,8 @@ export default function BarcodePrintView({
     const key = unitKey ?? firstPrintableUnit(product).key;
     setRows((prev) => {
       const existing = prev.find(
-        (r) => r.product.id === product.id && r.unitKey === key,
+        (r) =>
+          r.product.id === product.id && r.unitKey === key && !r.product.batch,
       );
       if (existing) {
         return prev.map((r) =>
@@ -201,24 +224,30 @@ export default function BarcodePrintView({
   // ------------------------------------------------------------
   const totalLabels = rows.reduce((sum, r) => sum + (r.qty || 0), 0);
 
+  // ملصق السطر (ولو دفعة: بياناتها ونوع الباركود)
+  const itemOf = (r, unit) => ({
+    name: unit.isBase
+      ? nameOf(r.product)
+      : `${nameOf(r.product)} - ${nameOf(unit.unit)}`,
+    code: unit.code,
+    price: labelPrice(r.product, unit, label),
+    ...(r.product.batch
+      ? { batch: r.product.batch, gs1: batchMode === "gs1", showMfg, showExp }
+      : {}),
+  });
+
   const items = useMemo(() => {
     if (!label) return [];
     const list = [];
     for (const r of rows) {
       const unit = r.product.units.find((u) => u.key === r.unitKey);
       if (!unit?.code) continue;
-      const item = {
-        name: unit.isBase
-          ? nameOf(r.product)
-          : `${nameOf(r.product)} - ${nameOf(unit.unit)}`,
-        code: unit.code,
-        price: labelPrice(r.product, unit, label),
-      };
+      const item = itemOf(r, unit);
       for (let i = 0; i < (r.qty || 0); i++) list.push(item);
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, label, locale]);
+  }, [rows, label, locale, batchMode, showMfg, showExp]);
 
   const onPrint = () => {
     if (!label) return message.error(t("NoTemplate"));
@@ -239,7 +268,24 @@ export default function BarcodePrintView({
       key: "name",
       width: 260,
       ellipsis: true,
-      render: (_, r) => <span className="font-bold">{nameOf(r.product)}</span>,
+      render: (_, r) => (
+        <div>
+          <span className="font-bold">{nameOf(r.product)}</span>
+          {/* ملصق دفعة: تاريخ الإنتاج والانتهاء */}
+          {r.product.batch && (
+            <div className="text-xs text-slate-500">
+              {[
+                r.product.batch.mfgDate &&
+                  `${t("MfgShort")}: ${formatDay(r.product.batch.mfgDate)}`,
+                r.product.batch.expDate &&
+                  `${t("ExpShort")}: ${formatDay(r.product.batch.expDate)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: t("Unit"),
@@ -404,6 +450,39 @@ export default function BarcodePrintView({
         <p className="text-xs text-slate-400 mt-2 mb-0">{t("ScanHint")}</p>
       </Card>
 
+      {/* ملصقات الدفعات: التواريخ المطبوعة + نوع الباركود (لو الإعداد "الاتنين") */}
+      {hasBatches && (
+        <div className="cp-filters mb-3">
+          <Space wrap align="center" size={16}>
+            <Checkbox
+              checked={showExp}
+              onChange={(e) => setShowExp(e.target.checked)}
+            >
+              {t("PrintExp")}
+            </Checkbox>
+            <Checkbox
+              checked={showMfg}
+              onChange={(e) => setShowMfg(e.target.checked)}
+            >
+              {t("PrintMfg")}
+            </Checkbox>
+            {barcodeSetting === "both" && (
+              <Space wrap align="center">
+                <span className="text-slate-600">{t("BatchBarcode")}:</span>
+                <Segmented
+                  value={batchMode}
+                  onChange={setBatchMode}
+                  options={[
+                    { value: "simple", label: t("BatchSimple") },
+                    { value: "gs1", label: t("BatchGs1") },
+                  ]}
+                />
+              </Space>
+            )}
+          </Space>
+        </div>
+      )}
+
       {/* القائمة */}
       <Table
         bordered
@@ -480,13 +559,7 @@ export default function BarcodePrintView({
                   <div className="label-preview">
                     <BarcodeLabelView
                       label={label}
-                      item={{
-                        name: unit.isBase
-                          ? nameOf(r.product)
-                          : `${nameOf(r.product)} - ${nameOf(unit.unit)}`,
-                        code: unit.code,
-                        price: labelPrice(r.product, unit, label),
-                      }}
+                      item={itemOf(r, unit)}
                       companyName={companyName}
                       currency={currency}
                     />

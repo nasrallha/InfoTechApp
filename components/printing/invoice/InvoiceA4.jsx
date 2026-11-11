@@ -85,18 +85,22 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
 
   const info = documentInfo(company, doc.branch);
   const address = addressLine(info.address, L("رقم فرعي", "Add. No"));
-  // ضريبية: عميل له رقم ضريبي / تصدير / الهيئة سجلتها ضريبية (عميل بمعرّف)
+  // التصدير: ضريبية أو مبسطة حسب اختيار الفاتورة
+  const simplifiedExport = doc.isExport && doc.exportKind === "simplified";
+  // ضريبية: عميل له رقم ضريبي / تصدير ضريبي / الهيئة سجلتها ضريبية (عميل بمعرّف)
   const isStandard =
     isSale &&
     Boolean(
       doc.customerTaxNo ||
-      doc.isExport ||
+      (doc.isExport && !simplifiedExport) ||
       doc.zatcaDocument?.kind === "standard",
     );
 
   const title = {
     sale: doc.isExport
-      ? ["فاتورة ضريبية - تصدير", "Tax Invoice - Export"]
+      ? simplifiedExport
+        ? ["فاتورة ضريبية مبسطة - تصدير", "Simplified Tax Invoice - Export"]
+        : ["فاتورة ضريبية - تصدير", "Tax Invoice - Export"]
       : isStandard
         ? ["فاتورة ضريبية", "Tax Invoice"]
         : ["فاتورة ضريبية مبسطة", "Simplified Tax Invoice"],

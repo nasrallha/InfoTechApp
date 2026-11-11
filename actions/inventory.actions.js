@@ -2,7 +2,10 @@
 
 // البوابة بين شاشات المخزون (الأرصدة، التحويلات، الجرد) والسيرفر
 
+import { z } from "zod";
 import { runAction } from "@/lib/action";
+import { prisma } from "@/lib/prisma";
+import { batchCard, productBatches } from "@/services/batch.service";
 import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { idField } from "@/validations/common.schema";
@@ -27,6 +30,7 @@ import {
 import {
   cancelAdjustment,
   createAdjustment,
+  disposeBatches,
   updateAdjustment,
 } from "@/services/stock-adjustment.service";
 import { inStockSerials } from "@/services/serial.service";
@@ -282,4 +286,48 @@ export async function stockElsewhereAction(productId) {
       throw new AppError("Forbidden");
     return stockElsewhere(id, await userWarehouseId(user));
   });
+}
+
+// ------------------------------------------------------------
+// تتبع الصلاحية والدفعات
+// ------------------------------------------------------------
+// دفعات صنف في مستودع (اختيار دفعة التالف)
+export async function productBatchesAction(input) {
+  return runAction(
+    z.object({ productId: idField, warehouseId: idField }),
+    input,
+    async (d, user) => {
+      assertPicker(user);
+      await scopedWarehouseIds(user, d.warehouseId);
+      return productBatches(prisma, d.productId, d.warehouseId);
+    },
+  );
+}
+
+// إتلاف دفعات (من تقرير الصلاحية): مستند تالف تلقائي
+export async function disposeBatchesAction(input) {
+  return runAction(
+    z.object({
+      batchIds: z.array(idField).min(1).max(1000),
+      reason: z.string().trim().min(1).max(255),
+    }),
+    input,
+    (d, user) => disposeBatches(d.batchIds, user, d.reason),
+    { permission: "batches.dispose", refresh: true },
+  );
+}
+
+// كارت الدفعة (من تقرير الصلاحية)
+export async function batchCardAction(input) {
+  return runAction(
+    z.object({ batchId: idField }),
+    input,
+    async (d, user) => {
+      const ids = await scopedWarehouseIds(user, null);
+      const card = await batchCard(prisma, d.batchId, ids);
+      if (!card) throw new AppError("NotFound");
+      return card;
+    },
+    { permission: "batches.view" },
+  );
 }

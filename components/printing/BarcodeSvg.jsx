@@ -5,7 +5,13 @@ import JsBarcode from "jsbarcode";
 // رسم الباركود (الخطوط فقط) كـ SVG يملأ المساحة المتاحة له بالكامل
 // value: الكود، format: CODE128 أو EAN13
 // لو الكود لا يصلح لـ EAN13 (ليس 12/13 رقم) نرسمه CODE128 بدلاً منه
-export default function BarcodeSvg({ value, format = "CODE128", onInvalid }) {
+// gs1: باركود GS1-128 (FNC1 في الأول) لملصقات الدفعات
+export default function BarcodeSvg({
+  value,
+  format = "CODE128",
+  onInvalid,
+  gs1 = false,
+}) {
   const ref = useRef(null);
   const [failed, setFailed] = useState(false);
 
@@ -28,12 +34,13 @@ export default function BarcodeSvg({ value, format = "CODE128", onInvalid }) {
         margin: 0,
         displayValue: false, // الرقم نكتبه نحن تحت الخطوط (بحجم يناسب الملصق)
         background: "transparent",
+        ...(gs1 ? { ean128: true } : {}),
         valid: (v) => (ok = v),
       });
       return ok;
     };
 
-    let ok = draw(format);
+    let ok = draw(gs1 ? "CODE128" : format);
     if (!ok && format !== "CODE128") {
       onInvalidRef.current?.();
       ok = draw("CODE128");
@@ -48,7 +55,7 @@ export default function BarcodeSvg({ value, format = "CODE128", onInvalid }) {
     svg.removeAttribute("width");
     svg.removeAttribute("height");
     svg.setAttribute("preserveAspectRatio", "none");
-  }, [value, format]);
+  }, [value, format, gs1]);
 
   if (failed) return <div className="barcode-svg barcode-svg--error">{value}</div>;
 

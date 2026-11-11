@@ -8,6 +8,7 @@ import {
   CarOutlined,
   ClockCircleOutlined,
   FileSyncOutlined,
+  HourglassOutlined,
   SafetyCertificateOutlined,
   ShoppingOutlined,
   ScheduleOutlined,
@@ -41,6 +42,7 @@ const KINDS = {
   oilChange: { color: C.warningText, Icon: CarOutlined },
   booking: { color: C.magenta, Icon: CalendarOutlined },
   restaurantOrder: { color: C.success, Icon: ShoppingOutlined },
+  expiry: { color: C.dangerText, Icon: HourglassOutlined },
 };
 const LEVEL_COLORS = { overdue: C.dangerText, today: C.warningText, soon: C.info };
 // الفلاتر جوه القايمة
@@ -54,6 +56,7 @@ const TABS = {
   contracts: (i) => i.kind === "contractEnd",
   claims: (i) => i.kind === "claimLate",
   zatca: (i) => i.kind === "zatca",
+  expiry: (i) => i.kind === "expiry",
 };
 
 // اليوم والوقت الحالي بتوقيت السعودية
@@ -183,8 +186,30 @@ export default function NotificationBell() {
             href: "/zatca/documents",
           }))
       : [];
-    return [...zatca, ...data.items];
-  }, [data, tZ, locale]);
+    // تتبع الصلاحية: المنتهي + اللي قرب ينتهي (العدد جزء من المفتاح)
+    const ex = data.expiry;
+    const expiry = ex
+      ? [
+          ex.expired > 0 && {
+            key: `expiry-expired-${ex.expired}`,
+            kind: "expiry",
+            level: "overdue",
+            label: t("ExpiredBatches"),
+            count: ex.expired,
+            href: "/inventory/batches?status=expired",
+          },
+          ex.near > 0 && {
+            key: `expiry-near-${ex.near}`,
+            kind: "expiry",
+            level: "soon",
+            label: t("NearExpiryBatches"),
+            count: ex.near,
+            href: "/inventory/batches?status=near",
+          },
+        ].filter(Boolean)
+      : [];
+    return [...zatca, ...expiry, ...data.items];
+  }, [data, t, tZ, locale]);
 
   const unseen = items.filter((i) => !seen.has(i.key)).length;
   const danger = items.some((i) => i.level === "overdue");
@@ -332,7 +357,7 @@ export default function NotificationBell() {
                   <Icon />
                 </span>
                 <span className="notif-body">
-                  {i.kind === "zatca" ? (
+                  {i.kind === "zatca" || i.kind === "expiry" ? (
                     <span className="notif-title">
                       {i.label}
                       {i.count != null && <b> ({i.count})</b>}

@@ -54,6 +54,14 @@ const serialEntrySchema = z.object({
   isUsed: z.boolean().default(false),
 });
 
+// دفعة (الصنف المتتبع بالصلاحية): رقمها (اختياري) + الإنتاج + الانتهاء + الكمية بوحدة السطر
+export const batchEntrySchema = z.object({
+  batchNo: optionalText(50),
+  mfgDate: dayField.nullish(),
+  expDate: dayField,
+  qty: qtyField,
+});
+
 const purchaseItemSchema = z
   .object({
     productId: idField,
@@ -64,6 +72,8 @@ const purchaseItemSchema = z
     // ملاحظة / وصف السطر (اختياري)
     note: optionalText(500),
     serials: z.array(serialEntrySchema).max(1000).default([]),
+    // دفعات الصنف المتتبع بالصلاحية (مجموعها = كمية السطر)
+    batches: z.array(batchEntrySchema).max(100).default([]),
   })
   .refine(percentMax, { message: "PercentMax", path: ["discountValue"] });
 

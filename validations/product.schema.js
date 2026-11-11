@@ -82,6 +82,9 @@ const productFields = {
   isActive: z.boolean().default(true),
   // خدمة بدون مخزون
   isService: z.boolean().default(false),
+  // تتبع الصلاحية (ميزة expiry): الرصيد بالدفعات + أيام التنبيه (فاضي = إعداد الشركة)
+  trackExpiry: z.boolean().default(false),
+  expiryAlertDays: z.number().int().min(1).max(3650).nullish(),
 
   image: imageField,
 

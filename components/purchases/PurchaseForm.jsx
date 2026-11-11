@@ -48,7 +48,7 @@ import DiscountInput from "./DiscountInput";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
 import { printQuery } from "@/lib/print-param";
-import { afterSave } from "@/components/common/afterSave";
+import SavedDocPrint from "@/components/printing/SavedDocPrint";
 import {
   previewItems,
   previewPayments,
@@ -58,6 +58,7 @@ import { LineNoteEditor } from "./LineNote";
 import "./purchases.css";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
 import LineSerials from "@/components/serials/LineSerials";
+import LineBatches, { batchesComplete } from "@/components/batches/LineBatches";
 import { useModuleSettings } from "@/components/auth/AuthProvider";
 import PurchaseSizeGrid from "./PurchaseSizeGrid";
 
@@ -89,6 +90,9 @@ const initialItems = (purchase) =>
       serial2: x.serial2 ?? null,
       isUsed: Boolean(x.isUsed),
     })),
+    // تتبع الصلاحية: دفعات السطر (الانتهاء...)
+    trackExpiry: Boolean(i.trackExpiry),
+    batches: i.batches ?? [],
   }));
 
 const initialDiscount = (purchase) =>
@@ -140,9 +144,9 @@ export default function PurchaseForm({
   const isEdit = Boolean(purchase);
   const router = useRouter();
   const locale = useLocale();
-  // رسالة الحفظ: "عرض" / "طباعة"
-  const tButtons = useTranslations("Buttons");
-  const tExports = useTranslations("Exports");
+  const tBatches = useTranslations("Batches");
+  // بعد حفظ مستند جديد: شريط "تم الحفظ" + الطباعة في نفس الشاشة
+  const [printJob, setPrintJob] = useState(null);
   const t = useTranslations("Purchases");
   const tTax = useTranslations("TaxModes");
   const tAlerts = useTranslations("Alerts");
@@ -273,6 +277,8 @@ export default function PurchaseForm({
           serialLabel1: product.serialLabel1 ?? null,
           serialLabel2: product.serialLabel2 ?? null,
           serials: [],
+          trackExpiry: Boolean(product.trackExpiry),
+          batches: [],
         },
       ];
     });
@@ -321,6 +327,9 @@ export default function PurchaseForm({
     }
     if (!items.length) return message.error(tAlerts("NoItems"));
     if (items.some((l) => !(l.qty > 0))) return message.error(t("QtyRequired"));
+    // الأصناف المتتبعة بالصلاحية: الدفعات لازم تكون كاملة
+    if (items.some((l) => !batchesComplete(l)))
+      return message.error(tBatches("CompleteBatches"));
     if (payments === null) return message.error(t("ChoosePaymentMethod"));
     if (payments.some((p) => !(p.amount > 0)))
       return message.error(t("PaymentAmountRequired"));
@@ -352,6 +361,7 @@ export default function PurchaseForm({
         discountValue: Number(l.discountValue) || 0,
         note: l.note?.trim() || null,
         serials: l.serials ?? [],
+        batches: l.trackExpiry ? (l.batches ?? []) : [],
       })),
       payments: payments.map((p) => ({
         paymentMethodId: p.paymentMethodId,
@@ -375,13 +385,13 @@ export default function PurchaseForm({
       message.success(text);
       router.push(`${path}${printQuery(mode)}`);
     } else {
-      // الشاشة بتفضل فاضية لفاتورة جديدة (الطباعة في تبويب جديد)
-      afterSave({
-        path,
-        mode,
-        locale,
-        text,
-        labels: { view: tButtons("View"), print: tExports("Print") },
+      // الشاشة بتفضل فاضية لفاتورة جديدة (الطباعة من نفس الشاشة)
+      setPrintJob({
+        kind: "purchase",
+        id: res.data.id,
+        mode: mode,
+        text: text,
+        seq: Date.now(),
       });
       resetAll();
     }
@@ -410,6 +420,11 @@ export default function PurchaseForm({
           <LineNoteEditor
             value={l.note}
             onChange={(note) => updateLine(l.key, { note })}
+          />
+          {/* تتبع الصلاحية: دفعات السطر (الانتهاء والتشغيلة) */}
+          <LineBatches
+            line={l}
+            onChange={(patch) => updateLine(l.key, patch)}
           />
           {/* الأرقام التسلسلية: اختياري في الشراء */}
           <LineSerials
@@ -539,6 +554,7 @@ export default function PurchaseForm({
 
   return (
     <div className="pur">
+      <SavedDocPrint job={printJob} onClose={() => setPrintJob(null)} />
       <PageHeader
         title={
           isEdit ? (

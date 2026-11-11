@@ -71,6 +71,12 @@ export const systemSettingsSchema = z
     // اللغة الافتراضية للبرنامج
     defaultLocale: z.enum(["ar", "en"], "ValidationError").default("en"),
     localeDetection: z.boolean().default(true),
+
+    // تتبع الصلاحية (بيظهر لو ميزة expiry مفعّلة بس)
+    expiryBlockSale: z.boolean().optional(),
+    expiryAutoDispose: z.boolean().optional(),
+    expiryAlertDays: z.number().int().min(1).max(3650).optional(),
+    expiryBarcode: z.enum(["simple", "gs1", "both"]).optional(),
   })
   .refine((s) => s.scaleFlag.length === Number(s.scaleFormat.split("+")[0]), {
     path: ["scaleFlag"],

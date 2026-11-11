@@ -44,7 +44,7 @@ import "./purchases.css";
 import DayPicker from "@/components/common/DayPicker";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
-import { afterSave } from "@/components/common/afterSave";
+import SavedDocPrint from "@/components/printing/SavedDocPrint";
 import { previewPayments, previewTotals } from "@/lib/preview-doc";
 import { formatDocNo } from "@/lib/doc-number";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
@@ -75,9 +75,8 @@ export default function PurchaseReturnForm({
   initialPurchase,
 }) {
   const locale = useLocale();
-  // رسالة الحفظ: "عرض" / "طباعة"
-  const tButtons = useTranslations("Buttons");
-  const tExports = useTranslations("Exports");
+  // بعد حفظ مستند جديد: شريط "تم الحفظ" + الطباعة في نفس الشاشة
+  const [printJob, setPrintJob] = useState(null);
   const t = useTranslations("Purchases");
   const tTax = useTranslations("TaxModes");
   const tAlerts = useTranslations("Alerts");
@@ -323,15 +322,15 @@ export default function PurchaseReturnForm({
       return;
     }
 
-    // الشاشة بتفضل فاضية لمرتجع جديد (الطباعة في تبويب جديد)
-    afterSave({
-      path: `/invoices/purchase-returns/${res.data.id}`,
-      mode,
-      locale,
+    // الشاشة بتفضل فاضية لمرتجع جديد (الطباعة من نفس الشاشة)
+    setPrintJob({
+      kind: "purchaseReturn",
+      id: res.data.id,
+      mode: mode,
       text: t("ReturnSaved", {
         number: formatDocNo("return", res.data.number),
       }),
-      labels: { view: tButtons("View"), print: tExports("Print") },
+      seq: Date.now(),
     });
     resetAll();
     setSaving(null);
@@ -460,6 +459,7 @@ export default function PurchaseReturnForm({
 
   return (
     <div className="pur">
+      <SavedDocPrint job={printJob} onClose={() => setPrintJob(null)} />
       <h1 className="font-bold text-xl mb-4 flex flex-wrap items-center gap-3">
         {t("NewReturn")} <NextDocNo type="purchaseReturn" />
       </h1>

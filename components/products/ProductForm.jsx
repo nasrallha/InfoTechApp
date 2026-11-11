@@ -15,7 +15,7 @@ import {
 import { message } from "@/components/common/feedback";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
-import { useModule } from "@/components/auth/AuthProvider";
+import { useModule, useModuleSettings } from "@/components/auth/AuthProvider";
 import ImageUploadItem from "@/components/common/ImageUploadItem";
 import {
   createProductAction,
@@ -121,6 +121,11 @@ const ProductForm = ({
   const serialCount = Form.useWatch("serialCount", form) ?? 0;
   // خدمة (مصنعية، تركيب...): من غير رصيد افتتاحي ولا أرقام تسلسلية
   const isService = Form.useWatch("isService", form) ?? false;
+  // تتبع الصلاحية (ميزة expiry من اللوحة)
+  const expiryDefaults = useModuleSettings().expiry ?? null;
+  const expiryOn = Boolean(expiryDefaults);
+  const trackExpiry = Form.useWatch("trackExpiry", form) ?? false;
+  const tExp = useTranslations("Expiry");
   const warrantyMonths = Form.useWatch("warrantyMonths", form) ?? 0;
 
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
@@ -165,6 +170,8 @@ const ProductForm = ({
         isPriceIncludeTax: product.isPriceIncludeTax,
         isActive: product.isActive,
         isService: product.isService ?? false,
+        trackExpiry: product.trackExpiry ?? false,
+        expiryAlertDays: product.expiryAlertDays ?? null,
         image: product.image
           ? [
               {
@@ -265,6 +272,9 @@ const ProductForm = ({
     );
     formData.append("isActive", String(values.isActive));
     formData.append("isService", String(Boolean(values.isService)));
+    // تتبع الصلاحية (الميزة مقفولة: السيرفر بيتجاهلها)
+    formData.append("trackExpiry", String(Boolean(values.trackExpiry)));
+    formData.append("expiryAlertDays", values.expiryAlertDays ?? "");
     // الأرقام التسلسلية والضمان (الوحدة مقفولة: السيرفر بيتجاهلها)
     if (followUpsOn)
       formData.append(
@@ -672,6 +682,35 @@ const ProductForm = ({
                   >
                     <Switch />
                   </Form.Item>
+                  {/* تتبع الصلاحية (ميزة expiry): الرصيد بالدفعات */}
+                  {expiryOn && !isService && (
+                    <Form.Item
+                      name="trackExpiry"
+                      label={tExp("TrackExpiry")}
+                      tooltip={tExp("TrackExpiryHint")}
+                      valuePropName="checked"
+                      layout="horizontal"
+                      className="mb-0"
+                    >
+                      <Switch />
+                    </Form.Item>
+                  )}
+                  {expiryOn && !isService && trackExpiry && (
+                    <Form.Item
+                      name="expiryAlertDays"
+                      label={tExp("ProductAlertDays")}
+                      tooltip={tExp("ProductAlertDaysHint")}
+                      layout="horizontal"
+                      className="mb-0"
+                    >
+                      <InputNumber
+                        min={1}
+                        max={3650}
+                        style={{ width: 110 }}
+                        placeholder={String(expiryDefaults.alertDays ?? 30)}
+                      />
+                    </Form.Item>
+                  )}
                   {/* المغسلة (وحدة laundry): الخدمة قطعة مغسلة (أسعارها تحت) */}
                   {laundryOn && isService && (
                     <Form.Item

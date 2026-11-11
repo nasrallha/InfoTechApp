@@ -84,6 +84,11 @@ const saleLineSchema = z
     ...discountFields,
     note: optionalText(500),
     serials: z.array(serialEntrySchema).max(1000).default([]),
+    // تتبع الصلاحية: دفعات اتمسحت (باركود GS1) بكمياتها بوحدة السطر - الباقي الأقرب انتهاءً
+    batchIds: z
+      .array(z.object({ batchId: idField, qty: qtyField }))
+      .max(100)
+      .default([]),
     // الضمان بالشهور (فاضي = من الصنف)
     warrantyMonths: z.number().int().min(0).max(600).nullish(),
     // الفني والموعد لسطر الخدمة (وحدة technicians)

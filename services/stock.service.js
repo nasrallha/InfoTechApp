@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { can } from "@/lib/permissions";
 import { getSystemSettings } from "./system-settings.service";
+import { applyBatchMoves, reverseBatchMoves } from "./batch.service";
 
 // ============================================================
 // محرك المخزون
@@ -158,6 +159,8 @@ export async function applyMovements(tx, movements, { allowNegative }) {
     })),
   });
   await changeBalances(tx, rows, allowNegative);
+  // الأصناف المتتبعة بالصلاحية: الدفعات (الخروج من الأقرب انتهاءً)
+  await applyBatchMoves(tx, rows, getSystemSettings);
   // البضاعة اللي دخلت مستودع ← الصنف بقى متاح فيه (يظهر في كاشير الفرع)
   await makeAvailable(
     tx,
@@ -240,6 +243,8 @@ export async function reverseMovements(
   });
   if (!movements.length) return;
   await tx.stockMovement.deleteMany({ where });
+  // الدفعات بترجع زي ما كانت
+  await reverseBatchMoves(tx, refType, refId, types);
   await changeBalances(
     tx,
     movements.map((m) => ({ ...m, qty: -n(m.qty) })),

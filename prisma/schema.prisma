@@ -407,6 +407,12 @@ model Product {
   // خدمة (مصنعية، تركيب...): بتتباع عادي ومالهاش مخزون ولا حركات
   isService Boolean @default(false)
 
+  // تتبع الصلاحية (ميزة expiry): الرصيد بالدفعات، والخروج من الأقرب انتهاءً
+  // expiryAlertDays: أيام التنبيه قبل الانتهاء (فاضي = إعداد الشركة)
+  trackExpiry     Boolean        @default(false)
+  expiryAlertDays Int?
+  batches         ProductBatch[]
+
   // المتابعة الدورية (وحدة followUps): 0 = الصنف مالوش متابعة
   // غير كده = المدة المقترحة بالأيام (بتتغير لكل عميل في الفاتورة)
   followUpDays Int @default(0)
@@ -977,6 +983,15 @@ model SystemSettings {
   restaurantDefaultOrderType String  @default("takeaway") @db.VarChar(10)
   restaurantDefaultTableId   Int?
 
+  // تتبع الصلاحية (ميزة expiry)
+  // expiryBlockSale: منع بيع المنتهي / expiryAutoDispose: إتلاف المنتهي تلقائياً
+  // expiryAlertDays: أيام التنبيه قبل الانتهاء (الافتراضي، والصنف يقدر يغيّره)
+  // expiryBarcode: ملصق الباركود simple (الصنف + التاريخ مكتوب) | gs1 | both
+  expiryBlockSale   Boolean @default(true)
+  expiryAutoDispose Boolean @default(false)
+  expiryAlertDays   Int     @default(30)
+  expiryBarcode     String  @default("simple") @db.VarChar(10)
+
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
@@ -1186,6 +1201,8 @@ model Warehouse {
   // الأصناف المتاحة في المستودع (للأصناف اللي مش متاحة في كل المستودعات)
   products     ProductWarehouse[]
   movements    StockMovement[]
+  // دفعات الأصناف المتتبعة بالصلاحية في المستودع
+  batches      ProductBatch[]
   transfersOut StockTransfer[]  @relation("TransferFrom")
   adjustments  StockAdjustment[]
   transfersIn  StockTransfer[]  @relation("TransferTo")
@@ -1535,6 +1552,8 @@ model Sale {
   customerTaxNo  String? @db.VarChar(15)
   // فاتورة تصدير (خارج المملكة): ضريبة صفرية VATEX-SA-32 + فاتورة ضريبية للهيئة
   isExport Boolean @default(false)
+  // نوع فاتورة التصدير: standard ضريبية / simplified مبسطة (فاضي = ضريبية)
+  exportKind String? @db.VarChar(10)
 
   // السيارة (وحدة vehicles) + نسخة من بياناتها وقت البيع + قراءة العداد
   vehicleId    Int?
@@ -3441,4 +3460,50 @@ model SupplierBranch {
   @@id([supplierId, branchId])
   @@index([branchId])
   @@map("supplier_branches")
+}
+
+// ============================================================
+// دفعات الأصناف المتتبعة بالصلاحية (ميزة expiry) - لكل مستودع
+// - batchNo: رقم الدفعة/التشغيلة (بيتولّد لو مش مكتوب)
+// - expDate: الانتهاء (فاضي = غير محدد، بيخرج آخر حاجة)
+// - qty: الرصيد الحالي بالوحدة الأساسية
+// ============================================================
+model ProductBatch {
+  id          Int       @id @default(autoincrement())
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  batchNo     String    @db.VarChar(50)
+  mfgDate     DateTime? @db.Date
+  expDate     DateTime? @db.Date
+  qty         Decimal   @default(0) @db.Decimal(18, 4)
+  createdAt   DateTime  @default(now())
+
+  moves BatchMove[]
+
+  @@unique([productId, warehouseId, batchNo])
+  @@index([productId, warehouseId, expDate])
+  @@index([warehouseId])
+  @@index([expDate])
+  @@map("product_batches")
+}
+
+// حركة دفعة: المستند ده خد (-) أو دخّل (+) كام من الدفعة
+// (الإلغاء بيرجّعها، وكارت الدفعة منها)
+model BatchMove {
+  id       Int          @id @default(autoincrement())
+  batchId  Int
+  batch    ProductBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  qty      Decimal      @db.Decimal(18, 4)
+  moveType String       @db.VarChar(20)
+  refType  String       @db.VarChar(20)
+  refId    Int
+  refNo    String?      @db.VarChar(30)
+  moveDate DateTime
+  createdAt DateTime    @default(now())
+
+  @@index([batchId])
+  @@index([refType, refId])
+  @@map("batch_moves")
 }

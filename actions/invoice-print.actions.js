@@ -12,6 +12,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCompany } from "@/services/company.service";
 import { peekNextNumber } from "@/services/sequence.service";
+import { AppError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
+import { getSale } from "@/services/sale.service";
+import { getQuotation } from "@/services/quotation.service";
+import { getPurchase } from "@/services/purchase.service";
+import { getNote } from "@/services/note.service";
 
 export async function saveInvoicePrintAction(input) {
   return runAction(
@@ -69,5 +75,51 @@ export async function getPreviewContextAction(type) {
       number,
       user: { arFullname: user.arFullname, enFullname: user.enFullname },
     };
+  });
+}
+
+// ------------------------------------------------------------
+// المستند بعد الحفظ (للطباعة في نفس شاشة الإضافة من غير ما ننتقل)
+// kind: sale | return | quotation | purchase | purchaseReturn
+//       | saleNote | purchaseNote
+// بيرجّع المستند + بيانات الشركة + إعدادات الطباعة
+// ------------------------------------------------------------
+const SAVED_VIEW_PERM = {
+  sale: "sales.view",
+  return: "salesReturns.view",
+  quotation: "quotations.view",
+  purchase: "purchases.view",
+  purchaseReturn: "purchaseReturns.view",
+  saleNote: "salesNotes.view",
+  purchaseNote: "purchaseNotes.view",
+};
+
+const savedDocSchema = z.object({
+  kind: z.enum(Object.keys(SAVED_VIEW_PERM)),
+  id: z.number().int().positive(),
+});
+
+export async function getSavedDocForPrintAction(input) {
+  return runAction(savedDocSchema, input, async ({ kind, id }, user) => {
+    // الصلاحية: عرض نوع المستند، أو إضافته (اللي لسه حافظه)
+    const createPerm = SAVED_VIEW_PERM[kind].replace(".view", ".create");
+    if (!can(user, SAVED_VIEW_PERM[kind]) && !can(user, createPerm))
+      throw new AppError("Forbidden");
+    const load = {
+      sale: () => getSale(id, "sale", user),
+      return: () => getSale(id, "return", user),
+      quotation: () => getQuotation(id, user),
+      purchase: () => getPurchase(id, "purchase", user),
+      purchaseReturn: () => getPurchase(id, "return", user),
+      saleNote: () => getNote("sale", id, user),
+      purchaseNote: () => getNote("purchase", id, user),
+    }[kind];
+    const [doc, company, settings] = await Promise.all([
+      load(),
+      getCompany(),
+      getInvoicePrintSettings(),
+    ]);
+    if (!doc) throw new AppError("SaleNotFound");
+    return { doc, company, settings };
   });
 }

@@ -82,3 +82,37 @@ export async function getLabelProductsByIds(ids) {
   const byId = new Map(products.map((p) => [p.id, toLabelProduct(p)]));
   return ids.map((id) => byId.get(id)).filter(Boolean);
 }
+
+// ملصقات دفعات (من تقرير الصلاحية): الصنف + بيانات الدفعة + عدد الملصقات = رصيدها
+// warehouseIds: مستودعات المستخدم
+export async function getLabelBatchesByIds(ids, warehouseIds) {
+  if (!ids.length) return [];
+  const batches = await prisma.productBatch.findMany({
+    where: { id: { in: ids }, warehouseId: { in: warehouseIds } },
+    select: {
+      id: true,
+      batchNo: true,
+      mfgDate: true,
+      expDate: true,
+      qty: true,
+      product: { select: labelProductSelect },
+    },
+  });
+  const day = (d) => (d ? d.toISOString().slice(0, 10) : null);
+  const byId = new Map(
+    batches.map((b) => [
+      b.id,
+      {
+        ...toLabelProduct(b.product),
+        batch: {
+          id: b.id,
+          batchNo: b.batchNo === "-" ? null : b.batchNo,
+          mfgDate: day(b.mfgDate),
+          expDate: day(b.expDate),
+        },
+        labelQty: Math.min(999, Math.max(1, Math.ceil(Number(b.qty)))),
+      },
+    ]),
+  );
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}

@@ -131,6 +131,7 @@ const saleForZatcaSelect = {
   customerEnName: true,
   customerTaxNo: true,
   isExport: true,
+  exportKind: true,
   totalAmount: true,
   paidAmount: true,
   remainingAmount: true,
@@ -199,7 +200,9 @@ const saleForZatcaSelect = {
 function kindOf(sale) {
   if (sale.type !== "sale" && sale.returnOf?.zatcaDocument?.kind)
     return sale.returnOf.zatcaDocument.kind;
-  if (isExportSale(sale)) return "standard";
+  // التصدير: ضريبية أو مبسطة حسب اختيار الفاتورة (فاضي = ضريبية)
+  if (isExportSale(sale))
+    return sale.exportKind === "simplified" ? "simplified" : "standard";
   const c = sale.customer;
   return c && isB2BCustomer(c) && !buyerMissing(c).length
     ? "standard"

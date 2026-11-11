@@ -1,4 +1,6 @@
 import "server-only";
+import { hasFeature } from "@/lib/plan-features";
+import { alignBatches } from "./batch.service";
 import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
@@ -70,6 +72,9 @@ const productSelect = {
   startStock: true,
   isActive: true,
   isService: true,
+  // تتبع الصلاحية (ميزة expiry)
+  trackExpiry: true,
+  expiryAlertDays: true,
   // المستودعات اللي الصنف متاح فيها (true = كلها)
   allWarehouses: true,
   serialCount: true,
@@ -366,6 +371,11 @@ async function withoutDisabledFields(input) {
     ? { ...input, startStock: 0, serialCount: 0 }
     : input;
   const rest = { ...data };
+  // تتبع الصلاحية: ميزة الشركة مقفولة ← الحقول بتتساب زي ما هي، والخدمة مالهاش
+  if (!(await hasFeature("expiry"))) {
+    delete rest.trackExpiry;
+    delete rest.expiryAlertDays;
+  } else if (rest.isService) rest.trackExpiry = false;
   // الخدمة مالهاش متابعة، والوحدة المقفولة: الحقل بيتساب زي ما هو
   if (!(await hasModule("followUps"))) delete rest.followUpDays;
   else if (rest.isService) rest.followUpDays = 0;
@@ -625,6 +635,8 @@ export async function createProduct(
       user,
       true,
     );
+    // متتبع بالصلاحية: الرصيد الافتتاحي ← الدفعة غير المحددة
+    await alignBatches(prisma, product.id);
     return product;
   } catch (error) {
     await deleteImage(imagePath);
@@ -719,6 +731,8 @@ export async function updateProduct(
       user,
       false,
     );
+    // متتبع بالصلاحية (أو رصيده اتغير): الرصيد اللي مالوش دفعة ← غير محددة
+    await alignBatches(prisma, id);
     return product;
   } catch (error) {
     if (newImagePath) await deleteImage(newImagePath);

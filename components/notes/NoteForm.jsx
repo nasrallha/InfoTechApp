@@ -37,7 +37,7 @@ import { dayOf, formatDateTime, today } from "@/lib/dates";
 import { noteLineKind, noteLineKindsFor } from "@/lib/note-lines";
 import { purchaseDocNo, saleDocNo } from "@/lib/doc-number";
 import { printQuery } from "@/lib/print-param";
-import { afterSave } from "@/components/common/afterSave";
+import SavedDocPrint from "@/components/printing/SavedDocPrint";
 import {
   createPurchaseNoteAction,
   createSaleNoteAction,
@@ -104,9 +104,8 @@ export default function NoteForm({
   const isEdit = Boolean(note);
   const router = useRouter();
   const locale = useLocale();
-  // رسالة الحفظ: "عرض" / "طباعة"
-  const tButtons = useTranslations("Buttons");
-  const tExports = useTranslations("Exports");
+  // بعد حفظ مستند جديد: شريط "تم الحفظ" + الطباعة في نفس الشاشة
+  const [printJob, setPrintJob] = useState(null);
   const t = useTranslations("Notes");
   const tP = useTranslations("Purchases");
   const tZ = useTranslations("Zatca");
@@ -456,12 +455,12 @@ export default function NoteForm({
       router.push(`${path}${printQuery(mode)}`);
       return router.refresh();
     }
-    afterSave({
-      path,
-      mode,
-      locale,
-      text,
-      labels: { view: tButtons("View"), print: tExports("Print") },
+    setPrintJob({
+      kind: isSale ? "saleNote" : "purchaseNote",
+      id: res.data.id,
+      mode: mode,
+      text: text,
+      seq: Date.now(),
     });
     resetAll();
     setSaving(null);
@@ -704,6 +703,7 @@ export default function NoteForm({
 
   return (
     <div className="pur">
+      <SavedDocPrint job={printJob} onClose={() => setPrintJob(null)} />
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl flex flex-wrap items-center gap-3">
           {isEdit ? (

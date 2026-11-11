@@ -45,6 +45,7 @@ import {
 } from "@/actions/quotation.actions";
 import NextDocNo from "@/components/common/NextDocNo";
 import { message } from "@/components/common/feedback";
+import { addBatchPick, useExpiryWarning } from "@/components/batches/expiryWarning";
 import { showActionError } from "@/components/common/actionError";
 import { lineQtyProblem, qtyProblemKey } from "@/lib/unit-qty";
 import SizePickerModal from "@/components/products/SizePickerModal";
@@ -67,8 +68,8 @@ import QuickAddParty from "@/components/parties/QuickAddParty";
 import PreviewBeforeSave from "@/components/printing/PreviewBeforeSave";
 import SavePrintButtons from "@/components/printing/SavePrintButtons";
 import { printQuery } from "@/lib/print-param";
-import { afterSave } from "@/components/common/afterSave";
-import { exportBuyerMissing } from "@/lib/zatca-tax";
+import SavedDocPrint from "@/components/printing/SavedDocPrint";
+import { exportBuyerMissing, exportKindOf } from "@/lib/zatca-tax";
 import {
   previewItems,
   previewPayments,
@@ -281,15 +282,15 @@ export default function SaleForm({
   const tZ = useTranslations("Zatca");
   const router = useRouter();
   const locale = useLocale();
-  // رسالة الحفظ: "عرض" / "طباعة"
-  const tButtons = useTranslations("Buttons");
-  const tExports = useTranslations("Exports");
+  // بعد حفظ مستند جديد: شريط "تم الحفظ" + الطباعة في نفس الشاشة
+  const [printJob, setPrintJob] = useState(null);
   const t = useTranslations("Sales");
   const tP = useTranslations("Purchases");
   // رصيد فرعك مش كفاية ← تنبيه بالفروع اللي فيها الصنف (البيع وعرض السعر)
   const stockElsewhere = useStockElsewhere();
   const tAlerts = useTranslations("Alerts");
   const tSerial = useTranslations("Serials");
+  const warnExpiry = useExpiryWarning();
   // الإلزام موجود بس لو الوحدة مفعّلة
   // allowDuplicateLines: نفس الصنف يتضاف سطر جديد (كل سطر بوصفه) بدل زيادة الكمية
   const { serialRequired = false, allowDuplicateLines = false } =
@@ -338,7 +339,16 @@ export default function SaleForm({
   const odometer = Form.useWatch("odometer", form);
   const saleDay = Form.useWatch("date", form) ?? today();
   const customer = customers.find((c) => c.id === customerId);
-  const exportMissing = exportMode ? exportBuyerMissing(customer) : [];
+  // نوع فاتورة التصدير من العميل: له معرّف ← ضريبية / مالوش ← مبسطة
+  // (التعديل: زي ما اتحفظت)
+  const exportKind = sale
+    ? (sale.exportKind ?? "standard")
+    : customer
+      ? exportKindOf(customer)
+      : null;
+  const exportMissing = exportMode
+    ? exportBuyerMissing(customer, exportKind)
+    : [];
   const todayDay = today();
 
   // عروض الولاء للعميل (كل كام مرة ← مرة مجانية) - عرض السعر من غيرها
@@ -386,6 +396,9 @@ export default function SaleForm({
       return message.warning(tSerial("DuplicateInList"));
     // عرض السعر كمان: تنبيه بس (العرض بيتعمل عادي)
     stockElsewhere.check(product, neededBase(items, product, uid, addQty));
+    // تتبع الصلاحية: تنبيه المنتهي / القريب من الانتهاء
+    if (!isQuotation) warnExpiry(product, options.batch);
+    const batch = !isQuotation ? (options.batch ?? null) : null;
     setItems((prev) => {
       const found =
         !allowDuplicateLines &&
@@ -397,12 +410,14 @@ export default function SaleForm({
                 ...l,
                 qty: round(l.qty + addQty, 3),
                 ...(serial ? { serials: [...(l.serials ?? []), serial] } : {}),
+                ...(batch ? { batchIds: addBatchPick(l.batchIds, batch, addQty) } : {}),
               }
             : l,
         );
       }
       const line = lineFromProduct(product, uid, addQty);
       if (serial) line.serials = [serial];
+      if (batch) line.batchIds = addBatchPick([], batch, addQty);
       return [...prev, line];
     });
   };
@@ -437,6 +452,7 @@ export default function SaleForm({
       preview: true,
       type: isQuotation ? "quotation" : "sale",
       isExport: exportMode,
+      exportKind: exportMode ? exportKind : null,
       number: isEdit ? source.number : ctx.number,
       date:
         header.date && header.date !== todayDay
@@ -526,6 +542,10 @@ export default function SaleForm({
         ? {}
         : {
             serials: l.serials ?? [],
+            batchIds: (l.batchIds ?? []).map(({ batchId, qty }) => ({
+              batchId,
+              qty,
+            })),
             warrantyMonths: l.warrantyMonths ?? null,
             job: l.job ?? null,
             followUp: l.followUpDays > 0 ? (l.followUp ?? null) : null,
@@ -644,12 +664,12 @@ export default function SaleForm({
         message.success(text);
         router.push(`${path}${printQuery(how)}`);
       } else
-        afterSave({
-          path,
+        setPrintJob({
+          kind: "quotation",
+          id: res.data.id,
           mode: how,
-          locale,
-          text,
-          labels: { view: tButtons("View"), print: tExports("Print") },
+          text: text,
+          seq: Date.now(),
         });
       clearForm();
     } else {
@@ -662,12 +682,12 @@ export default function SaleForm({
         message.success(text);
         router.push(`${path}${printQuery(how)}`);
       } else
-        afterSave({
-          path,
+        setPrintJob({
+          kind: "sale",
+          id: res.data.id,
           mode: how,
-          locale,
-          text,
-          labels: { view: tButtons("View"), print: tExports("Print") },
+          text: text,
+          seq: Date.now(),
         });
       clearForm();
     }
@@ -930,6 +950,7 @@ export default function SaleForm({
 
   return (
     <div className="pur">
+      <SavedDocPrint job={printJob} onClose={() => setPrintJob(null)} />
       <PageHeader
         title={
           isEdit ? (
@@ -943,7 +964,23 @@ export default function SaleForm({
       />
 
       {exportMode && (
-        <Alert className="mb-3" type="info" showIcon title={t("ExportHint")} />
+        <Alert
+          className="mb-3"
+          type="info"
+          showIcon
+          title={t("ExportHint")}
+          action={
+            exportKind && (
+              <Tag color={exportKind === "standard" ? "blue" : "default"}>
+                {t(
+                  exportKind === "standard"
+                    ? "ExportStandard"
+                    : "ExportSimplified",
+                )}
+              </Tag>
+            )
+          }
+        />
       )}
 
       {!isQuotation && shift && (

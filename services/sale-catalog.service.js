@@ -3,6 +3,8 @@ import { partyInBranch } from "@/lib/party-scope";
 import { productTax } from "@/lib/zatca-tax";
 import { prisma } from "@/lib/prisma";
 import { parseScaleBarcode, scaleQty } from "@/lib/scale-barcode";
+import { gtinCandidates, parseGs1 } from "@/lib/gs1";
+import { dayToDbDate, today } from "@/lib/dates";
 import { getScaleSettings } from "./system-settings.service";
 import { availableInWhere, getMainWarehouseId } from "./stock.service";
 import { hasModule } from "@/lib/modules";
@@ -97,7 +99,34 @@ export const saleProductSelect = (ctx) => ({
     where: { warehouseId: ctx.warehouseId ?? -1 },
     select: { qty: true },
   },
+  // تتبع الصلاحية: أقرب دفعة انتهاءً في مستودع الفرع (للتنبيه وقت البيع)
+  trackExpiry: true,
+  expiryAlertDays: true,
+  batches: {
+    where: {
+      warehouseId: ctx.warehouseId ?? -1,
+      qty: { gt: 0 },
+      expDate: { not: null },
+    },
+    orderBy: { expDate: "asc" },
+    take: 1,
+    select: { expDate: true },
+  },
 });
+
+// الأيام الباقية على أقرب انتهاء (سالب = منتهي) - null = مش متتبع / مفيش تاريخ
+function nextExpiry(p) {
+  const exp = p.trackExpiry ? p.batches?.[0]?.expDate : null;
+  if (!exp) return null;
+  const days = Math.round(
+    (exp.getTime() - dayToDbDate(today()).getTime()) / 86_400_000,
+  );
+  return {
+    date: exp.toISOString().slice(0, 10),
+    days,
+    alertDays: p.expiryAlertDays ?? null,
+  };
+}
 
 // exactUnitId: الوحدة التي باركودها = نص البحث بالظبط (للماسح)
 export function toSaleProduct(p, q = "") {
@@ -144,6 +173,8 @@ export function toSaleProduct(p, q = "") {
     // خدمة: مالهاش رصيد (مفيش تنبيه "الرصيد لا يكفي")
     isService: Boolean(p.isService),
     serialCount: p.serialCount ?? 0,
+    trackExpiry: Boolean(p.trackExpiry),
+    nextExpiry: nextExpiry(p),
     serialLabel1: p.serialLabel1 ?? null,
     serialLabel2: p.serialLabel2 ?? null,
     warrantyMonths: p.warrantyMonths ?? 0,
@@ -193,6 +224,58 @@ export async function searchSaleProducts(query, user, { models = false } = {}) {
       const base = p.units[0];
       const qty = scaleQty(scale, base.price);
       if (qty > 0) return [{ ...p, exactUnitId: base.unit.id, scaleQty: qty }];
+    }
+  }
+
+  // باركود GS1 (الدواء والأغذية): رقم الصنف + الانتهاء + الدفعة ← الصنف بدفعته
+  const gs1 = parseGs1(q);
+  if (gs1) {
+    const codes = gtinCandidates(gs1.gtin);
+    const product = await prisma.product.findFirst({
+      where: inBranch(ctx, {
+        isActive: true,
+        OR: [
+          { code: { in: codes } },
+          { productUnits: { some: { barcode: { in: codes } } } },
+        ],
+      }),
+      select: saleProductSelect(ctx),
+    });
+    if (product) {
+      const unit = product.productUnits.find((u) => codes.includes(u.barcode));
+      const p = toSaleProduct(product);
+      // الدفعة: برقمها، أو بتاريخ انتهائها لو مفيش رقم
+      const batch = product.trackExpiry
+        ? await prisma.productBatch.findFirst({
+            where: {
+              productId: product.id,
+              warehouseId: ctx.warehouseId ?? -1,
+              ...(gs1.batchNo
+                ? { batchNo: gs1.batchNo }
+                : gs1.expDate
+                  ? { expDate: dayToDbDate(gs1.expDate) }
+                  : { id: -1 }),
+            },
+            select: { id: true, batchNo: true, expDate: true, qty: true },
+          })
+        : null;
+      return [
+        {
+          ...p,
+          exactUnitId: unit?.unit.id ?? p.units[0].unit.id,
+          ...(batch
+            ? {
+                scannedBatch: {
+                  id: batch.id,
+                  batchNo: batch.batchNo,
+                  expDate: batch.expDate
+                    ? batch.expDate.toISOString().slice(0, 10)
+                    : null,
+                },
+              }
+            : {}),
+        },
+      ];
     }
   }
 

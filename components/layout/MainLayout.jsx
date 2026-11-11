@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import {
   MenuFoldOutlined,
+  HourglassOutlined,
   MenuUnfoldOutlined,
   HomeFilled,
   TeamOutlined,
@@ -169,6 +170,7 @@ const MainLayout = ({
     "/inventory/transfers",
     "/inventory/counts",
     "/inventory/adjustments",
+    "/inventory/batches",
     "/printing/barcode-labels",
     "/printing/barcodes",
     "/printing/invoice",
@@ -318,6 +320,13 @@ const MainLayout = ({
     // نظام المغسلة: مفيش مخازن
     group("inventory", <InboxOutlined />, "Inventory", simpleMode ? [] : [
       link("/inventory/stock", <BarChartOutlined />, "Stock", "stock.view"),
+      // الصلاحية والدفعات (ميزة expiry): الصلاحية مقفولة لو الميزة مش في الباقة
+      link(
+        "/inventory/batches",
+        <HourglassOutlined />,
+        "Batches",
+        "batches.view",
+      ),
       link(
         "/inventory/transfers",
         <SwapOutlined />,

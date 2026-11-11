@@ -33,6 +33,7 @@ import {
   NumberOutlined,
   FileTextOutlined,
   FieldTimeOutlined,
+  HourglassOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
@@ -74,6 +75,9 @@ export default function SystemSettingsForm({
   const tStaff = useTranslations("StaffTitles");
   // الحجوزات (وحدة bookings)
   const bookingsOn = useModule("bookings");
+  // تتبع الصلاحية (ميزة expiry من اللوحة)
+  const expiryOn = Boolean(useModuleSettings().expiry);
+  const tExp = useTranslations("Expiry");
   const tB = useTranslations("Bookings");
   const locale = useLocale();
   // اللينك بعد ما الصفحة تفتح (العنوان من المتصفح)
@@ -153,6 +157,10 @@ export default function SystemSettingsForm({
           scaleWeightDecimals: settings.scaleWeightDecimals,
           scaleMoneyDecimals: settings.scaleMoneyDecimals,
           defaultLocale: settings.defaultLocale ?? "en",
+          expiryBlockSale: settings.expiryBlockSale ?? true,
+          expiryAutoDispose: settings.expiryAutoDispose ?? false,
+          expiryAlertDays: settings.expiryAlertDays ?? 30,
+          expiryBarcode: settings.expiryBarcode ?? "simple",
         }}
         disabled={!canEdit}
       >
@@ -423,6 +431,63 @@ export default function SystemSettingsForm({
               >
                 <Input.TextArea rows={2} maxLength={500} />
               </Form.Item>
+            </Card>
+          )}
+
+          {/* ============ الصلاحية والدفعات (ميزة expiry) ============ */}
+          {expiryOn && (
+            <Card
+              size="small"
+              title={section(<HourglassOutlined />, tExp("SettingsTitle"))}
+              className="mb-4"
+            >
+              <Row gutter={12}>
+                <Col xs={12}>
+                  <Form.Item
+                    name="expiryBlockSale"
+                    label={tExp("BlockSale")}
+                    tooltip={tExp("BlockSaleHint")}
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                </Col>
+                <Col xs={12}>
+                  <Form.Item
+                    name="expiryAutoDispose"
+                    label={tExp("AutoDispose")}
+                    tooltip={tExp("AutoDisposeHint")}
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                </Col>
+                <Col xs={12}>
+                  <Form.Item
+                    name="expiryAlertDays"
+                    label={tExp("AlertDays")}
+                    tooltip={tExp("AlertDaysHint")}
+                    className="mb-0"
+                  >
+                    <InputNumber min={1} max={3650} style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                <Col xs={12}>
+                  <Form.Item
+                    name="expiryBarcode"
+                    label={tExp("Barcode")}
+                    tooltip={tExp("BarcodeHint")}
+                    className="mb-0"
+                  >
+                    <Select
+                      options={["simple", "gs1", "both"].map((v) => ({
+                        value: v,
+                        label: tExp(`barcode.${v}`),
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
             </Card>
           )}
 

@@ -14,6 +14,11 @@ import { AGENT_LATE_DAYS } from "@/services/warranty-claim.service";
 import { dueFollowUps } from "@/services/follow-up.service";
 import { dueVehicleChanges } from "@/services/vehicle.service";
 import { todayBookings } from "@/services/booking.service";
+import { getTranslations } from "next-intl/server";
+import { hasFeature } from "@/lib/plan-features";
+import { listBatches } from "@/services/batch.service";
+import { getVisibleWarehouses } from "@/services/stock.service";
+import { autoDisposeExpired } from "@/services/stock-adjustment.service";
 
 // ============================================================
 // قايمة الإشعارات الموحدة (الجرس في الهيدر)
@@ -287,6 +292,22 @@ async function restaurantOrders(user) {
 
 const LEVEL_ORDER = { overdue: 0, today: 1, soon: 2 };
 
+// تتبع الصلاحية: عدد الدفعات المنتهية واللي قربت تنتهي في مستودعات المستخدم
+// (ولو "إتلاف المنتهي تلقائياً" شغال ← بيتعمل تالف الأول)
+async function expiryAlerts(user) {
+  if (can(user, "stockAdjustments.add")) {
+    const t = await getTranslations("BatchesReport");
+    await autoDisposeExpired(user, t("AutoDisposeReason")).catch(() => null);
+  }
+  const ids = (await getVisibleWarehouses(user)).map((w) => w.id);
+  if (!ids.length) return null;
+  const data = await listBatches({ status: "all" }, ids, prisma);
+  return {
+    expired: data.totals.expired.count,
+    near: data.totals.near.count,
+  };
+}
+
 export async function getNotifications(user) {
   const todayDay = today();
   const [techOn, contractsOn, claimsOn, followUpsOn, vehiclesOn, bookingsOn, restaurantOn] =
@@ -299,9 +320,13 @@ export async function getNotifications(user) {
       hasModule("bookings"),
       hasModule("restaurant"),
     ]);
-  const [zatca, ...lists] = await Promise.all([
+  const expiryOn = await hasFeature("expiry");
+  const [zatca, expiry, ...lists] = await Promise.all([
     can(user, "zatca.view")
       ? getZatcaAlerts(user).catch(() => null)
+      : Promise.resolve(null),
+    expiryOn && can(user, "batches.view")
+      ? expiryAlerts(user).catch(() => null)
       : Promise.resolve(null),
     techOn && can(user, "technicians.jobs")
       ? saleJobs(user, todayDay)
@@ -341,5 +366,5 @@ export async function getNotifications(user) {
         (a.kind === "claimLate" ? -a.days : a.days) -
           (b.kind === "claimLate" ? -b.days : b.days),
     );
-  return { zatca: zatca?.enabled ? zatca : null, items };
+  return { zatca: zatca?.enabled ? zatca : null, expiry, items };
 }

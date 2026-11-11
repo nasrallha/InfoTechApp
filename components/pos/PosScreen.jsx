@@ -53,6 +53,7 @@ import {
 } from "@/actions/sale.actions";
 import NextDocNo from "@/components/common/NextDocNo";
 import { message } from "@/components/common/feedback";
+import { addBatchPick, useExpiryWarning } from "@/components/batches/expiryWarning";
 import { showActionError } from "@/components/common/actionError";
 import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
@@ -184,6 +185,7 @@ export default function PosScreen({
   const stockElsewhere = useStockElsewhere();
   const tAlerts = useTranslations("Alerts");
   const tSerial = useTranslations("Serials");
+  const warnExpiry = useExpiryWarning();
   const tButtons = useTranslations("Buttons");
   const tL = useTranslations("Laundry");
   const tR = useTranslations("RestaurantPos");
@@ -373,14 +375,17 @@ export default function PosScreen({
     setTimeout(() => document.querySelector(".pos-search input")?.focus(), 30);
 
   // serial: الرقم التسلسلي اللي اتمسح (القطعة بتتضاف برقمها من غير نافذة)
+  // batch: الدفعة اللي اتمسحت (باركود GS1)
   const addLine = useCallback(
-    (product, unitId, qty = 1, serial = null) => {
+    (product, unitId, qty = 1, serial = null, batch = null) => {
       const tracked = serialsOn && product.serialCount > 0;
       if (serial && serialInLines(items, product.id, serial.serial)) {
         message.warning(tSerial("DuplicateInList"));
         return;
       }
       stockElsewhere.check(product, neededBase(items, product, unitId, qty));
+      // تتبع الصلاحية: تنبيه المنتهي / القريب من الانتهاء
+      warnExpiry(product, batch);
       setItems((prev) => {
         const found = prev.find(
           (l) => l.productId === product.id && l.unitId === unitId,
@@ -396,19 +401,23 @@ export default function PosScreen({
                   ...(serial
                     ? { serials: [...(l.serials ?? []), serial] }
                     : {}),
+                  ...(batch
+                    ? { batchIds: addBatchPick(l.batchIds, batch, qty) }
+                    : {}),
                 }
               : l,
           );
         }
         const line = lineFromProduct(product, unitId, qty);
         if (serial) line.serials = [serial];
+        if (batch) line.batchIds = addBatchPick([], batch, qty);
         if (staffOn && staffId) line.job = { technicianId: staffId };
         setLastKey(line.key);
         if (tracked && !serial) setSerialKey(line.key);
         return [...prev, line];
       });
     },
-    [serialsOn, items, tSerial, staffOn, staffId, stockElsewhere],
+    [serialsOn, items, tSerial, staffOn, staffId, stockElsewhere, warnExpiry],
   );
 
   // من الماسح/البحث: الوحدة معروفة (باركودها) أو الأولى
@@ -421,6 +430,7 @@ export default function PosScreen({
           unitId ?? product.exactUnitId ?? product.units[0].unit.id,
           options?.qty > 0 ? options.qty : 1,
           options?.serial ?? null,
+          options?.batch ?? null,
         );
 
   // من كارت الصنف: لو له أكثر من وحدة نسأل عن الوحدة
@@ -623,6 +633,10 @@ export default function PosScreen({
             discountType: l.discountType,
             discountValue: Number(l.discountValue) || 0,
             serials: l.serials ?? [],
+            batchIds: (l.batchIds ?? []).map(({ batchId, qty }) => ({
+              batchId,
+              qty,
+            })),
             warrantyMonths: l.warrantyMonths ?? null,
             // مقدم الخدمة على السطر (عمولته)
             job:

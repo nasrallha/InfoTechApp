@@ -1,4 +1,95 @@
 {
+  "BatchesReport": {
+    "PrintLabels": "Print batch labels",
+    "Dispose": "Dispose",
+    "DisposeAllExpired": "Dispose all expired ({count})",
+    "DisposeConfirm": "Dispose {count} batch(es)?",
+    "DisposeHint": "A damage document will be created with the full balance of the selected batches per warehouse.",
+    "DisposeReason": "Expired",
+    "AutoDisposeReason": "Automatic disposal of expired stock",
+    "Disposed": "Batches disposed and damage document created",
+    "CardTitle": "Batch card",
+    "Moves": "Movements",
+    "MoveDate": "Date",
+    "MoveType": "Movement type",
+    "Document": "Document",
+    "In": "In",
+    "Out": "Out",
+    "Balance": "Balance",
+    "NoMoves": "No movements",
+    "Title": "Expiry and batches",
+    "Item": "Item",
+    "BatchNo": "Batch no",
+    "NoBatch": "Unspecified",
+    "Warehouse": "Warehouse",
+    "MfgDate": "Production",
+    "ExpDate": "Expiry",
+    "DaysLeft": "Remaining",
+    "ExpiredSince": "Expired {days} days ago",
+    "ExpiresToday": "Expires today",
+    "DaysLeftN": "{days} days left",
+    "Qty": "Qty",
+    "Value": "Value (cost)",
+    "NearCount": "Batches near expiry",
+    "NearValue": "Near-expiry value",
+    "ExpiredCount": "Expired batches",
+    "ExpiredValue": "Expired value",
+    "status": {
+      "all": "All",
+      "near": "Near expiry",
+      "expired": "Expired",
+      "none": "No date"
+    },
+    "Week": "Within a week",
+    "Month": "Within a month",
+    "Custom": "Custom days",
+    "Days": "days",
+    "AllWarehouses": "All warehouses",
+    "Search": "Item name or code",
+    "Empty": "No batches"
+  },
+  "Batches": {
+    "WarnExpired": "Warning: the nearest batch of “{name}” expired {days} day(s) ago",
+    "WarnExpiresToday": "Warning: the nearest batch of “{name}” expires today",
+    "WarnNear": "Warning: the nearest batch of “{name}” expires in {days} day(s) ({date})",
+    "ScannedExpired": "The scanned batch “{batch}” is expired",
+    "AutoFefo": "Nearest expiry (automatic)",
+    "NoBatchLabel": "Unspecified",
+    "Title": "Item batches (expiry)",
+    "Expiry": "Expiry",
+    "BatchesCount": "{count} batches",
+    "EnterBatches": "Enter expiry date",
+    "QtyMismatch": "Batches do not match the quantity",
+    "Hint": "Enter each batch expiry date; quantities must add up to the line quantity ({qty}). Batch number is optional.",
+    "BatchNo": "Batch no",
+    "AutoNo": "Auto",
+    "MfgDate": "Production date",
+    "ExpDate": "Expiry date",
+    "Qty": "Qty",
+    "AddBatch": "Add batch",
+    "Total": "Total",
+    "CompleteBatches": "Complete the batches of expiry-tracked items (expiry date and quantity)"
+  },
+  "Expiry": {
+    "SettingsTitle": "Expiry and batches",
+    "BlockSale": "Block selling expired stock",
+    "BlockSaleHint": "When on, nothing is sold from an expired batch; when off, it sells normally",
+    "AutoDispose": "Dispose expired stock automatically",
+    "AutoDisposeHint": "An expired batch gets a damage document automatically and leaves the stock",
+    "AlertDays": "Alert before expiry (days)",
+    "AlertDaysHint": "Default for all items; can be changed per item in the item screen",
+    "Barcode": "Batch label barcode",
+    "BarcodeHint": "Simple: item barcode with batch and expiry printed. GS1: the barcode itself carries item, expiry and batch (like medicine packs)",
+    "barcode": {
+      "simple": "Simple (item barcode + printed date)",
+      "gs1": "GS1-128 (item + expiry + batch)",
+      "both": "Both (choose when printing)"
+    },
+    "TrackExpiry": "Track expiry",
+    "TrackExpiryHint": "Stock is kept in batches (batch no, production and expiry) and sales take the nearest expiry first",
+    "ProductAlertDays": "Alert before expiry (days)",
+    "ProductAlertDaysHint": "Empty = company setting"
+  },
   "UserPermissions": {
     "RoleIs": "Role: {role}",
     "FromRole": "From role",
@@ -148,6 +239,7 @@
     "description": "This is the translated home page"
   },
   "Sidebar": {
+    "Batches": "Expiry and batches",
     "SalesNotes": "Customer notes",
     "PurchaseNotes": "Supplier notes",
     "Home": "Home",
@@ -408,6 +500,10 @@
     "AllowDecimalsHint": "Like kilogram and gram (0.250). Turn it off for units sold whole, like piece and pack, so fractional quantities are rejected."
   },
   "Alerts": {
+    "BatchQtyMismatch": "The item batches do not match the line quantity",
+    "BatchExpiryMismatch": "This batch number is already recorded with a different expiry date",
+    "ExpiredBatch": "This batch has expired and cannot be sold",
+    "ExpiredStockOnly": "The available stock has expired and cannot be sold",
     "CannotEditOwnPermissions": "You cannot edit your own permissions",
     "PartyRegisteredIn": "Registered as \"{name}\" in: {branches}",
     "OffsetExceedsBalance": "The offset exceeds the customer or supplier balance",
@@ -969,6 +1065,7 @@
     "SuperRoleText": "It automatically has every permission (current and future) and sees every branch",
     "AllPermissions": "All permissions",
     "groups": {
+      "batches": "Expiry and batches",
       "offsets": "Offset vouchers (customer & supplier)",
       "salesNotes": "Customer notes (credit / debit)",
       "purchaseNotes": "Supplier notes (credit / debit)",
@@ -1024,6 +1121,7 @@
       "restaurant": "Restaurant (menu & delivery)"
     },
     "actions": {
+      "dispose": "Dispose",
       "combined": "Combined statement (customer & supplier)",
       "view": "View",
       "create": "Create",
@@ -1115,6 +1213,13 @@
     }
   },
   "BarcodePrint": {
+    "MfgShort": "Mfg",
+    "PrintExp": "Print expiry date",
+    "PrintMfg": "Print production date",
+    "ExpShort": "Exp",
+    "BatchBarcode": "Batch label barcode",
+    "BatchSimple": "Item barcode + printed dates",
+    "BatchGs1": "GS1-128 (item + dates)",
     "Title": "Print barcodes",
     "Template": "Template",
     "SearchPlaceholder": "Search by name or code... or scan the barcode",
@@ -1786,6 +1891,8 @@
     "EditSale": "Edit"
   },
   "Sales": {
+    "ExportStandard": "Standard export",
+    "ExportSimplified": "Simplified export",
     "StockNoneHere": "“{name}” is out of stock in your branch",
     "StockLowHere": "Only {qty} {unit} of “{name}” in your branch",
     "StockAvailableAt": "Available at:",
@@ -1870,7 +1977,7 @@
     "InvoicePromoApplied": "Promotion “{name}” applied to the invoice: {value}",
     "NewExportSale": "New export invoice",
     "Export": "Export",
-    "ExportHint": "Export invoice: all items are zero-rated (export of goods VATEX-SA-32) and the invoice is cleared by ZATCA as a tax invoice. Choose a customer whose country is outside Saudi Arabia.",
+    "ExportHint": "Export invoice: all items are zero-rated (export of goods VATEX-SA-32); choose a customer outside Saudi Arabia. A customer with an identifier gets a standard export (cleared before printing); without one, a simplified export (reported within 24 hours).",
     "ExportCustomerIncomplete": "Customer data is incomplete for an export invoice - edit it from the customers page",
     "LockedProductionLive": "Deleting is not allowed: invoices were sent to ZATCA production. Use a return instead",
     "FromClaim": "from repair order"
@@ -3583,6 +3690,9 @@
     "RescheduleNote": "Changing the period or interval reschedules visits not done yet. Done or skipped visits ({kept}) stay as they are."
   },
   "Notifications": {
+    "Tab_expiry": "Expiry",
+    "ExpiredBatches": "Expired batches",
+    "NearExpiryBatches": "Batches nearing expiry",
     "Kind_restaurantOrder": "Online order",
     "Tab_orders": "Orders",
     "Title": "Notifications",

@@ -25,7 +25,7 @@ export const MOVEMENT_COLOR = {
 };
 
 // رابط المستند صاحب الحركة
-const refLink = (m) => {
+export const refLink = (m) => {
   if (m.refType === "purchase")
     return m.type === "purchase_return"
       ? `/invoices/purchase-returns/${m.refId}`
