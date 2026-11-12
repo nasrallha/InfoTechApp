@@ -319,3 +319,75 @@
   overflow-wrap: anywhere;
   margin-top: 2px;
 }
+
+/* ============================================================
+   فاتورة دفعة الإيجار: شكل مضغوط (خط وهوامش أصغر، رأس وQR أصغر)
+   ============================================================ */
+.a4--rent {
+  /* من غير ارتفاع ثابت ولا تثبيت التوقيعات في آخر الصفحة:
+     الطباعة الفعلية (مش المعاينة) كانت بتنزّل التوقيعات صفحة تانية */
+  display: block;
+  min-height: 0;
+  padding: 8mm;
+  font-size: 8.5pt;
+  line-height: 1.4;
+}
+.a4--rent .a4__words {
+  padding: 1.5mm 2.8mm;
+}
+.a4--rent .a4__head {
+  padding-bottom: 1.5mm;
+}
+.a4--rent .a4__logo {
+  height: 20mm;
+  max-width: 35mm;
+}
+.a4--rent .a4__company-name,
+.a4--rent .a4__title {
+  font-size: 1.3em;
+}
+.a4--rent .a4__title-box {
+  min-width: 46mm;
+  padding: 2mm 3mm;
+}
+.a4--rent .a4__qr {
+  width: 24mm;
+  height: 24mm;
+  padding: 0.8mm;
+}
+.a4--rent .a4__boxes {
+  margin: 2.5mm 0;
+}
+.a4--rent .a4__box,
+.a4--rent .a4__payments,
+.a4--rent .a4__bank {
+  padding: 1.8mm 2.8mm;
+}
+.a4--rent .a4__box-title {
+  font-size: 1.05em;
+  padding-bottom: 0.6mm;
+}
+.a4--rent .a4__items th {
+  padding: 1.4mm 1.2mm;
+}
+.a4--rent .a4__items td {
+  padding: 1.2mm 1.2mm;
+}
+.a4--rent .a4__items td.a4__col-name {
+  font-size: 1em;
+}
+.a4--rent .a4__grand {
+  padding: 2mm 3mm;
+  font-size: 1.1em;
+}
+.a4--rent .a4__signs {
+  /* التوقيعات بعد الإجماليات بمسافة ثابتة */
+  margin-top: 10mm;
+  padding-top: 0;
+}
+.a4--rent .a4__sign-line {
+  margin-top: 8mm;
+}
+.a4--rent .a4__footer {
+  margin-top: 4mm;
+}

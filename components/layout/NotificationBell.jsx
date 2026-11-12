@@ -14,6 +14,8 @@ import {
   ScheduleOutlined,
   SyncOutlined,
   ToolOutlined,
+  FileDoneOutlined,
+  BankOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
@@ -43,6 +45,9 @@ const KINDS = {
   booking: { color: C.magenta, Icon: CalendarOutlined },
   restaurantOrder: { color: C.success, Icon: ShoppingOutlined },
   expiry: { color: C.dangerText, Icon: HourglassOutlined },
+  // تأجير العقارات: دفعة مستحقة / عقد بيخلص
+  rentDue: { color: C.warningText, Icon: FileDoneOutlined },
+  rentEnd: { color: C.magenta, Icon: BankOutlined },
 };
 const LEVEL_COLORS = { overdue: C.dangerText, today: C.warningText, soon: C.info };
 // الفلاتر جوه القايمة
@@ -57,6 +62,7 @@ const TABS = {
   claims: (i) => i.kind === "claimLate",
   zatca: (i) => i.kind === "zatca",
   expiry: (i) => i.kind === "expiry",
+  rent: (i) => i.kind === "rentDue" || i.kind === "rentEnd",
 };
 
 // اليوم والوقت الحالي بتوقيت السعودية
@@ -285,7 +291,7 @@ export default function NotificationBell() {
   const whenText = (i) => {
     if (i.kind === "claimLate")
       return t("AtAgentFor", { days: i.days, agent: nm(i.supplier) || "—" });
-    if (i.kind === "contractEnd")
+    if (i.kind === "contractEnd" || i.kind === "rentEnd")
       return i.days === 0
         ? t("EndsToday")
         : t("EndsIn", { days: i.days, date: formatDay(i.at) });
@@ -302,6 +308,8 @@ export default function NotificationBell() {
   const refText = (i) =>
     i.ref?.kind === "restaurantOrder"
       ? `#${i.ref.number}`
+      : i.ref?.kind === "rentContract"
+      ? formatDocNo("rentContract", i.ref.number, i.ref.docCode)
       : i.ref?.kind === "booking"
       ? formatDocNo("booking", i.ref.number, i.ref.docCode)
       : i.ref?.kind === "sale"

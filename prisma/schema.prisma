@@ -93,6 +93,9 @@ model Branch {
   // طلبات الضمان والصيانة المستلمة في الفرع
   warrantyClaims WarrantyClaim[]
   maintenanceContracts MaintenanceContract[]
+  // تأجير العقارات (وحدة realEstate)
+  properties    Property[]
+  rentContracts RentContract[]
   followUps            FollowUp[]
   bookings             Booking[]
   vouchers      Voucher[]
@@ -170,6 +173,7 @@ model User {
   warrantyClaims    WarrantyClaim[]
   claimLogs         WarrantyClaimLog[]
   maintenanceContracts MaintenanceContract[]
+  rentContractsCreated RentContract[]
   followUpsCreated     FollowUp[]    @relation("FollowUpCreatedBy")
   bookingsCreated      Booking[]     @relation("BookingCreatedBy")
   followUpLogs         FollowUpLog[] @relation("FollowUpLogUser")
@@ -621,6 +625,8 @@ model Customer {
   serials    ProductSerial[]
   warrantyClaims WarrantyClaim[]
   maintenanceContracts MaintenanceContract[]
+  // عقود الإيجار (المستأجر)
+  rentContracts RentContract[]
   followUps            FollowUp[]
   vehicles             Vehicle[]
   bookings             Booking[]
@@ -999,6 +1005,10 @@ model SystemSettings {
   expiryAutoDispose Boolean @default(false)
   expiryAlertDays   Int     @default(30)
   expiryBarcode     String  @default("simple") @db.VarChar(10)
+
+  // تأجير العقارات (وحدة realEstate): التنبيه قبل ميعاد الدفعة / نهاية العقد بكام يوم
+  rentDueAlertDays Int @default(7)
+  rentEndAlertDays Int @default(30)
 
   updatedAt DateTime @updatedAt
 
@@ -1671,6 +1681,8 @@ model Sale {
   laundryOrders LaundryOrder[]
   // المطعم: طلب الكاشير اللي الفاتورة دي بتاعته (رقمه اليومي ونوعه)
   restaurantOrder RestaurantOrder?
+  // فاتورة دفعة إيجار (وحدة realEstate)
+  rentInstallment RentInstallment?
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWalletUses LaundryWalletUse[]
   @@unique([branchId, type, number])
@@ -3570,4 +3582,208 @@ model BatchMove {
   @@index([batchId])
   @@index([refType, refId])
   @@map("batch_moves")
+}
+
+// ============================================================
+// تأجير العقارات (وحدة realEstate)
+// - الملّاك ← العقارات (عمارة / مجمّع) ← الوحدات (شقة / مكتب / محل ...)
+// - العقد: مستأجر (عميل) + وحدة أو أكتر + فترة السداد ← جدول الدفعات
+// - كل دفعة: فاتورة ضريبية (فاتورة بيع عادية) بفترة السداد - السكني معفى والتجاري بالضريبة
+// - الخروج المبكر: العقد بيخلص والدفعات اللي متفوترتش بتتلغي والوحدة بترجع متاحة
+// ============================================================
+
+// مالك العقار (كشف حسابه = إيجارات وحداته)
+model PropertyOwner {
+  id       Int     @id @default(autoincrement())
+  name     String  @db.VarChar(150)
+  phone    String? @db.VarChar(20)
+  // رقم الهوية / السجل
+  idNumber String? @db.VarChar(30)
+  notes    String? @db.VarChar(500)
+  isActive Boolean @default(true)
+
+  properties Property[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("property_owners")
+}
+
+// العقار: عمارة / مجمّع / برج
+model Property {
+  id       Int     @id @default(autoincrement())
+  name     String  @db.VarChar(150)
+  city     String? @db.VarChar(100)
+  district String? @db.VarChar(100)
+  address  String? @db.VarChar(255)
+  notes    String? @db.VarChar(500)
+  isActive Boolean @default(true)
+
+  ownerId Int?
+  owner   PropertyOwner? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  // فرع العقار (فواتير إيجاره بتطلع على الفرع ده)
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  units RentUnit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, name])
+  @@index([ownerId])
+  @@index([branchId])
+  @@map("properties")
+}
+
+// الوحدة جوه العقار (الرقم بيتكرر عادي في عقار تاني)
+model RentUnit {
+  id         Int    @id @default(autoincrement())
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+
+  unitNo String @db.VarChar(30)
+  // apartment شقة | office مكتب | shop محل | warehouse مستودع | villa فيلا | other أخرى
+  kind   String @db.VarChar(15)
+  // residential سكني (معفى من الضريبة) | commercial تجاري (بالضريبة)
+  useType String @db.VarChar(12)
+  floor  String? @db.VarChar(20)
+  area   Decimal? @db.Decimal(10, 2)
+  // الإيجار السنوي المقترح (قبل الضريبة)
+  annualRent Decimal @default(0) @db.Decimal(18, 4)
+  // تفاصيل حرة: [{ label: "عداد المياه", value: "12345" }, ...]
+  details Json?
+  notes    String? @db.VarChar(500)
+  isActive Boolean @default(true)
+
+  contracts RentContractUnit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([propertyId, unitNo])
+  @@map("rent_units")
+}
+
+// نموذج صيغة العقد: نص فيه خانات بتتملي لوحدها ({tenant}، {units}، ...)
+model RentContractTemplate {
+  id        Int     @id @default(autoincrement())
+  name      String  @db.VarChar(100)
+  // residential / commercial / فاضي = للكل
+  useType   String? @db.VarChar(12)
+  content   String  @db.Text
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  contracts RentContract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rent_contract_templates")
+}
+
+// عقد الإيجار
+model RentContract {
+  id      Int     @id @default(autoincrement())
+  number  Int // مسلسل لكل فرع (DM-RC-5)
+  docCode String? @db.VarChar(10)
+  // رقم العقد في منصة «إيجار» (اختياري)
+  ejarNo  String? @db.VarChar(40)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  // فترة السداد بالشهور: 1 شهري | 3 | 6 | 12 سنوي
+  payEvery  Int
+  // إجمالي العقد قبل الضريبة (مجموع إيجار الوحدات عن المدة)
+  totalAmount Decimal @default(0) @db.Decimal(18, 4)
+
+  // draft مسودة | active ساري | ended منتهي | terminated خروج مبكر
+  status     String    @default("active") @db.VarChar(12)
+  // الخروج المبكر: تاريخه
+  exitDate   DateTime? @db.Date
+  exitReason String?   @db.VarChar(255)
+
+  // التجديد: العقد القديم
+  renewedFromId Int?
+  renewedFrom   RentContract?  @relation("RentRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewals      RentContract[] @relation("RentRenewal")
+
+  // صيغة العقد: النموذج + النص النهائي المحفوظ (مرجع زي ما اتمضى)
+  templateId Int?
+  template   RentContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  content    String?  @db.Text
+  notes      String?  @db.VarChar(1000)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  units        RentContractUnit[]
+  installments RentInstallment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, number])
+  @@index([customerId])
+  @@index([status])
+  @@index([endDate])
+  @@index([createdById])
+  @@index([templateId])
+  @@index([renewedFromId])
+  @@map("rent_contracts")
+}
+
+// وحدات العقد (وحدة أو أكتر) وإيجار كل واحدة
+model RentContractUnit {
+  id         Int @id @default(autoincrement())
+  contractId Int
+  contract   RentContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  unitId     Int
+  unit       RentUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  // الإيجار السنوي للوحدة في العقد ده (قبل الضريبة)
+  annualRent Decimal @db.Decimal(18, 4)
+
+  @@unique([contractId, unitId])
+  @@index([unitId])
+  @@map("rent_contract_units")
+}
+
+// دفعة من جدول السداد
+model RentInstallment {
+  id         Int @id @default(autoincrement())
+  contractId Int
+  contract   RentContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  seq        Int
+
+  periodFrom DateTime @db.Date
+  periodTo   DateTime @db.Date
+  dueDate    DateTime @db.Date
+  // المبلغ قبل الضريبة
+  amount     Decimal  @db.Decimal(18, 4)
+
+  // due مستحقة (لسه متفوترتش) | invoiced اتفوترت | cancelled اتلغت (خروج مبكر)
+  status String @default("due") @db.VarChar(12)
+
+  // الفاتورة الضريبية للدفعة
+  saleId Int?  @unique
+  sale   Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  // الترحيل (سداد جزئي): المبلغ اللي اترحل من الدفعة دي للدفعة الجاية
+  // (إلغاء الفاتورة بيرجّعه مكانه)
+  carried     Decimal @default(0) @db.Decimal(18, 4)
+  carriedToId Int?
+
+  @@unique([contractId, seq])
+  @@index([dueDate])
+  @@index([status])
+  @@map("rent_installments")
 }

@@ -77,6 +77,10 @@ export const systemSettingsSchema = z
     expiryAutoDispose: z.boolean().optional(),
     expiryAlertDays: z.number().int().min(1).max(3650).optional(),
     expiryBarcode: z.enum(["simple", "gs1", "both"]).optional(),
+
+    // تأجير العقارات: التنبيه قبل ميعاد الدفعة / نهاية العقد (بيظهر لو الوحدة مفعّلة)
+    rentDueAlertDays: z.number().int().min(0).max(365).optional(),
+    rentEndAlertDays: z.number().int().min(0).max(365).optional(),
   })
   .refine((s) => s.scaleFlag.length === Number(s.scaleFormat.split("+")[0]), {
     path: ["scaleFlag"],

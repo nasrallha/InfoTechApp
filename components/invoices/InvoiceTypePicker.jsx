@@ -84,13 +84,18 @@ export const INVOICE_TYPES = [
 // هل المستخدم يقدر يفتح أي نوع فاتورة؟ (لإظهار زر "الفواتير" في القائمة)
 // نظام المغسلة: الفوترة من الكاشير (وضع المغسلة)، ففاتورة البيع والتصدير وعرض السعر مش ظاهرين
 const LAUNDRY_HIDDEN = ["SalesInvoice", "ExportInvoice", "Quotation"];
+// تأجير العقارات: مفيش مشتريات
+const REAL_ESTATE_HIDDEN = ["PurchaseInvoice", "PurchaseReturn", "PurchaseNotes"];
 
 export function useVisibleInvoiceTypes() {
   const can = useCan();
   const laundryOn = useModule("laundry");
+  const realEstateOn = useModule("realEstate");
   return INVOICE_TYPES.filter(
     (type) =>
-      can(type.permission) && !(laundryOn && LAUNDRY_HIDDEN.includes(type.key)),
+      can(type.permission) &&
+      !(laundryOn && LAUNDRY_HIDDEN.includes(type.key)) &&
+      !(realEstateOn && REAL_ESTATE_HIDDEN.includes(type.key)),
   );
 }
 

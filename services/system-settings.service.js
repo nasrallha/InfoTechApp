@@ -34,6 +34,9 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   expiryAutoDispose: false,
   expiryAlertDays: 30,
   expiryBarcode: "simple",
+  // تأجير العقارات (وحدة realEstate)
+  rentDueAlertDays: 7,
+  rentEndAlertDays: 30,
 };
 
 const select = {
@@ -64,6 +67,8 @@ const select = {
   expiryAutoDispose: true,
   expiryAlertDays: true,
   expiryBarcode: true,
+  rentDueAlertDays: true,
+  rentEndAlertDays: true,
   updatedAt: true,
 };
 

@@ -34,6 +34,7 @@ import {
   FileTextOutlined,
   FieldTimeOutlined,
   HourglassOutlined,
+  BankOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
@@ -77,6 +78,9 @@ export default function SystemSettingsForm({
   const bookingsOn = useModule("bookings");
   // تتبع الصلاحية (ميزة expiry من اللوحة)
   const expiryOn = Boolean(useModuleSettings().expiry);
+  // تأجير العقارات: أيام التنبيه
+  const realEstateOn = useModule("realEstate");
+  const tRent = useTranslations("RealEstate");
   const tExp = useTranslations("Expiry");
   const tB = useTranslations("Bookings");
   const locale = useLocale();
@@ -161,6 +165,8 @@ export default function SystemSettingsForm({
           expiryAutoDispose: settings.expiryAutoDispose ?? false,
           expiryAlertDays: settings.expiryAlertDays ?? 30,
           expiryBarcode: settings.expiryBarcode ?? "simple",
+          rentDueAlertDays: settings.rentDueAlertDays ?? 7,
+          rentEndAlertDays: settings.rentEndAlertDays ?? 30,
         }}
         disabled={!canEdit}
       >
@@ -485,6 +491,38 @@ export default function SystemSettingsForm({
                         label: tExp(`barcode.${v}`),
                       }))}
                     />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+          )}
+
+          {/* ============ تأجير العقارات (وحدة realEstate): التنبيهات ============ */}
+          {realEstateOn && (
+            <Card
+              size="small"
+              title={section(<BankOutlined />, tRent("AlertsTitle"))}
+              className="mb-4"
+            >
+              <Row gutter={12}>
+                <Col xs={12}>
+                  <Form.Item
+                    name="rentDueAlertDays"
+                    label={tRent("DueAlertDays")}
+                    tooltip={tRent("DueAlertDaysHint")}
+                    className="mb-0"
+                  >
+                    <InputNumber min={0} max={365} style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                <Col xs={12}>
+                  <Form.Item
+                    name="rentEndAlertDays"
+                    label={tRent("EndAlertDays")}
+                    tooltip={tRent("EndAlertDaysHint")}
+                    className="mb-0"
+                  >
+                    <InputNumber min={0} max={365} style={{ width: "100%" }} />
                   </Form.Item>
                 </Col>
               </Row>

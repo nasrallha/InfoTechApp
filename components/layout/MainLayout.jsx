@@ -26,6 +26,7 @@ import {
   SwapOutlined,
   DiffOutlined,
   AuditOutlined,
+  RiseOutlined,
   TagsOutlined,
   DesktopOutlined,
   FieldTimeOutlined,
@@ -115,6 +116,8 @@ const MainLayout = ({
   const laundryOn = useModule("laundry");
   // نظام المطعم: الأصناف من شاشة المطعم، والبيع من الكاشير بس (من غير الفواتير والمخازن)
   const restaurantOn = useModule("restaurant");
+  // تأجير العقارات: مفيش أصناف ولا وحدات قياس ولا مجموعات (الفواتير من العقود)
+  const realEstateOn = useModule("realEstate");
   const simpleMode = laundryOn  //|| restaurantOn;
   const [reportsOpen, setReportsOpen] = useState(false);
   const reports = useVisibleReports();
@@ -158,6 +161,11 @@ const MainLayout = ({
     "/technicians/jobs",
     "/technicians",
     "/maintenance-contracts",
+    "/real-estate/contracts",
+    "/real-estate/reports",
+    "/real-estate",
+    "/reports/vat",
+    "/reports/profit",
     "/follow-ups",
     "/vehicles",
     "/bookings",
@@ -235,15 +243,21 @@ const MainLayout = ({
     // نظام المغسلة: الأقسام والوحدات والأصناف مش ظاهرة
     // (القطع وأسعارها من شاشة المغسلة)
     !laundryOn &&
+      !realEstateOn &&
       link("/categories", <AppstoreOutlined />, "Categories", "categories.view"),
     !simpleMode &&
+      !realEstateOn &&
       link("/units", <ColumnWidthOutlined />, "Units", "units.view"),
     !simpleMode &&
+      !realEstateOn &&
       link("/products", <ShoppingOutlined />, "Products", "products.view"),
     // العروض والخصومات: في كل الأنشطة (والمغسلة كمان)
-    link("/promotions", <GiftOutlined />, "Promotions", "promotions.view"),
+    // (تأجير العقارات: مفيش عروض ولا خصومات أصناف)
+    !realEstateOn &&
+      link("/promotions", <GiftOutlined />, "Promotions", "promotions.view"),
     // الفواتير: زر واحد يفتح نافذة لاختيار نوع الفاتورة (يظهر لو يقدر يفتح نوع واحد على الأقل)
-    invoiceTypes.length  //&& !restaurantOn
+    // (تأجير العقارات: الفواتير من العقود، والإشعارات لينك في مجموعته)
+    invoiceTypes.length && !realEstateOn  //&& !restaurantOn
       ? {
           key: "invoices",
           icon: <FileDoneOutlined />,
@@ -253,7 +267,8 @@ const MainLayout = ({
       : null,
     // الكاشير والورديات
     // نظام المغسلة: الكاشير بيتفتح من نافذة المغسلة (استلام الملابس)
-    !laundryOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
+    // تأجير العقارات: مفيش كاشير ولا ورديات
+    !laundryOn && !realEstateOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
     // الحجوزات (وحدة bookings - الكوافير / الحلاق / المساج)
     link("/bookings", <CalendarOutlined />, "Bookings", "bookings.view"),
     // المطعم / المقهى (وحدة restaurant): المنيو والأحجام والإضافات والسائقين
@@ -267,9 +282,48 @@ const MainLayout = ({
           onClick: () => setLaundryOpen(true),
         }
       : null,
-    can("shifts.view") || can("sales.pos")
+    !realEstateOn && (can("shifts.view") || can("sales.pos"))
       ? link("/sales/shifts", <FieldTimeOutlined />, "Shifts")
       : null,
+    // تأجير العقارات (وحدة realEstate): الوحدات والعقارات والملّاك ونماذج العقود
+    // (المجموعة كلها بتظهر بس لو النشاط مفعّل للشركة)
+    group("realEstate", <BankOutlined />, "RealEstate", !realEstateOn ? [] : [
+      link(
+        "/real-estate/contracts",
+        <FileTextOutlined />,
+        "RentContracts",
+        "rentContracts.view",
+      ),
+      link(
+        "/real-estate",
+        <ApartmentOutlined />,
+        "RealEstateSetup",
+        "realEstate.view",
+      ),
+      link(
+        "/real-estate/reports",
+        <PieChartOutlined />,
+        "RentReports",
+        "realEstate.reports",
+      ),
+      // الإشعار الدائن والمدين على فواتير الإيجار (نفس إشعارات العملاء)
+      link(
+        "/invoices/sales-notes",
+        <SwapOutlined />,
+        "RentNotes",
+        "salesNotes.view",
+      ),
+      // تقرير الضريبة (الإقرار) والربح: نفس التقارير العامة
+      link("/reports/vat", <AuditOutlined />, "RentVat", "reports.vat"),
+      link("/reports/profit", <RiseOutlined />, "RentProfit", "reports.profit"),
+      // متابعة فواتير الزكاة (لو الفرع مربوط) - برضه في «الإدارة»
+      link(
+        "/zatca/documents",
+        <FileProtectOutlined />,
+        "ZatcaDocuments",
+        "zatca.view",
+      ),
+    ]),
     // خدمات ما بعد البيع (وحدات الأنشطة): الأرقام التسلسلية، الضمان والصيانة،
     // الفنيون ومواعيدهم، عقود الصيانة الدورية
     group("afterSales", <ToolOutlined />, "AfterSales", [
@@ -320,7 +374,8 @@ const MainLayout = ({
       : null,
     // المخزون: المستودعات، الأرصدة، التحويلات، الجرد
     // نظام المغسلة: مفيش مخازن
-    group("inventory", <InboxOutlined />, "Inventory", simpleMode ? [] : [
+    // تأجير العقارات: مفيش مخزون ولا مستودعات
+    group("inventory", <InboxOutlined />, "Inventory", simpleMode || realEstateOn ? [] : [
       link("/inventory/stock", <BarChartOutlined />, "Stock", "stock.view"),
       // الصلاحية والدفعات (ميزة expiry): الصلاحية مقفولة لو الميزة مش في الباقة
       link(
@@ -438,14 +493,16 @@ const MainLayout = ({
         "DataReset",
         "dataReset.run",
       ),
-      // تعديل جماعي للأصناف (لمالك البرنامج)
-      link(
-        "/admin/products-bulk",
-        <ControlOutlined />,
-        "ProductsBulk",
-        "productsBulk.run",
-      ),
+      // تعديل جماعي للأصناف (لمالك البرنامج) - تأجير العقارات: مفيش أصناف
+      !realEstateOn &&
+        link(
+          "/admin/products-bulk",
+          <ControlOutlined />,
+          "ProductsBulk",
+          "productsBulk.run",
+        ),
       // الطباعة: مجموعة داخل الإعدادات (لاحقاً: إعدادات طباعة الكاشير/الفواتير)
+      // تأجير العقارات: طباعة الفواتير بس (مفيش باركود)
       group("printing", <PrinterOutlined />, "Printing", [
         link(
           "/printing/invoice",
@@ -453,18 +510,20 @@ const MainLayout = ({
           "InvoicePrinting",
           "printing.view",
         ),
-        link(
-          "/printing/barcode-labels",
-          <BarcodeOutlined />,
-          "BarcodeLabels",
-          "printing.view",
-        ),
-        link(
-          "/printing/barcodes",
-          <PrinterOutlined />,
-          "PrintBarcodes",
-          "barcodes.print",
-        ),
+        !realEstateOn &&
+          link(
+            "/printing/barcode-labels",
+            <BarcodeOutlined />,
+            "BarcodeLabels",
+            "printing.view",
+          ),
+        !realEstateOn &&
+          link(
+            "/printing/barcodes",
+            <PrinterOutlined />,
+            "PrintBarcodes",
+            "barcodes.print",
+          ),
       ]),
     ]),
     // تواصل معنا (الدعم الفني): للكل

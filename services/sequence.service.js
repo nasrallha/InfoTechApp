@@ -32,6 +32,7 @@ export const SEQUENCE_KEYS = {
   shift: "shift",
   booking: "booking",
   laundryWallet: "LW",
+  rentContract: "rent_contract",
   // الإشعارات (كل نوع بمسلسل مستقل)
   saleCredit: "sale_credit",
   saleDebit: "sale_debit",
@@ -63,6 +64,7 @@ export const BRANCH_DOCS = {
   claim: { model: "warrantyClaim", type: null },
   contract: { model: "maintenanceContract", type: null },
   laundryWallet: { model: "laundryWallet", type: null },
+  rentContract: { model: "rentContract", type: null },
 };
 
 const branchKey = (kind, branchId) => `${SEQUENCE_KEYS[kind]}@${branchId}`;

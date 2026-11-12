@@ -308,6 +308,95 @@ async function expiryAlerts(user) {
   };
 }
 
+// ------------------------------------------------------------
+// تأجير العقارات: الدفعات اللي لسه متفوترتش (المتأخرة + خلال أيام التنبيه)
+// والعقود الساريّة اللي بتخلص خلال أيام التنبيه (ومتجددتش) - الأيام من الإعدادات العامة
+// ------------------------------------------------------------
+const unitsTitle = (units) => {
+  const text = units
+    .map((u) => `${u.unit.property.name} - ${u.unit.unitNo}`)
+    .join("، ");
+  return { arName: text, enName: text };
+};
+
+async function rentAlerts(user, todayDay) {
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: 1 },
+    select: { rentDueAlertDays: true, rentEndAlertDays: true },
+  });
+  const dueDays = settings?.rentDueAlertDays ?? 7;
+  const endDays = settings?.rentEndAlertDays ?? 30;
+  const contractSel = {
+    id: true,
+    number: true,
+    docCode: true,
+    customer: { select: { arName: true, enName: true, phone: true } },
+    units: {
+      select: { unit: { select: { unitNo: true, property: { select: { name: true } } } } },
+    },
+  };
+  const [dues, ends] = await Promise.all([
+    prisma.rentInstallment.findMany({
+      where: {
+        status: "due",
+        dueDate: { lte: dayToDbDate(addDays(todayDay, dueDays)) },
+        contract: branchScope(user),
+      },
+      orderBy: { dueDate: "asc" },
+      take: LIMIT,
+      select: { id: true, seq: true, dueDate: true, contract: { select: contractSel } },
+    }),
+    prisma.rentContract.findMany({
+      where: {
+        ...branchScope(user),
+        status: "active",
+        endDate: {
+          gte: dayToDbDate(todayDay),
+          lte: dayToDbDate(addDays(todayDay, endDays)),
+        },
+        renewals: { none: {} },
+      },
+      orderBy: { endDate: "asc" },
+      take: LIMIT,
+      select: { ...contractSel, endDate: true },
+    }),
+  ]);
+  return [
+    ...dues.map((i) => {
+      const day = dbDateToDay(i.dueDate);
+      const days = daysFrom(day, todayDay);
+      return {
+        key: `rent-due-${i.id}`,
+        kind: "rentDue",
+        level: levelOf(days),
+        days,
+        at: day,
+        title: unitsTitle(i.contract.units),
+        customer: i.contract.customer,
+        phone: i.contract.customer?.phone ?? null,
+        ref: { kind: "rentContract", number: i.contract.number, docCode: i.contract.docCode },
+        href: `/real-estate/contracts/${i.contract.id}`,
+      };
+    }),
+    ...ends.map((c) => {
+      const day = dbDateToDay(c.endDate);
+      const days = daysFrom(day, todayDay);
+      return {
+        key: `rent-end-${c.id}`,
+        kind: "rentEnd",
+        level: days <= 7 ? "today" : "soon",
+        days,
+        at: day,
+        title: unitsTitle(c.units),
+        customer: c.customer,
+        phone: c.customer?.phone ?? null,
+        ref: { kind: "rentContract", number: c.number, docCode: c.docCode },
+        href: `/real-estate/contracts/${c.id}`,
+      };
+    }),
+  ];
+}
+
 export async function getNotifications(user) {
   const todayDay = today();
   const [techOn, contractsOn, claimsOn, followUpsOn, vehiclesOn, bookingsOn, restaurantOn] =
@@ -320,6 +409,7 @@ export async function getNotifications(user) {
       hasModule("bookings"),
       hasModule("restaurant"),
     ]);
+  const realEstateOn = await hasModule("realEstate");
   const expiryOn = await hasFeature("expiry");
   const [zatca, expiry, ...lists] = await Promise.all([
     can(user, "zatca.view")
@@ -355,6 +445,10 @@ export async function getNotifications(user) {
     // المطعم: الطلبات الأونلاين (الجديدة + المقبولة اللي جاية)
     restaurantOn && can(user, "sales.pos")
       ? restaurantOrders(user)
+      : Promise.resolve([]),
+    // تأجير العقارات: الدفعات المستحقة + العقود اللي بتخلص
+    realEstateOn && can(user, "rentContracts.view")
+      ? rentAlerts(user, todayDay)
       : Promise.resolve([]),
   ]);
   // الأهم الأول: المتأخر ← النهارده ← الجاي، وجوه كل مستوى بالأقرب

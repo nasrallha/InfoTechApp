@@ -236,9 +236,23 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
   ].filter(Boolean);
 
   const payments = !isQuotation ? (doc.payments ?? []) : [];
+  // فاتورة دفعة إيجار: شكل مضغوط، والعقد ومدته في بيانات العميل،
+  // وعمود «فترة السداد» بدل الوحدة والكود، والمبلغ بالحروف من غير عنوانه، ومن غير الملاحظات
+  const rent = doc.rent ?? null;
+  const showCode = settings.showItemCode !== false && !rent;
+  const rentPeriod = rent ? (
+    <>
+      <bdi>
+        {formatDay(rent.periodFrom)} - {formatDay(rent.periodTo)}
+      </bdi>
+      <div className="a4__sub">
+        {L("عقد", "Contract")} <bdi>{rent.contractNo}</bdi>
+      </div>
+    </>
+  ) : null;
 
   return (
-    <div className="a4" dir={dir} style={{ "--accent": accent }}>
+    <div className={`a4${rent ? " a4--rent" : ""}`} dir={dir} style={{ "--accent": accent }}>
       {/* ============ الرأس ============ */}
       <header className="a4__head">
         <div className="a4__company">
@@ -329,6 +343,25 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               {L("الجوال", "Phone")}: <bdi>{doc.customer.phone}</bdi>
             </div>
           )}
+          {rent && (
+            <>
+              <div>
+                {L("عقد الإيجار", "Lease contract")}: <bdi>{rent.contractNo}</bdi>
+                {rent.ejarNo ? (
+                  <>
+                    {" - "}
+                    {L("إيجار", "Ejar")}: <bdi>{rent.ejarNo}</bdi>
+                  </>
+                ) : null}
+              </div>
+              <div>
+                {L("مدة العقد", "Lease term")}:{" "}
+                <bdi>
+                  {formatDay(rent.startDate)} - {formatDay(rent.endDate)}
+                </bdi>
+              </div>
+            </>
+          )}
         </div>
         <div className="a4__box">
           <div className="a4__box-title text-center">
@@ -348,9 +381,13 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
         <thead>
           <tr>
             <th>#</th>
-            {settings.showItemCode !== false && <th>{L("الكود", "Code")}</th>}
+            {showCode && <th>{L("الكود", "Code")}</th>}
             <th className="a4__col-name">{L("الصنف", "Description")}</th>
-            <th>{L("الوحدة", "Unit")}</th>
+            {rent ? (
+              <th>{L("فترة السداد", "Billing period")}</th>
+            ) : (
+              <th>{L("الوحدة", "Unit")}</th>
+            )}
             <th>{L("الكمية", "Qty")}</th>
             <th>{L("السعر", "Price")}</th>
             {showDiscount && <th>{L("الخصم", "Disc.")}</th>}
@@ -362,7 +399,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
           {doc.items.map((l, i) => (
             <tr key={l.id}>
               <td className="a4__c">{i + 1}</td>
-              {settings.showItemCode !== false && (
+              {showCode && (
                 <td className="a4__c">
                   <bdi>{l.code}</bdi>
                 </td>
@@ -380,7 +417,11 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
                   />
                 )}
               </td>
-              <td className="a4__c">{N(l.unit?.arName, l.unit?.enName)}</td>
+              {rent ? (
+                <td className="a4__c">{rentPeriod}</td>
+              ) : (
+                <td className="a4__c">{N(l.unit?.arName, l.unit?.enName)}</td>
+              )}
               <td className="a4__c">
                 {qtyText(l.qty)}
                 {/* السيراميك: الكمية بالوحدة التانية (كراتين / م²) */}
@@ -418,10 +459,13 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
       {/* ============ الإجماليات + المبلغ بالحروف ============ */}
       <section className="a4__bottom">
         <div className="a4__left">
+          {/* المبلغ بالحروف (فاتورة الإيجار: من غير عنوان المربع) */}
           <div className="a4__words">
-            <div className="a4__box-title">
-              {L("المبلغ بالحروف", "Amount in words")}
-            </div>
+            {!rent && (
+              <div className="a4__box-title">
+                {L("المبلغ بالحروف", "Amount in words")}
+              </div>
+            )}
             {lang !== "en" && (
               <div>{amountInWords(doc.totalAmount, "ar", wc)}</div>
             )}
@@ -488,7 +532,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
                 )}
               </div>
             )}
-          {doc.notes && (
+          {doc.notes && !rent && (
             <div className="a4__notes">
               <div className="a4__box-title">{L("ملاحظات", "Notes")}</div>
               <div>{doc.notes}</div>

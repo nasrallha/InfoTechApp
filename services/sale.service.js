@@ -17,8 +17,8 @@ import {
   round,
   totalsOf,
 } from "@/lib/invoice-calc";
-import { dayOf, dayToDateTime, dayToDbDate, today } from "@/lib/dates";
-import { saleDocNo } from "@/lib/doc-number";
+import { dayOf, dayToDateTime, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
+import { formatDocNo, saleDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
   isNegativeStockAllowed,
@@ -1320,6 +1320,26 @@ export async function listSales({
 }
 
 const saleDetailSelect = {
+  // فاتورة دفعة إيجار (وحدة realEstate): بيانات العقد وفترة السداد للطباعة
+  rentInstallment: {
+    select: {
+      seq: true,
+      periodFrom: true,
+      periodTo: true,
+      contract: {
+        select: {
+          number: true,
+          docCode: true,
+          ejarNo: true,
+          startDate: true,
+          endDate: true,
+          units: {
+            select: { unit: { select: { unitNo: true, property: { select: { name: true } } } } },
+          },
+        },
+      },
+    },
+  },
   id: true,
   type: true,
   number: true, docCode: true,
@@ -1534,7 +1554,25 @@ export async function getSale(id, type, user) {
     // (اسم منفصل: notes = ملاحظات الفاتورة نفسها اللي بتظهر في الطباعة)
     linkedNotes: linked.filter((r) => r.type !== SALE_RETURN),
     laundry: await laundryPrintInfo(sale),
+    rent: rentPrintInfo(sale.rentInstallment),
+    rentInstallment: undefined,
   });
+}
+
+// فاتورة دفعة الإيجار: رقم العقد ومدته وفترة السداد والوحدات (للطباعة)
+function rentPrintInfo(i) {
+  if (!i) return null;
+  const c = i.contract;
+  return {
+    seq: i.seq,
+    periodFrom: dbDateToDay(i.periodFrom),
+    periodTo: dbDateToDay(i.periodTo),
+    contractNo: formatDocNo("rentContract", c.number, c.docCode),
+    ejarNo: c.ejarNo,
+    startDate: dbDateToDay(c.startDate),
+    endDate: dbDateToDay(c.endDate),
+    units: c.units.map((u) => `${u.unit.property.name} - ${u.unit.unitNo}`).join("، "),
+  };
 }
 
 // المغسلة: الفاتورة اتدفعت من الاشتراك ← المخصوم + رصيد العميل الحالي

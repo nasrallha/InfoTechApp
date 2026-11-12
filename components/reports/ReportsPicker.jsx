@@ -93,13 +93,21 @@ export const REPORTS = [
   },
 ];
 
+const REAL_ESTATE_HIDDEN = ["profit", "daily", "sales", "purchases", "vat"];
+
 export function useVisibleReports() {
   const can = useCan();
   const variantsOn = useModule("variants");
   const restaurantOn = useModule("restaurant");
+  // تأجير العقارات: تقاريره في «تقارير الإيجار»، والربح والضريبة لينكات في مجموعته
+  // (فنافذة التقارير بتفضى وزرارها بيختفي)
+  const realEstateOn = useModule("realEstate");
   const modules = { variants: variantsOn, restaurant: restaurantOn };
   return REPORTS.filter(
-    (r) => can(r.permission) && (!r.module || modules[r.module]),
+    (r) =>
+      can(r.permission) &&
+      (!r.module || modules[r.module]) &&
+      !(realEstateOn && REAL_ESTATE_HIDDEN.includes(r.key)),
   );
 }
 

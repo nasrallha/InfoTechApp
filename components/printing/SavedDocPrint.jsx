@@ -15,7 +15,7 @@ import PurchaseDocument from "@/components/purchases/PurchaseDocument";
 // بعد حفظ مستند جديد: الشاشة بتفضل زي ما هي (من غير انتقال ولا تبويب جديد)
 // - شريط "تم الحفظ" فوق الشاشة ومعاه أزرار الطباعة / PDF
 // - حفظ وطباعة: بيتطبع على طول من نفس الشاشة
-// job: { kind, id, mode, text, seq } (seq: رقم فريد لكل حفظ)
+// job: { kind, id, mode, text, seq, paper? } (seq: رقم فريد لكل حفظ، paper: ورق محدد)
 // kind: sale | return | quotation | purchase | purchaseReturn | saleNote | purchaseNote
 // ============================================================
 export default function SavedDocPrint({ job, onClose }) {
@@ -115,10 +115,12 @@ function SavedJob({ job, onClose }) {
             keepUrl
             size="small"
             // المشتريات وعروض الأسعار: A4، والبيع: المقاس الافتراضي
+            // job.paper: ورق محدد (فواتير الإيجار A4)
             defaultPaper={
-              isPurchase || job.kind === "quotation"
+              job.paper ??
+              (isPurchase || job.kind === "quotation"
                 ? "A4"
-                : (data.settings?.paperSize ?? "80mm")
+                : (data.settings?.paperSize ?? "80mm"))
             }
             fileName={docNo}
             renderDoc={renderDoc}
