@@ -53,6 +53,8 @@ import {
   ShoppingOutlined,
   SkinOutlined,
   CoffeeOutlined,
+  ShoppingCartOutlined,
+  RollbackOutlined,
 } from "@ant-design/icons";
 import { Button, Grid, Layout, Menu, theme } from "antd";
 import { useLocale, useTranslations } from "next-intl";
@@ -305,6 +307,19 @@ const MainLayout = ({
         <PieChartOutlined />,
         "RentReports",
         "realEstate.reports",
+      ),
+      // المشتريات ومرتجعها (مصروفات العقارات من الموردين)
+      link(
+        "/invoices/purchases",
+        <ShoppingCartOutlined />,
+        "RentPurchases",
+        "purchases.view",
+      ),
+      link(
+        "/invoices/purchase-returns",
+        <RollbackOutlined />,
+        "RentPurchaseReturns",
+        "purchaseReturns.view",
       ),
       // الإشعار الدائن والمدين على فواتير الإيجار (نفس إشعارات العملاء)
       link(
