@@ -262,7 +262,8 @@ const MainLayout = ({
       link("/promotions", <GiftOutlined />, "Promotions", "promotions.view"),
     // الفواتير: زر واحد يفتح نافذة لاختيار نوع الفاتورة (يظهر لو يقدر يفتح نوع واحد على الأقل)
     // (تأجير العقارات: الفواتير من العقود، والإشعارات لينك في مجموعته)
-    invoiceTypes.length && !realEstateOn  //&& !restaurantOn
+    // المطعم والمغسلة: البيع من شاشاتهم، فبدل زر الفواتير: المشتريات ومرتجعها بس
+    invoiceTypes.length && !realEstateOn && !restaurantOn && !laundryOn
       ? {
           key: "invoices",
           icon: <FileDoneOutlined />,
@@ -270,6 +271,20 @@ const MainLayout = ({
           onClick: () => setInvoicePickerOpen(true),
         }
       : null,
+    (restaurantOn || laundryOn) &&
+      link(
+        "/invoices/purchases",
+        <ShoppingCartOutlined />,
+        "PurchasesLink",
+        "purchases.view",
+      ),
+    (restaurantOn || laundryOn) &&
+      link(
+        "/invoices/purchase-returns",
+        <RollbackOutlined />,
+        "PurchaseReturnsLink",
+        "purchaseReturns.view",
+      ),
     // الكاشير والورديات
     // نظام المغسلة: الكاشير بيتفتح من نافذة المغسلة (استلام الملابس)
     // تأجير العقارات: مفيش كاشير ولا ورديات
@@ -315,13 +330,13 @@ const MainLayout = ({
       link(
         "/invoices/purchases",
         <ShoppingCartOutlined />,
-        "RentPurchases",
+        "PurchasesLink",
         "purchases.view",
       ),
       link(
         "/invoices/purchase-returns",
         <RollbackOutlined />,
-        "RentPurchaseReturns",
+        "PurchaseReturnsLink",
         "purchaseReturns.view",
       ),
       // الإشعار الدائن والمدين على فواتير الإيجار (نفس إشعارات العملاء)

@@ -669,8 +669,8 @@
   "Sidebar": {
     "RentVat": "VAT report",
     "RentProfit": "Profit report",
-    "RentPurchases": "Purchase invoices",
-    "RentPurchaseReturns": "Purchase returns",
+    "PurchasesLink": "Purchase invoices",
+    "PurchaseReturnsLink": "Purchase returns",
     "RentNotes": "Credit and debit notes",
     "RentReports": "Rent reports",
     "RealEstate": "Real estate",

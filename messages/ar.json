@@ -669,8 +669,8 @@
   "Sidebar": {
     "RentVat": "تقرير الضريبة",
     "RentProfit": "تقرير الربح",
-    "RentPurchases": "فواتير المشتريات",
-    "RentPurchaseReturns": "مرتجع المشتريات",
+    "PurchasesLink": "فواتير المشتريات",
+    "PurchaseReturnsLink": "مرتجع المشتريات",
     "RentNotes": "الإشعارات الدائنة والمدينة",
     "RentReports": "تقارير الإيجار",
     "RealEstate": "تأجير العقارات",
