@@ -121,6 +121,9 @@ const MainLayout = ({
   // تأجير العقارات: مفيش أصناف ولا وحدات قياس ولا مجموعات (الفواتير من العقود)
   const realEstateOn = useModule("realEstate");
   const simpleMode = laundryOn  //|| restaurantOn;
+  // أنشطة من غير باركود (المطعم / المغسلة / تأجير العقارات - والمقاولات لما تتعمل):
+  // إعدادات الباركود وطباعته مش ظاهرة
+  const noBarcode = laundryOn || restaurantOn || realEstateOn;
   const [reportsOpen, setReportsOpen] = useState(false);
   const reports = useVisibleReports();
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -517,7 +520,7 @@ const MainLayout = ({
           "productsBulk.run",
         ),
       // الطباعة: مجموعة داخل الإعدادات (لاحقاً: إعدادات طباعة الكاشير/الفواتير)
-      // تأجير العقارات: طباعة الفواتير بس (مفيش باركود)
+      // الأنشطة اللي من غير باركود: طباعة الفواتير بس
       group("printing", <PrinterOutlined />, "Printing", [
         link(
           "/printing/invoice",
@@ -525,14 +528,14 @@ const MainLayout = ({
           "InvoicePrinting",
           "printing.view",
         ),
-        !realEstateOn &&
+        !noBarcode &&
           link(
             "/printing/barcode-labels",
             <BarcodeOutlined />,
             "BarcodeLabels",
             "printing.view",
           ),
-        !realEstateOn &&
+        !noBarcode &&
           link(
             "/printing/barcodes",
             <PrinterOutlined />,
