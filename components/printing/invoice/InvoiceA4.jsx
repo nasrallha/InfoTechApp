@@ -12,6 +12,7 @@ import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import "./invoice-a4.css";
 import SerialPrintLines from "@/components/serials/SerialPrintLines";
+import A4Frame, { BilingualHeader, BilingualParty, useA4 } from "@/components/printing/A4Frame";
 
 const ACCENT = {
   // sale: "#1f4e78",
@@ -47,6 +48,9 @@ const NOTE_KINDS = ["credit", "debit", "purchaseCredit", "purchaseDebit"];
 // ============================================================
 export default function InvoiceA4({ kind, doc, company, settings }) {
   const { amount: money, symbolNode: symbol, currency } = useCurrency();
+  // نموذج A4: classic الحالي / bilingual ثنائي اللغة / letterhead ورق جاهز
+  const tpl = useA4(company).template;
+  const classic = tpl === "classic";
   const lang = settings.language;
   const dir = lang === "en" ? "ltr" : "rtl";
   const accent = ACCENT[kind];
@@ -157,6 +161,31 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
       ? doc.createdBy.enFullname
       : doc.createdBy.arFullname
     : null;
+  // ثنائي اللغة: السجل التجاري والعنوان الوطني للطرف + سطر بيانات الفاتورة
+  const party = isSale ? doc.customer : doc.supplier;
+  const partyCr = party?.idScheme === "CRN" ? party?.idNumber : null;
+  const partyAddress = addressLine(
+    party
+      ? {
+          buildingNo: party.buildingNo,
+          street: party.street,
+          district: party.district,
+          city: party.city,
+          postalCode: party.postalCode,
+          additionalNo: party.additionalNo,
+        }
+      : null,
+    "رقم فرعي",
+  );
+  const docDate = new Date(doc.date);
+  const biMeta = [
+    [isNote ? "رقم الإشعار" : "رقم الفاتورة", isNote ? "Note No" : "Invoice No", <bdi key="n">{number}</bdi>],
+    ["التاريخ", "Date", <bdi key="d">{formatDay(docDate.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }))}</bdi>],
+    ["الوقت", "Time", <bdi key="t">{docDate.toLocaleTimeString("en-GB", { timeZone: "Asia/Riyadh", hour: "2-digit", minute: "2-digit" })}</bdi>],
+    doc.branch && ["الفرع", "Branch", lang === "en" ? doc.branch.enName : doc.branch.arName],
+    settings.showCashier && user && [isSale ? "البائع" : "المستخدم", isSale ? "Salesperson" : "User", user],
+    isQuotation && doc.validUntil && ["صالح حتى", "Valid until", <bdi key="v">{formatDay(doc.validUntil)}</bdi>],
+  ].filter(Boolean);
   const showTax = !(isPurchase && doc.taxMode === "none");
   const discount = (doc.itemsDiscount ?? 0) + (doc.invoiceDiscount ?? 0);
   const showDiscount = doc.items.some((l) => Number(l.itemDiscount) > 0);
@@ -252,8 +281,18 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
   ) : null;
 
   return (
+    <A4Frame company={company}>
     <div className={`a4${rent ? " a4--rent" : ""}`} dir={dir} style={{ "--accent": accent }}>
       {/* ============ الرأس ============ */}
+      {tpl === "bilingual" && <BilingualHeader company={company} branch={doc.branch} />}
+      {/* ثنائي اللغة / الورق الجاهز: العنوان والرقم في سطر (من غير رأس الشركة) */}
+      {!classic && (
+        <div className="bi-title">
+          {title[0]} - <bdi>{title[1]}</bdi>
+          {notCleared && <small>{L("غير معتمدة من الهيئة بعد", "Not cleared by ZATCA yet")}</small>}
+        </div>
+      )}
+      {classic && (
       <header className="a4__head">
         <div className="a4__company">
           {settings.showLogo !== false && company?.logo && (
@@ -308,9 +347,6 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               {L("غير معتمدة من الهيئة بعد", "Not cleared by ZATCA yet")}
             </div>
           )}
-          <div className="a4__number">
-            <bdi>{number}</bdi>
-          </div>
           {qrValue &&
             (qr ? (
               <img className="a4__qr" src={qr} alt="QR" />
@@ -319,8 +355,46 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
             ))}
         </div>
       </header>
+      )}
+
+      {/* ============ ثنائي اللغة: العميل يمين وشمال + سطر بيانات الفاتورة ============ */}
+      {tpl === "bilingual" && (
+        <>
+          <BilingualParty
+            titleAr={isSale ? "بيانات العميل" : "بيانات المورد"}
+            titleEn={isSale ? "Customer" : "Supplier"}
+            rows={[
+              ["الاسم", "Name", partyAr || partyEn || (isSale ? "عميل نقدي" : "")],
+              ["رقم الجوال", "Mobile No", <bdi key="p">{doc.customer?.phone ?? doc.supplier?.phone}</bdi>],
+              ["الرقم الضريبي", "VAT No", partyTax && <bdi key="t">{partyTax}</bdi>],
+              ["السجل التجاري", "C.R", partyCr && <bdi key="c">{partyCr}</bdi>],
+              ["العنوان", "Address", partyAddress],
+            ].filter(Boolean)}
+          />
+          <table className="bi-meta">
+            <thead>
+              <tr>
+                {biMeta.map(([ar, en]) => (
+                  <th key={ar}>
+                    {ar}
+                    <small dir="ltr">{en}</small>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {biMeta.map(([ar, , v]) => (
+                  <td key={ar}>{v}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
 
       {/* ============ الطرف + بيانات المستند ============ */}
+      {tpl !== "bilingual" && (
       <section className="a4__boxes">
         <div className="a4__box">
           <div className="a4__box-title text-center">
@@ -333,15 +407,35 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               ? N(partyAr, partyEn)
               : L("عميل نقدي", "Cash customer")}
           </div>
-          {partyTax && (
-            <div>
-              {L("الرقم الضريبي", "VAT No")}: <bdi>{partyTax}</bdi>
-            </div>
-          )}
-          {doc.customer?.phone && (
-            <div>
-              {L("الجوال", "Phone")}: <bdi>{doc.customer.phone}</bdi>
-            </div>
+          {/* بيانات الطرف كاملة (ظاهرة دايماً حتى لو فاضية) */}
+          <div>
+            {L("الجوال", "Phone")}: <bdi>{doc.customer?.phone ?? doc.supplier?.phone ?? ""}</bdi>
+          </div>
+          <div>
+            {L("الرقم الضريبي", "VAT No")}: <bdi>{partyTax ?? ""}</bdi>
+          </div>
+          <div>
+            {L("السجل التجاري", "C.R")}: <bdi>{partyCr ?? ""}</bdi>
+          </div>
+          <div>
+            {L("العنوان", "Address")}: {partyAddress}
+          </div>
+          {/* طلب التفصيل (الخياط) */}
+          {doc.tailor && (
+            <>
+              <div>
+                {L("رقم الطلب", "Order No.")}: <bdi>{doc.tailor.orderNo}</bdi>
+              </div>
+              {doc.tailor.tailorAr && (
+                <div>
+                  {L("الخياط", "Tailor")}:{" "}
+                  {N(doc.tailor.tailorAr, doc.tailor.tailorEn || doc.tailor.tailorAr)}
+                </div>
+              )}
+              <div>
+                {L("موعد التسليم", "Delivery date")}: <bdi>{formatDay(doc.tailor.deliveryDate)}</bdi>
+              </div>
+            </>
           )}
           {rent && (
             <>
@@ -375,6 +469,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
           ))}
         </div>
       </section>
+      )}
 
       {/* ============ الأصناف ============ */}
       <table className="a4__items">
@@ -548,6 +643,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               </b>
             </div>
           ))}
+          {classic && (
           <div className="a4__grand">
             <span>{L("الإجمالي شامل الضريبة", "Total incl. VAT")}</span>
             <b>
@@ -556,10 +652,27 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               </bdi>
             </b>
           </div>
+          )}
         </div>
       </section>
 
-      {/* ============ التوقيعات ============ */}
+      {/* ثنائي اللغة / الورق الجاهز: الإجمالي النهائي و QR في الآخر */}
+      {!classic && (
+        <section className="bi-final">
+          <div>
+            <div>{L("الإجمالي شامل الضريبة", "Total incl. VAT")}</div>
+            <div className="bi-final__total">
+              <bdi>
+                {money(doc.totalAmount)} {symbol}
+              </bdi>
+            </div>
+          </div>
+          {qrValue && (qr ? <img src={qr} alt="QR" /> : <div className="a4__qr--empty" />)}
+        </section>
+      )}
+
+      {/* ============ التوقيعات (حسب إعدادات الطباعة) ============ */}
+      {settings.showSignatures !== false && (
       <section className="a4__signs">
         <div>
           <span>
@@ -580,6 +693,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
           <div className="a4__sign-line" />
         </div>
       </section>
+      )}
 
       {(settings.footerTextAr || settings.footerTextEn) && (
         <footer className="a4__footer">
@@ -592,5 +706,6 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
         </footer>
       )}
     </div>
+    </A4Frame>
   );
 }

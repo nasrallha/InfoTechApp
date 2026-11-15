@@ -1320,6 +1320,15 @@ export async function listSales({
 }
 
 const saleDetailSelect = {
+  // فاتورة طلب تفصيل (وحدة tailoring): رقم الطلب والخياط وموعد التسليم للطباعة
+  tailorOrder: {
+    select: {
+      number: true,
+      docCode: true,
+      deliveryDate: true,
+      technician: { select: { arName: true, enName: true } },
+    },
+  },
   // فاتورة دفعة إيجار (وحدة realEstate): بيانات العقد وفترة السداد للطباعة
   rentInstallment: {
     select: {
@@ -1400,6 +1409,13 @@ const saleDetailSelect = {
       countryCode: true,
       idScheme: true,
       idNumber: true,
+      // العنوان الوطني (نموذج A4 ثنائي اللغة)
+      city: true,
+      district: true,
+      street: true,
+      buildingNo: true,
+      additionalNo: true,
+      postalCode: true,
     },
   },
   // المغسلة (وحدة laundry): الطلبات + المخصوم من الاشتراك (للطباعة)
@@ -1556,6 +1572,15 @@ export async function getSale(id, type, user) {
     laundry: await laundryPrintInfo(sale),
     rent: rentPrintInfo(sale.rentInstallment),
     rentInstallment: undefined,
+    tailor: sale.tailorOrder
+      ? {
+          orderNo: formatDocNo("tailorOrder", sale.tailorOrder.number, sale.tailorOrder.docCode),
+          deliveryDate: dbDateToDay(sale.tailorOrder.deliveryDate),
+          tailorAr: sale.tailorOrder.technician?.arName ?? null,
+          tailorEn: sale.tailorOrder.technician?.enName ?? null,
+        }
+      : null,
+    tailorOrder: undefined,
   });
 }
 

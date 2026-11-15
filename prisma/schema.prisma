@@ -96,6 +96,8 @@ model Branch {
   // تأجير العقارات (وحدة realEstate)
   properties    Property[]
   rentContracts RentContract[]
+  // الخياط (وحدة tailoring)
+  tailorOrders  TailorOrder[]
   followUps            FollowUp[]
   bookings             Booking[]
   vouchers      Voucher[]
@@ -174,6 +176,8 @@ model User {
   claimLogs         WarrantyClaimLog[]
   maintenanceContracts MaintenanceContract[]
   rentContractsCreated RentContract[]
+  tailorOrdersCreated  TailorOrder[]
+  tailorMeasurementsTaken TailorMeasurement[]
   followUpsCreated     FollowUp[]    @relation("FollowUpCreatedBy")
   bookingsCreated      Booking[]     @relation("BookingCreatedBy")
   followUpLogs         FollowUpLog[] @relation("FollowUpLogUser")
@@ -454,6 +458,8 @@ model Product {
 
   // الوحدات الإضافية (علبة، كرتونة ...)
   productUnits ProductUnit[]
+  // الخياط: القماش على سطور طلبات التفصيل
+  tailorLines  TailorOrderLine[]
 
   // أصناف فواتير المشتريات (لا يُحذف منتج عليه فواتير)
   purchaseItems PurchaseItem[]
@@ -627,6 +633,9 @@ model Customer {
   maintenanceContracts MaintenanceContract[]
   // عقود الإيجار (المستأجر)
   rentContracts RentContract[]
+  // الخياط: أفراد العميل (هو / ابنه ...) بمقاساتهم + طلبات التفصيل
+  tailorPersons TailorPerson[]
+  tailorOrders  TailorOrder[]
   followUps            FollowUp[]
   vehicles             Vehicle[]
   bookings             Booking[]
@@ -713,6 +722,10 @@ model Company {
   city         String? @db.VarChar(100)
   district     String? @db.VarChar(100)
   street       String? @db.VarChar(100)
+  // العنوان بالإنجليزي (نموذج A4 ثنائي اللغة) - فاضي ← العربي
+  enCity       String? @db.VarChar(100)
+  enDistrict   String? @db.VarChar(100)
+  enStreet     String? @db.VarChar(100)
   buildingNo   String? @db.VarChar(4)
   additionalNo String? @db.VarChar(4)
   postalCode   String? @db.VarChar(5)
@@ -816,6 +829,17 @@ model InvoicePrintSettings {
 
   footerTextAr String? @db.VarChar(500)
   footerTextEn String? @db.VarChar(500)
+
+  // نموذج طباعة A4 (الفواتير والتقارير والسندات وكل المستندات A4):
+  // classic الحالي | bilingual ثنائي اللغة | letterhead ورق مطبوع جاهز
+  a4Template   String  @default("classic") @db.VarChar(12)
+  // خانات التوقيع (البائع / العميل / الختم) أسفل فاتورة A4
+  showSignatures Boolean @default(true)
+  // الورق الجاهز: مسافة الهيدر فوق والفوتر تحت بالمللي (المطبوعين على الورقة)
+  letterTop    Int     @default(45)
+  letterBottom Int     @default(0)
+  // صورة الورقة الجاهزة: خلفية في المعاينة والـ PDF بس (الطباعة على الورق من غيرها)
+  letterImage  String? @db.VarChar(255)
 
   // التشغيل
   autoPrint Boolean @default(false) // طباعة تلقائية بعد حفظ الفاتورة
@@ -1009,6 +1033,13 @@ model SystemSettings {
   // تأجير العقارات (وحدة realEstate): التنبيه قبل ميعاد الدفعة / نهاية العقد بكام يوم
   rentDueAlertDays Int @default(7)
   rentEndAlertDays Int @default(30)
+
+  // الخياط (وحدة tailoring): سعر تفصيل الثوب الافتراضي (شامل الضريبة)
+  // وقسم الأقمشة (فاضي = كل الأصناف)
+  tailorSewPrice         Decimal @default(0) @db.Decimal(18, 4)
+  tailorFabricCategoryId Int?
+  // مدة التسليم الافتراضية بالأيام (موعد التسليم = النهارده + المدة)
+  tailorDeliveryDays     Int     @default(7)
 
   updatedAt DateTime @updatedAt
 
@@ -1683,6 +1714,7 @@ model Sale {
   restaurantOrder RestaurantOrder?
   // فاتورة دفعة إيجار (وحدة realEstate)
   rentInstallment RentInstallment?
+  tailorOrder     TailorOrder?
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWalletUses LaundryWalletUse[]
   @@unique([branchId, type, number])
@@ -2624,6 +2656,7 @@ model Technician {
   bookings  Booking[]
   contracts MaintenanceContract[]
   visits    MaintenanceVisit[]
+  tailorOrders TailorOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3786,4 +3819,190 @@ model RentInstallment {
   @@index([dueDate])
   @@index([status])
   @@map("rent_installments")
+}
+
+// ============================================================
+// الخياط (وحدة tailoring)
+// - العميل تحته «أشخاص» (هو نفسه / ابنه / أخوه ...) ولكل شخص سجل مقاسات
+// - المقاسات والتفاصيل (الموديل، الرقبة، الكبك ...) قوائم بتتعدل من الإعدادات
+// - طلب التفصيل: فاتورة بيع وقت الطلب (القماش + التفصيل) والعربون مدفوع عليها
+// - الخياط = مقدم خدمة (technicians) على سطر التفصيل ← تقرير العمولات
+// ============================================================
+
+// الشخص اللي بيتفصّل له (تبع عميل)
+model TailorPerson {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String   @db.VarChar(150)
+  // صلة القرابة بالعميل: self / son / brother / father / other
+  kinship    String   @default("self") @db.VarChar(12)
+  notes      String?  @db.VarChar(500)
+  isActive   Boolean  @default(true)
+
+  measurements TailorMeasurement[]
+  lines        TailorOrderLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("tailor_persons")
+}
+
+// مقاسات شخص في يوم معين (الطلب الجديد بياخد آخر مقاس، ويقدر يختار أقدم)
+// measures: { "<fieldId>": "52.5" }
+model TailorMeasurement {
+  id          Int          @id @default(autoincrement())
+  personId    Int
+  person      TailorPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  measures    Json
+  notes       String?      @db.VarChar(500)
+  takenById   Int?
+  takenBy     User?        @relation(fields: [takenById], references: [id], onDelete: SetNull)
+  lines       TailorOrderLine[]
+
+  createdAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([takenById])
+  @@map("tailor_measurements")
+}
+
+// خانات المقاسات (الطول، الكتف، اليد ...)
+model TailorField {
+  id        Int     @id @default(autoincrement())
+  arName    String  @db.VarChar(60)
+  enName    String  @db.VarChar(60)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tailor_fields")
+}
+
+// مجموعة تفاصيل (الموديل / الرقبة / الكبك ...) - multiple: يختار أكتر من واحد
+model TailorStyleGroup {
+  id        Int     @id @default(autoincrement())
+  arName    String  @db.VarChar(60)
+  enName    String  @db.VarChar(60)
+  multiple  Boolean @default(false)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  choices TailorStyleChoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tailor_style_groups")
+}
+
+// اختيار جوه المجموعة (بصورة الرسمة)
+model TailorStyleChoice {
+  id        Int              @id @default(autoincrement())
+  groupId   Int
+  group     TailorStyleGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  arName    String           @db.VarChar(60)
+  enName    String           @db.VarChar(60)
+  image     String?          @db.VarChar(255)
+  // شكله على الثوب التفاعلي ("collar:shirt" / "pocket:round" / "preset:kuwaiti" ...)
+  part      String?          @db.VarChar(30)
+  sortOrder Int              @default(0)
+  isActive  Boolean          @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+  @@map("tailor_style_choices")
+}
+
+// طلب التفصيل (مسلسل لكل فرع DM-TO-5)
+// status: new جديد | working تحت التفصيل | ready جاهز | delivered مُسلَّم | cancelled ملغي
+model TailorOrder {
+  id      Int     @id @default(autoincrement())
+  number  Int
+  docCode String? @db.VarChar(10)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  orderDate    DateTime  @default(now())
+  deliveryDate DateTime  @db.Date
+  status       String    @default("new") @db.VarChar(12)
+
+  // الخياط (مقدم خدمة) - بيتحط على سطور التفصيل في الفاتورة
+  technicianId Int?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+
+  // فاتورة الطلب (آجل، والعربون مدفوع عليها)
+  saleId Int?  @unique
+  sale   Sale? @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  totalAmount Decimal @default(0) @db.Decimal(18, 4)
+  notes       String? @db.VarChar(1000)
+
+  readyAt      DateTime?
+  deliveredAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?   @db.VarChar(255)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  lines TailorOrderLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, number])
+  @@index([customerId])
+  @@index([technicianId])
+  @@index([createdById])
+  @@index([status])
+  @@index([deliveryDate])
+  @@index([orderDate])
+  @@map("tailor_orders")
+}
+
+// سطر الطلب: شخص + مقاساته + تفاصيل التفصيلة + القماش + عدد الثياب
+// measures / styles: نسخة وقت الطلب (تعديل الإعدادات مبيغيرش الطلبات القديمة)
+// measures: [{ id, arName, enName, value }]
+// styles: [{ id, arName, enName, choices: [{ id, arName, enName, image }] }]
+model TailorOrderLine {
+  id      Int         @id @default(autoincrement())
+  orderId Int
+  order   TailorOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  personId      Int?
+  person        TailorPerson?      @relation(fields: [personId], references: [id], onDelete: SetNull)
+  personName    String             @db.VarChar(150)
+  measurementId Int?
+  measurement   TailorMeasurement? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
+  measures      Json
+  styles        Json
+
+  // القماش (صنف بمخزون) بالمتر
+  fabricId    Int?
+  fabric      Product? @relation(fields: [fabricId], references: [id], onDelete: SetNull)
+  fabricName  String?  @db.VarChar(255)
+  fabricQty   Decimal  @default(0) @db.Decimal(18, 4)
+  fabricPrice Decimal  @default(0) @db.Decimal(18, 4)
+
+  // عدد الثياب وسعر تفصيل الثوب
+  pieces   Int     @default(1)
+  sewPrice Decimal @default(0) @db.Decimal(18, 4)
+  notes    String? @db.VarChar(500)
+
+  @@index([orderId])
+  @@index([personId])
+  @@index([measurementId])
+  @@index([fabricId])
+  @@map("tailor_order_lines")
 }

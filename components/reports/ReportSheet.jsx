@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/dates";
 import { useCompany } from "@/components/common/CompanyProvider";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
 import "./report.css";
+import A4Frame, { BilingualHeader, useA4 } from "@/components/printing/A4Frame";
 
 // ============================================================
 // تقرير/قائمة بشكل A4 للطباعة و PDF
@@ -19,6 +20,8 @@ export default function ReportSheet({ report, labels, fixedWidth = true }) {
   const locale = useLocale();
   const company = useCompany();
   const user = useCurrentUser();
+  // نموذج A4: الحالي / ثنائي اللغة / ورق جاهز (من غير رأس الشركة)
+  const tpl = useA4(company).template;
   const dir = locale === "ar" ? "rtl" : "ltr";
   const companyName = company
     ? locale === "ar"
@@ -27,6 +30,8 @@ export default function ReportSheet({ report, labels, fixedWidth = true }) {
     : "";
 
   return (
+    // الطباعة (fixedWidth=false) بهامش 10mm من الجنبين
+    <A4Frame company={company} side={fixedWidth ? 0 : 10}>
     <div
       className="rep"
       dir={dir}
@@ -37,7 +42,9 @@ export default function ReportSheet({ report, labels, fixedWidth = true }) {
           : undefined
       }
     >
+      {tpl === "bilingual" && <BilingualHeader company={company} />}
       <header className="rep__header">
+        {tpl === "classic" && (
         <div className="rep__company">
           {company?.logo && (
             <img className="rep__logo" src={imageUrl(company.logo)} alt="" />
@@ -56,6 +63,7 @@ export default function ReportSheet({ report, labels, fixedWidth = true }) {
             )}
           </div>
         </div>
+        )}
         <div className="rep__title-box">
           <div className="rep__title">{report.title}</div>
           <div className="rep__muted">
@@ -116,6 +124,7 @@ export default function ReportSheet({ report, labels, fixedWidth = true }) {
         </div>
       )}
     </div>
+    </A4Frame>
   );
 }
 

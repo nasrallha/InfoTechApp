@@ -62,6 +62,10 @@ export const companySchema = z
 
     // العنوان الوطني
     ...nationalAddressFields,
+    // العنوان بالإنجليزي (نموذج A4 ثنائي اللغة)
+    enCity: optionalText(100),
+    enDistrict: optionalText(100),
+    enStreet: optionalText(100),
 
     // الشعار (اختياري): ملف جديد، أو removeLogo = حذف الحالي
     logo: imageField,

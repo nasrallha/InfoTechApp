@@ -42,3 +42,56 @@ export const sampleInvoice = ({ cashier, withCustomer = true }) => ({
     },
   ],
 });
+
+// نفس الفاتورة التجريبية بشكل فاتورة A4 (معاينة نماذج A4 في إعدادات الطباعة)
+export function sampleA4Doc(invoice, branch) {
+  let subtotal = 0;
+  let itemsDiscount = 0;
+  let tax = 0;
+  const items = invoice.items.map((it, i) => {
+    const gross = it.qty * it.price;
+    const net = gross - (it.discount ?? 0);
+    const t = Math.round(net * it.taxRate) / 100;
+    subtotal += gross;
+    itemsDiscount += it.discount ?? 0;
+    tax += t;
+    return {
+      id: i + 1,
+      code: it.code,
+      arName: it.arName,
+      enName: it.enName,
+      unit: { arName: it.unitAr, enName: it.unitEn },
+      qty: it.qty,
+      price: it.price,
+      itemDiscount: it.discount ?? 0,
+      taxRate: it.taxRate,
+      taxAmount: t,
+      totalAmount: net + t,
+    };
+  });
+  const netAmount = subtotal - itemsDiscount;
+  return {
+    preview: true,
+    type: "sale",
+    number: 125,
+    docCode: null,
+    date: invoice.date,
+    customerArName: invoice.customer?.name ?? null,
+    customerEnName: invoice.customer ? "Al Amal Trading Est." : null,
+    customerTaxNo: invoice.customer?.vatNo ?? null,
+    customer: invoice.customer
+      ? { code: 15, phone: "0500000000", city: "الرياض", district: "العليا", street: "طريق الملك فهد" }
+      : null,
+    branch: branch ?? null,
+    createdBy: invoice.cashier ? { arFullname: invoice.cashier, enFullname: invoice.cashier } : null,
+    items,
+    subtotal,
+    itemsDiscount,
+    invoiceDiscount: 0,
+    netAmount,
+    taxAmount: tax,
+    totalAmount: netAmount + tax,
+    payments: [],
+    remainingAmount: 0,
+  };
+}

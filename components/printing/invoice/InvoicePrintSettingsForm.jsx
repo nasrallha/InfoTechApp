@@ -11,12 +11,17 @@ import {
   InputNumber,
   Radio,
   Row,
+  Segmented,
   Space,
   Switch,
+  Upload,
 } from "antd";
 import { message } from "@/components/common/feedback";
 import {
   BgColorsOutlined,
+  DeleteOutlined,
+  LayoutOutlined,
+  UploadOutlined,
   ColumnWidthOutlined,
   FileOutlined,
   FileTextOutlined,
@@ -27,18 +32,21 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
-import { saveInvoicePrintAction } from "@/actions/invoice-print.actions";
+import { saveInvoicePrintAction, saveLetterImageAction } from "@/actions/invoice-print.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import {
   PAPER_SIZES,
   FONT_SIZES,
   INVOICE_LANGUAGES,
   LOGO_SIZES,
+  A4_TEMPLATES,
 } from "@/validations/invoice-print.schema";
+import { IMAGE_TYPES, imageUrl } from "@/lib/image";
+import InvoiceA4 from "./InvoiceA4";
 import InvoiceView, { PRINT_AREA } from "./InvoiceView";
 import PrintInvoice from "./PrintInvoice";
 import ScaledBox from "../ScaledBox";
-import { sampleInvoice } from "./sampleInvoice";
+import { sampleA4Doc, sampleInvoice } from "./sampleInvoice";
 import "../printing.css";
 
 const PX_PER_MM = 96 / 25.4;
@@ -83,6 +91,10 @@ export default function InvoicePrintSettingsForm({
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [printing, setPrinting] = useState(false);
+  // صورة الورقة الجاهزة (بترفع على طول) + المعاينة: كاشير أو A4
+  const [letterImage, setLetterImage] = useState(settings.letterImage ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [previewMode, setPreviewMode] = useState(null);
   const locale = useLocale();
   const t = useTranslations("InvoicePrint");
   const tSidebar = useTranslations("Sidebar");
@@ -111,8 +123,31 @@ export default function InvoicePrintSettingsForm({
   // الفاتورة التجريبية ثابتة (حتى لا يتغير وقتها و QR مع كل تعديل)
   const [invoice] = useState(() => sampleInvoice({ cashier: cashierName }));
 
+  // المعاينة: A4 (النموذج) أو الكاشير - افتراضياً حسب نوع الطباعة
+  const showA4 = (previewMode ?? (preview.paperSize === "A4" ? "A4" : "thermal")) === "A4";
+  const a4Company = company
+    ? {
+        ...company,
+        a4: {
+          template: preview.a4Template ?? "classic",
+          top: preview.letterTop ?? 45,
+          bottom: preview.letterBottom ?? 0,
+          image: letterImage,
+        },
+      }
+    : null;
+  const uploadLetter = async (file) => {
+    setUploading(true);
+    const fd = new FormData();
+    if (file) fd.append("image", file);
+    const res = await saveLetterImageAction(fd);
+    setUploading(false);
+    if (!res.success) return message.error(tAlerts(res.error));
+    setLetterImage(res.data.letterImage);
+  };
+
   // تصغير المعاينة لتناسب المساحة (A4 أعرض بكثير من الكاشير)
-  const paperPx = (PRINT_AREA[preview.paperSize] ?? 72) * PX_PER_MM;
+  const paperPx = (showA4 ? PRINT_AREA.A4 : (PRINT_AREA[preview.paperSize] ?? 72)) * PX_PER_MM;
   const scale = Math.min(1.25, 440 / paperPx);
 
   const lastUpdate = settings.updatedAt
@@ -239,6 +274,72 @@ export default function InvoicePrintSettingsForm({
                 <p className="text-xs text-slate-400 m-0">{t("MarginsHint")}</p>
               </Card>
 
+              {/* نموذج A4: الحالي / ثنائي اللغة / ورق مطبوع جاهز (كل المستندات A4) */}
+              <Card
+                size="small"
+                title={
+                  <span>
+                    <LayoutOutlined /> {t("A4Template")}
+                  </span>
+                }
+              >
+                <Form.Item name="a4Template" extra={t("A4TemplateHint")}>
+                  <Radio.Group
+                    optionType="button"
+                    buttonStyle="solid"
+                    options={A4_TEMPLATES.map((v) => ({ value: v, label: t(`tpl_${v}`) }))}
+                  />
+                </Form.Item>
+                {preview.a4Template === "letterhead" && (
+                  <Row gutter={[12, 0]}>
+                    <Col xs={12} sm={8}>
+                      <Form.Item name="letterTop" label={t("letterTop")} tooltip={t("letterTopHint")}>
+                        <InputNumber min={0} max={150} precision={0} suffix="mm" style={{ width: "100%" }} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={12} sm={8}>
+                      <Form.Item name="letterBottom" label={t("letterBottom")} tooltip={t("letterBottomHint")}>
+                        <InputNumber min={0} max={150} precision={0} suffix="mm" style={{ width: "100%" }} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Form.Item label={t("letterImage")} tooltip={t("letterImageHint")}>
+                        <Space wrap>
+                          <Upload
+                            accept={IMAGE_TYPES.join(",")}
+                            showUploadList={false}
+                            disabled={!canEdit || uploading}
+                            beforeUpload={(file) => {
+                              uploadLetter(file);
+                              return false;
+                            }}
+                          >
+                            <Button icon={<UploadOutlined />} loading={uploading}>
+                              {t("UploadLetter")}
+                            </Button>
+                          </Upload>
+                          {letterImage && (
+                            <>
+                              <img
+                                src={imageUrl(letterImage)}
+                                alt=""
+                                style={{ height: 40, border: "1px solid var(--c-border)" }}
+                              />
+                              <Button
+                                danger
+                                icon={<DeleteOutlined />}
+                                disabled={!canEdit || uploading}
+                                onClick={() => uploadLetter(null)}
+                              />
+                            </>
+                          )}
+                        </Space>
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                )}
+              </Card>
+
               {/* الشكل */}
               <Card
                 size="small"
@@ -317,6 +418,16 @@ export default function InvoicePrintSettingsForm({
                 }
               >
                 <Row gutter={[12, 0]}>
+                  <Col xs={24}>
+                    <Form.Item
+                      name="showSignatures"
+                      label={t("showSignatures")}
+                      tooltip={t("SignaturesHint")}
+                      valuePropName="checked"
+                    >
+                      <Switch />
+                    </Form.Item>
+                  </Col>
                   <Col xs={24}>
                     <Form.Item
                       name="showBankAccount"
@@ -412,19 +523,38 @@ export default function InvoicePrintSettingsForm({
         <Col xs={24} xl={11}>
           <div className="invoice-preview">
             <div className="font-bold text-slate-600 mb-3">
-              {t("LivePreview")} · <bdi>{preview.paperSize}</bdi>
+              {t("LivePreview")}
+              <Segmented
+                size="small"
+                className="ms-2"
+                value={showA4 ? "A4" : "thermal"}
+                onChange={setPreviewMode}
+                options={[
+                  { value: "thermal", label: t("PreviewThermal") },
+                  { value: "A4", label: t("PreviewA4") },
+                ]}
+              />
             </div>
             <ScaledBox
               className="invoice-preview__paper"
               width={paperPx}
               scale={scale}
             >
-              <InvoiceView
-                settings={preview}
-                company={company}
-                branch={branch}
-                invoice={invoice}
-              />
+              {showA4 ? (
+                <InvoiceA4
+                  kind="sale"
+                  doc={sampleA4Doc(invoice, branch)}
+                  company={a4Company}
+                  settings={preview}
+                />
+              ) : (
+                <InvoiceView
+                  settings={preview}
+                  company={company}
+                  branch={branch}
+                  invoice={invoice}
+                />
+              )}
             </ScaledBox>
           </div>
         </Col>

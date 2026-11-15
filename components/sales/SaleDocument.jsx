@@ -308,6 +308,31 @@ export default function SaleDocument({ settings, company, doc, kind }) {
           <span>{L("العميل", "Customer")}</span>
           <span>{customerName || L("عميل نقدي", "Cash customer")}</span>
         </div>
+        {/* طلب التفصيل (الخياط): الجوال ورقم الطلب والخياط وموعد التسليم */}
+        {doc.tailor && (
+          <>
+            {doc.customer?.phone && (
+              <div>
+                <span>{L("جوال العميل", "Customer phone")}</span>
+                <bdi>{doc.customer.phone}</bdi>
+              </div>
+            )}
+            <div>
+              <span>{L("رقم الطلب", "Order No.")}</span>
+              <bdi>{doc.tailor.orderNo}</bdi>
+            </div>
+            {doc.tailor.tailorAr && (
+              <div>
+                <span>{L("الخياط", "Tailor")}</span>
+                <span>{N(doc.tailor.tailorAr, doc.tailor.tailorEn || doc.tailor.tailorAr)}</span>
+              </div>
+            )}
+            <div>
+              <span>{L("موعد التسليم", "Delivery date")}</span>
+              <bdi>{formatDay(doc.tailor.deliveryDate)}</bdi>
+            </div>
+          </>
+        )}
         {laundry && doc.customer?.code != null && (
           <div>
             <span>{L("كود العميل", "Customer code")}</span>

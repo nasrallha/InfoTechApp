@@ -6,7 +6,7 @@ import { SCALE_FORMATS, SCALE_VALUE_TYPES } from "@/lib/scale-barcode";
 export const TAX_MODES = ["exclusive", "inclusive", "none"];
 
 // اسم مقدم الخدمة: فني / عاملة / حلاق / معالج
-export const STAFF_TITLES = ["technician", "staff", "barber", "therapist"];
+export const STAFF_TITLES = ["technician", "staff", "barber", "therapist", "tailor"];
 
 export const systemSettingsSchema = z
   .object({

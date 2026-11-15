@@ -222,7 +222,8 @@
 /* ---------- الأسفل ---------- */
 .a4__bottom {
   display: grid;
-  grid-template-columns: 1fr 78mm;
+  /* نصين متساويين: المبلغ بالحروف والمدفوعات | الإجماليات */
+  grid-template-columns: 1fr 1fr;
   gap: 5mm;
   margin-top: 5mm;
   break-inside: avoid;
@@ -261,6 +262,15 @@
   color: #fff;
   font-size: 1.2em;
   font-weight: var(--w-head);
+}
+/* الإجمالي النهائي في سطر واحد: التسمية (عربي / إنجليزي) والمبلغ والرمز */
+.a4__grand span,
+.a4__grand b,
+.a4__grand bdi {
+  white-space: nowrap;
+}
+.a4__grand span {
+  font-size: 0.85em;
 }
 
 /* ---------- التوقيعات والذيل ---------- */

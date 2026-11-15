@@ -52,6 +52,9 @@ const toFormValues = (company) => ({
   city: company?.city ?? "",
   district: company?.district ?? "",
   street: company?.street ?? "",
+  enCity: company?.enCity ?? "",
+  enDistrict: company?.enDistrict ?? "",
+  enStreet: company?.enStreet ?? "",
   buildingNo: company?.buildingNo ?? "",
   additionalNo: company?.additionalNo ?? "",
   postalCode: company?.postalCode ?? "",
@@ -94,6 +97,9 @@ export default function CompanyForm({ company, canEdit }) {
       "city",
       "district",
       "street",
+      "enCity",
+      "enDistrict",
+      "enStreet",
       "buildingNo",
       "additionalNo",
       "postalCode",
@@ -402,6 +408,36 @@ export default function CompanyForm({ company, canEdit }) {
                     rules={maxText(100)}
                   >
                     <Input size="large" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Form.Item
+                    name="enCity"
+                    label={tForm("EnCity")}
+                    tooltip={tForm("EnAddressHint")}
+                    rules={maxText(100)}
+                  >
+                    <Input size="large" dir="ltr" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Form.Item
+                    name="enDistrict"
+                    label={tForm("EnDistrict")}
+                    tooltip={tForm("EnAddressHint")}
+                    rules={maxText(100)}
+                  >
+                    <Input size="large" dir="ltr" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Form.Item
+                    name="enStreet"
+                    label={tForm("EnStreet")}
+                    tooltip={tForm("EnAddressHint")}
+                    rules={maxText(100)}
+                  >
+                    <Input size="large" dir="ltr" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={8}>

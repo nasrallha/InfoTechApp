@@ -2,6 +2,7 @@
 
 import { imageUrl } from "@/lib/image";
 import "@/components/printing/invoice/invoice.css";
+import A4Frame, { BilingualHeader, useA4 } from "@/components/printing/A4Frame";
 
 // ============================================================
 // مستند مخزني مطبوع A4 (سند تحويل، محضر جرد)
@@ -18,12 +19,17 @@ export default function StockDocument({
   signatures = [],
   dir = "rtl",
 }) {
+  // نموذج A4: الحالي / ثنائي اللغة / ورق جاهز (من غير رأس الشركة)
+  const tpl = useA4(company).template;
   return (
+    <A4Frame company={company}>
     <div
       className="inv inv--a4"
       dir={dir}
       style={{ width: "210mm", padding: "12mm", fontSize: "10pt" }}
     >
+      {tpl === "bilingual" && <BilingualHeader company={company} />}
+      {tpl === "classic" && (
       <header className="inv__header">
         {company?.logo && (
           <img
@@ -39,6 +45,7 @@ export default function StockDocument({
           </div>
         </div>
       </header>
+      )}
 
       <div className="inv__title">{title}</div>
 
@@ -95,5 +102,6 @@ export default function StockDocument({
         </div>
       )}
     </div>
+    </A4Frame>
   );
 }

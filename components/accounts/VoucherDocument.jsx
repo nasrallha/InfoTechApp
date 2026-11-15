@@ -8,6 +8,7 @@ import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCompany } from "@/components/common/CompanyProvider";
 import "./voucher.css";
+import A4Frame, { BilingualHeader, useA4 } from "@/components/printing/A4Frame";
 
 const TITLES = {
   receipt: ["سند قبض", "Receipt Voucher"],
@@ -28,6 +29,9 @@ export default function VoucherDocument({
   const company = useCompany();
   const { amount: money, symbolNode: symbol, currency } = useCurrency();
   const isA4 = paperSize === "A4";
+  // نموذج A4 (الكاشير زي ما هو): الحالي / ثنائي اللغة / ورق جاهز
+  const a4Tpl = useA4(company).template;
+  const tpl = isA4 ? a4Tpl : "classic";
   const dir = lang === "en" ? "ltr" : "rtl";
   const L = (ar, en) =>
     lang === "ar" ? ar : lang === "en" ? en : `${ar} / ${en}`;
@@ -78,12 +82,14 @@ export default function VoucherDocument({
       : company.arName
     : "";
 
-  return (
+  const body = (
     <div
       className={`vch ${isA4 ? "vch--a4" : "vch--thermal"}`}
       dir={dir}
       style={{ width: isA4 ? "210mm" : paperSize === "58mm" ? "48mm" : "72mm" }}
     >
+      {tpl === "bilingual" && <BilingualHeader company={company} branch={v.branch} />}
+      {tpl === "classic" && (
       <header className="vch__header">
         {company?.logo && (
           <img className="vch__logo" src={imageUrl(company.logo)} alt="" />
@@ -106,6 +112,7 @@ export default function VoucherDocument({
           )}
         </div>
       </header>
+      )}
 
       <div className={`vch__title vch__title--${v.type}`}>
         {lang === "en"
@@ -249,4 +256,5 @@ export default function VoucherDocument({
       </div>
     </div>
   );
+  return isA4 ? <A4Frame company={company}>{body}</A4Frame> : body;
 }

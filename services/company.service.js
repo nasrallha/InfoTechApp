@@ -22,6 +22,9 @@ const companySelect = {
   city: true,
   district: true,
   street: true,
+  enCity: true,
+  enDistrict: true,
+  enStreet: true,
   buildingNo: true,
   additionalNo: true,
   postalCode: true,
@@ -32,10 +35,24 @@ const companySelect = {
 // بيانات الشركة (أو null لو لم تُدخل بعد)
 // نستخدمها لاحقاً في الفواتير والتقارير
 export async function getCompany() {
-  return prisma.company.findUnique({
-    where: { id: COMPANY_ID },
-    select: companySelect,
-  });
+  // + نموذج طباعة A4 (كل المستندات A4 بتقراه من بيانات الشركة)
+  const [company, print] = await Promise.all([
+    prisma.company.findUnique({ where: { id: COMPANY_ID }, select: companySelect }),
+    prisma.invoicePrintSettings.findUnique({
+      where: { id: 1 },
+      select: { a4Template: true, letterTop: true, letterBottom: true, letterImage: true },
+    }),
+  ]);
+  if (!company) return null;
+  return {
+    ...company,
+    a4: {
+      template: print?.a4Template ?? "classic",
+      top: print?.letterTop ?? 45,
+      bottom: print?.letterBottom ?? 0,
+      image: print?.letterImage ?? null,
+    },
+  };
 }
 
 // حفظ بيانات الشركة: أول مرة تُنشأ، وبعدها تُعدّل (upsert)

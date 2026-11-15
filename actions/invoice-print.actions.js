@@ -7,7 +7,9 @@ import { invoicePrintSchema } from "@/validations/invoice-print.schema";
 import {
   getInvoicePrintSettings,
   saveInvoicePrintSettings,
+  saveLetterImage,
 } from "@/services/invoice-print.service";
+import { imageField } from "@/validations/common.schema";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCompany } from "@/services/company.service";
@@ -28,6 +30,17 @@ export async function saveInvoicePrintAction(input) {
       permission: "printing.update",
       refresh: true,
     },
+  );
+}
+
+// صورة الورقة الجاهزة (FormData: image) - من غير ملف = حذف
+export async function saveLetterImageAction(formData) {
+  const file = formData.get("image");
+  return runAction(
+    z.object({ image: imageField }),
+    { image: file instanceof File && file.size > 0 ? file : null },
+    (d) => saveLetterImage(d.image),
+    { permission: "printing.update", refresh: true },
   );
 }
 

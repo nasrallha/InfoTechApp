@@ -55,6 +55,10 @@ import {
   CoffeeOutlined,
   ShoppingCartOutlined,
   RollbackOutlined,
+  ScissorOutlined,
+  ProfileOutlined,
+  PlusCircleOutlined,
+  SolutionOutlined,
 } from "@ant-design/icons";
 import { Button, Grid, Layout, Menu, theme } from "antd";
 import { useLocale, useTranslations } from "next-intl";
@@ -120,10 +124,12 @@ const MainLayout = ({
   const restaurantOn = useModule("restaurant");
   // تأجير العقارات: مفيش أصناف ولا وحدات قياس ولا مجموعات (الفواتير من العقود)
   const realEstateOn = useModule("realEstate");
+  // الخياط: الطلبات والعملاء ومقاساتهم والإعدادات
+  const tailoringOn = useModule("tailoring");
   const simpleMode = laundryOn  //|| restaurantOn;
   // أنشطة من غير باركود (المطعم / المغسلة / تأجير العقارات - والمقاولات لما تتعمل):
   // إعدادات الباركود وطباعته مش ظاهرة
-  const noBarcode = laundryOn || restaurantOn || realEstateOn;
+  const noBarcode = laundryOn || restaurantOn || realEstateOn || tailoringOn;
   const [reportsOpen, setReportsOpen] = useState(false);
   const reports = useVisibleReports();
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -169,6 +175,11 @@ const MainLayout = ({
     "/real-estate/contracts",
     "/real-estate/reports",
     "/real-estate",
+    "/tailoring/new",
+    "/tailoring/customer-report",
+    "/tailoring/customers",
+    "/tailoring/settings",
+    "/tailoring",
     "/reports/vat",
     "/reports/profit",
     "/follow-ups",
@@ -263,7 +274,8 @@ const MainLayout = ({
     // الفواتير: زر واحد يفتح نافذة لاختيار نوع الفاتورة (يظهر لو يقدر يفتح نوع واحد على الأقل)
     // (تأجير العقارات: الفواتير من العقود، والإشعارات لينك في مجموعته)
     // المطعم والمغسلة: البيع من شاشاتهم، فبدل زر الفواتير: المشتريات ومرتجعها بس
-    invoiceTypes.length && !realEstateOn && !restaurantOn && !laundryOn
+    // الخياط: الفاتورة من الطلب، والمشتريات ومرتجعها في مجموعته
+    invoiceTypes.length && !realEstateOn && !restaurantOn && !laundryOn && !tailoringOn
       ? {
           key: "invoices",
           icon: <FileDoneOutlined />,
@@ -287,8 +299,8 @@ const MainLayout = ({
       ),
     // الكاشير والورديات
     // نظام المغسلة: الكاشير بيتفتح من نافذة المغسلة (استلام الملابس)
-    // تأجير العقارات: مفيش كاشير ولا ورديات
-    !laundryOn && !realEstateOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
+    // تأجير العقارات والخياط: مفيش كاشير ولا ورديات
+    !laundryOn && !realEstateOn && !tailoringOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
     // الحجوزات (وحدة bookings - الكوافير / الحلاق / المساج)
     link("/bookings", <CalendarOutlined />, "Bookings", "bookings.view"),
     // المطعم / المقهى (وحدة restaurant): المنيو والأحجام والإضافات والسائقين
@@ -302,7 +314,7 @@ const MainLayout = ({
           onClick: () => setLaundryOpen(true),
         }
       : null,
-    !realEstateOn && (can("shifts.view") || can("sales.pos"))
+    !realEstateOn && !tailoringOn && (can("shifts.view") || can("sales.pos"))
       ? link("/sales/shifts", <FieldTimeOutlined />, "Shifts")
       : null,
     // تأجير العقارات (وحدة realEstate): الوحدات والعقارات والملّاك ونماذج العقود
@@ -357,9 +369,24 @@ const MainLayout = ({
         "zatca.view",
       ),
     ]),
+    // الخياط (وحدة tailoring): الطلبات + طلب جديد + العملاء ومقاساتهم + الإعدادات
+    group("tailoring", <ScissorOutlined />, "Tailoring", !tailoringOn ? [] : [
+      link("/tailoring", <ProfileOutlined />, "TailorOrders", "tailorOrders.view"),
+      link("/tailoring/new", <PlusCircleOutlined />, "NewTailorOrder", "tailorOrders.create"),
+      link("/tailoring/customers", <TeamOutlined />, "TailorCustomers", "tailoring.view"),
+      link("/tailoring/customer-report", <SolutionOutlined />, "TailorCustomerReport", "tailoring.reports"),
+      link("/tailoring/settings", <SettingOutlined />, "TailorSettings", "tailoring.view"),
+      // الخياطين (مقدمو الخدمة) وعمولاتهم
+      link("/technicians", <IdcardOutlined />, "Technicians", "technicians.view"),
+      link("/reports/commissions", <TeamOutlined />, "StaffCommissions", "technicians.commissions"),
+      // المشتريات ومرتجعها (الأقمشة والخامات)
+      link("/invoices/purchases", <ShoppingCartOutlined />, "PurchasesLink", "purchases.view"),
+      link("/invoices/purchase-returns", <RollbackOutlined />, "PurchaseReturnsLink", "purchaseReturns.view"),
+    ]),
     // خدمات ما بعد البيع (وحدات الأنشطة): الأرقام التسلسلية، الضمان والصيانة،
     // الفنيون ومواعيدهم، عقود الصيانة الدورية
-    group("afterSales", <ToolOutlined />, "AfterSales", [
+    // الخياط: مفيش خدمات ما بعد البيع (الخياطين في مجموعته)
+    group("afterSales", <ToolOutlined />, "AfterSales", tailoringOn ? [] : [
       // السيارات (وحدة vehicles - الورش)
       link("/vehicles", <CarOutlined />, "Vehicles", "vehicles.view"),
       link("/serials", <NumberOutlined />, "SerialSearch", "serials.view"),

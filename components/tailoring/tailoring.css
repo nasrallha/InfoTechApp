@@ -1,0 +1,536 @@
+/* ============================================================
+   الخياط: صور تفاصيل التفصيلة + كارت الطلب للطباعة
+   (الألوان من lib/theme.js كمتغيرات --c-*)
+   ============================================================ */
+
+.tailor-styles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tailor-styles__title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--c-text2);
+}
+.tailor-styles__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tailor-choice {
+  position: relative;
+  width: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-surface);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tailor-choice:hover {
+  border-color: var(--c-primary-border);
+}
+.tailor-choice--on {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+  box-shadow: 0 0 0 1px var(--c-primary);
+}
+.tailor-choice__img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+.tailor-choice__img--empty {
+  display: block;
+  border-radius: 6px;
+  background: var(--c-bg-subtle);
+  border: 1px dashed var(--c-border-strong);
+}
+.tailor-choice__name {
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--c-text);
+}
+.tailor-choice__check {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 4px;
+  font-size: 15px;
+}
+
+/* سطر الطلب (شخص) */
+.tailor-line {
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.tailor-line__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tailor-section {
+  font-weight: 600;
+  color: var(--c-text2);
+  margin: 10px 0 6px;
+}
+
+/* عرض التفاصيل المختارة (شاشة الطلب) */
+.tailor-chosen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tailor-chosen__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 84px;
+  gap: 2px;
+  font-size: 12px;
+  text-align: center;
+}
+.tailor-chosen__item img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+.tailor-chosen__group {
+  color: var(--c-muted);
+}
+
+/* ---------------- كارت الطلب (الطباعة A4 والمعاينة) ---------------- */
+.tailor-card {
+  padding: 8mm 10mm;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: var(--c-text);
+  background: var(--c-surface);
+}
+.tailor-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4mm;
+  border-bottom: 2px solid var(--c-primary);
+  padding-bottom: 3mm;
+  margin-bottom: 3mm;
+}
+.tailor-card__company {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  font-weight: 700;
+  font-size: 13pt;
+  color: var(--c-primary);
+}
+.tailor-card__company img {
+  height: 14mm;
+}
+.tailor-card__title {
+  font-weight: 700;
+  font-size: 12pt;
+}
+.tailor-card__no {
+  font-size: 14pt;
+  font-weight: 700;
+  color: var(--c-danger);
+}
+.tailor-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1mm 0;
+}
+.tailor-card th,
+.tailor-card td {
+  border: 1px solid var(--c-primary);
+  padding: 1mm 1.5mm;
+  text-align: center;
+  font-size: 9pt;
+}
+.tailor-card th {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+.tailor-card__grid th {
+  width: 18%;
+}
+.tailor-card__person {
+  border: 1px solid var(--c-primary);
+  border-radius: 2mm;
+  padding: 2mm 3mm;
+  margin: 3mm 0;
+}
+.tailor-card__person-name {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 11pt;
+  margin-bottom: 1mm;
+}
+.tailor-card__value {
+  font-size: 11pt;
+  font-weight: 700;
+  height: 8mm;
+}
+.tailor-card__styles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm;
+  margin-top: 2mm;
+}
+.tailor-card__style {
+  width: 24mm;
+  text-align: center;
+  font-size: 8pt;
+  border: 1px solid var(--c-primary-border);
+  border-radius: 1.5mm;
+  padding: 1mm;
+}
+.tailor-card__style img,
+.tailor-card__noimg {
+  width: 18mm;
+  height: 18mm;
+  object-fit: contain;
+  margin: 0 auto;
+}
+.tailor-card__style-group {
+  color: var(--c-muted);
+}
+.tailor-card__totals {
+  margin-top: 3mm !important;
+}
+.tailor-card__totals td {
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+/* نتايج البحث عن عميل */
+.tailor-results {
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tailor-results__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.tailor-results__row:last-child {
+  border-bottom: 0;
+}
+.tailor-results__row:hover {
+  background: var(--c-primary-soft);
+}
+.tailor-results__persons {
+  margin-inline-start: auto;
+  color: var(--c-muted);
+}
+
+/* الكارت المرسوم: كل رسومات المجموعة، والمختار عليه علامة */
+.tailor-card__group {
+  display: flex;
+  align-items: flex-start;
+  gap: 2mm;
+  margin-top: 2mm;
+}
+.tailor-card__group-name {
+  width: 18mm;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 9pt;
+  color: var(--c-primary);
+  padding-top: 2mm;
+}
+.tailor-card__group .tailor-card__styles {
+  margin-top: 0;
+}
+.tailor-card__style {
+  position: relative;
+}
+.tailor-card__style--on {
+  border: 2px solid var(--c-success) !important;
+  background: var(--c-success-soft);
+  font-weight: 700;
+}
+.tailor-card__style--click {
+  cursor: pointer;
+}
+.tailor-card__style--click:hover {
+  border-color: var(--c-primary);
+}
+.tailor-card__mark {
+  position: absolute;
+  top: -2mm;
+  inset-inline-end: -2mm;
+  width: 5mm;
+  height: 5mm;
+  border-radius: 50%;
+  background: var(--c-success);
+  color: var(--c-on-dark);
+  font-size: 8pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* الكارت جنب الفورم في شاشة الطلب */
+.tailor-live {
+  width: 100%;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 8px;
+  overflow: hidden;
+}
+.tailor-live > div {
+  box-shadow: 0 2px 10px var(--c-border-strong);
+}
+@media (min-width: 992px) {
+  .tailor-live-col {
+    position: sticky;
+    top: 8px;
+  }
+}
+
+/* ---------------- شكل الكارت الورقي ---------------- */
+.tailor-card {
+  border: 2px solid var(--c-primary);
+  border-radius: 3mm;
+}
+.tailor-card__measures th {
+  font-size: 9pt;
+}
+.tailor-card__measures .tailor-card__value {
+  height: 11mm;
+  font-size: 13pt;
+}
+.tailor-card__fabric-head {
+  width: 22%;
+}
+.tailor-card__measures .tailor-card__fabric {
+  font-size: 9pt;
+  font-weight: 600;
+}
+.tailor-card__notes {
+  font-size: 9pt;
+  margin: 1mm 0;
+}
+.tailor-card__blocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm;
+  margin-top: 2mm;
+}
+.tailor-card__block {
+  flex: 1 1 auto;
+  border: 1px solid var(--c-primary);
+  border-radius: 1.5mm;
+  padding: 1.5mm;
+}
+.tailor-card__block-name {
+  text-align: center;
+  font-weight: 700;
+  font-size: 9pt;
+  color: var(--c-primary);
+  border-bottom: 1px solid var(--c-primary-border);
+  margin-bottom: 1.5mm;
+  padding-bottom: 0.5mm;
+}
+.tailor-card__block .tailor-card__styles {
+  justify-content: center;
+  gap: 1.5mm;
+  margin-top: 0;
+}
+.tailor-card__block .tailor-card__style {
+  width: 21mm;
+  border: 1px solid transparent;
+  padding: 1mm 0.5mm;
+}
+.tailor-card__block .tailor-card__style img,
+.tailor-card__block .tailor-card__noimg {
+  width: 17mm;
+  height: 20mm;
+}
+.tailor-card__choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1mm;
+  font-size: 8pt;
+  line-height: 1.2;
+}
+.tailor-card__box {
+  width: 3.5mm;
+  height: 3.5mm;
+  flex-shrink: 0;
+  border: 1px solid var(--c-primary);
+  border-radius: 0.5mm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7pt;
+}
+.tailor-card__box--on {
+  background: var(--c-success);
+  border-color: var(--c-success);
+  color: var(--c-on-dark);
+}
+.tailor-card__block .tailor-card__style--on {
+  border: 1.5px solid var(--c-success) !important;
+  background: var(--c-success-soft);
+}
+
+/* مكتبة الرسومات */
+.tailor-lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.tailor-lib-item {
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-surface);
+  padding: 6px;
+  cursor: pointer;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tailor-lib-item:hover {
+  border-color: var(--c-primary);
+}
+.tailor-lib-item--on {
+  border: 2px solid var(--c-success);
+  background: var(--c-success-soft);
+}
+.tailor-lib-item img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.tailor-libpick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.tailor-libpick img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+/* الثوب التفاعلي في شاشة الطلب */
+.tailor-thobes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tailor-thobe {
+  flex: 1 1 150px;
+  max-width: 220px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  padding: 6px;
+  text-align: center;
+}
+.tailor-thobe__name {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+/* الشخص في الكارت: الثوب على جنب + المقاسات والرسومات */
+.tailor-card__person-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 3mm;
+}
+.tailor-card__thobe {
+  flex: 0 0 42mm;
+  border: 1px solid var(--c-primary);
+  border-radius: 1.5mm;
+  padding: 1.5mm;
+  background: var(--c-surface);
+}
+.tailor-card__person-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* الرسومات: مجموعتين في الصف، والأشكال أصغر شوية (الكارت أقصر) */
+.tailor-card__blocks .tailor-card__block {
+  flex: 1 1 46%;
+}
+.tailor-card__block .tailor-card__style {
+  width: 18mm;
+}
+.tailor-card__block .tailor-card__style img,
+.tailor-card__block .tailor-card__noimg {
+  width: 15mm;
+  height: 16mm;
+}
+
+/* الكارت جوه ورقة A4 (210mm - هامش 5mm من كل جنب) */
+.tailor-card {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* رأس الكارت: المؤسسة عربي / الشعار والعنوان / المؤسسة إنجليزي */
+.tailor-card__head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.tailor-card__org {
+  font-size: 8.5pt;
+  line-height: 1.5;
+}
+.tailor-card__org[dir="ltr"] {
+  text-align: left;
+}
+.tailor-card__org[dir="rtl"] {
+  text-align: right;
+}
+.tailor-card__org-name {
+  font-weight: 700;
+  font-size: 12pt;
+  color: var(--c-primary);
+}
+.tailor-card__center {
+  text-align: center;
+}
+.tailor-card__center img {
+  height: 12mm;
+  display: block;
+  margin: 0 auto 1mm;
+}
