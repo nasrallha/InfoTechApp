@@ -36,6 +36,7 @@ import {
 import { message } from "@/components/common/feedback";
 import { showActionError } from "@/components/common/actionError";
 import { useCurrency } from "@/components/common/CurrencyProvider";
+import { useModule } from "@/components/auth/AuthProvider";
 import PrintActions from "@/components/printing/PrintActions";
 import InvoiceA4 from "@/components/printing/invoice/InvoiceA4";
 import ZatcaStatusBox from "@/components/zatca/ZatcaStatusBox";
@@ -73,6 +74,13 @@ export default function SaleDetails({
   const router = useRouter();
   const locale = useLocale();
   const t = useTranslations("Sales");
+  // المقاولات: الفواتير من المستخلصات ← من غير زرار فاتورة بيع جديدة
+  const contractingOn = useModule("contracting");
+  // فاتورة مستخلص: الخصم = استرداد الدفعة المقدمة، والمتبقي = حجز الضمان (لحد الإفراج)
+  const tC = useTranslations("Contracting");
+  const ctInfo = sale.contracting?.cert ? sale.contracting : null;
+  const openLeft = Math.max(0, sale.remainingAmount - (sale.settledAmount ?? 0));
+  const retentionLeft = ctInfo ? Math.min(openLeft, ctInfo.cert.retention) : 0;
   const tP = useTranslations("Purchases");
   const tAlerts = useTranslations("Alerts");
   const { amount: money } = useCurrency();
@@ -111,8 +119,9 @@ export default function SaleDetails({
       : lockReason;
   const listPath = isReturn ? "/invoices/sales-returns" : "/invoices/sales";
   const status = isReturn ? null : returnStatus(sale.items);
+  // فاتورة مستخلص: المطلوب = الإجمالي - حجز الضمان (الضمان بيتحصّل عند الإفراج)
   const payStatus = paymentStatus(
-    sale.totalAmount,
+    sale.totalAmount - (ctInfo ? ctInfo.cert.retention : 0),
     sale.paidAmount + (sale.settledAmount ?? 0),
   );
 
@@ -318,7 +327,8 @@ export default function SaleDetails({
           {!isReturn && canNote && (
             <NoteButton side="sale" invoiceId={sale.id} />
           )}
-          {canCreate && (
+          {/* المقاولات: الفواتير من المستخلصات (مفيش فاتورة بيع جديدة) */}
+          {canCreate && (isReturn || !contractingOn) && (
             <Link
               href={
                 isReturn ? "/invoices/sales-returns/new" : "/invoices/sales/new"
@@ -524,18 +534,25 @@ export default function SaleDetails({
                 <span>{isReturn ? t("Refunded") : tP("Paid")}</span>
                 <b>{money(sale.paidAmount)}</b>
               </div>
+              {/* المستخلص: الضمان المحجوز لوحده (مش آجل متأخر) */}
+              {retentionLeft > 0.0001 && (
+                <div>
+                  <span>{tC("RetentionOnInvoice")}</span>
+                  <Tag color="blue">{money(retentionLeft)}</Tag>
+                </div>
+              )}
               <div>
                 <span>
                   {isReturn ? t("ToCustomerAccount") : t("CreditOnCustomer")}
                 </span>
                 <Tag
                   color={
-                    sale.remainingAmount - (sale.settledAmount ?? 0) > 0.0001
+                    openLeft - retentionLeft > 0.0001
                       ? "orange"
                       : "green"
                   }
                 >
-                  {money(sale.remainingAmount - (sale.settledAmount ?? 0))}
+                  {money(openLeft - retentionLeft)}
                 </Tag>
               </div>
               {sale.changeAmount > 0 && (
@@ -571,7 +588,26 @@ export default function SaleDetails({
         </Col>
         <Col xs={24} lg={10}>
           <Card size="small" title={tP("Totals")} className="h-full">
-            <TotalsSummary totals={totals} taxMode="exclusive" />
+            <TotalsSummary
+              totals={totals}
+              taxMode="exclusive"
+              discountLabel={
+                ctInfo
+                  ? `${tC("AdvanceRecovery")}${ctInfo.recoveryPct ? ` ${ctInfo.recoveryPct}%` : ""}`
+                  : null
+              }
+              after={
+                ctInfo
+                  ? [
+                      ...(ctInfo.cert.retention > 0
+                        ? [[`${tC("Retention")}${ctInfo.retentionPct ? ` ${ctInfo.retentionPct}%` : ""}`, ctInfo.cert.retention]]
+                        : []),
+                      ...(ctInfo.cert.penalty > 0 ? [[tC("DelayPenalty"), ctInfo.cert.penalty]] : []),
+                      [tC("NetPayable"), ctInfo.cert.netPayable, true],
+                    ]
+                  : []
+              }
+            />
           </Card>
         </Col>
       </Row>

@@ -20,7 +20,7 @@ import {
   EditOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
-import { useCan, useModule } from "@/components/auth/AuthProvider";
+import { useCan, useModule, useNoBarcode } from "@/components/auth/AuthProvider";
 import { useRouter } from "@/i18n/routing";
 import {
   textFilter,
@@ -70,7 +70,9 @@ const ProductTable = ({ products = [], warehouses = [], onSelectionChange }) => 
   const [variantsId, setVariantsId] = useState(null);
   const canEdit = can("products.update");
   const canDelete = can("products.delete");
-  const canPrint = can("barcodes.print");
+  // الأنشطة اللي من غير باركود: مفيش طباعة باركود
+  const noBarcode = useNoBarcode();
+  const canPrint = can("barcodes.print") && !noBarcode;
 
   // فتح شاشة طباعة الباركود ومعها المنتجات المختارة
   const printBarcodes = (ids) =>

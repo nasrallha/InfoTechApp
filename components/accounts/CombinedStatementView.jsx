@@ -37,6 +37,7 @@ import { showActionError } from "@/components/common/actionError";
 import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import DayPicker from "@/components/common/DayPicker";
+import FiscalYearPicker from "@/components/common/FiscalYearPicker";
 import ExportButtons from "@/components/reports/ExportButtons";
 import { C } from "@/lib/theme";
 
@@ -80,6 +81,11 @@ export default function CombinedStatementView({
   const t = useTranslations("Accounts");
   const tAlerts = useTranslations("Alerts");
   const { amount: money, symbol, decimals } = useCurrency();
+  // المستخلص: الملاحظة + حجز الضمان والصافي المستحق (الفاتورة مدينة بالكامل والضمان بيتحصل بعدين)
+  const noteOf = (l) =>
+    l.retention > 0
+      ? `${l.notes ?? ""} — ${t("CertRetentionNote", { retention: money(l.retention), net: money(l.netPayable) })}`
+      : (l.notes ?? "");
   const saveKey = useSaveKey();
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
@@ -103,7 +109,9 @@ export default function CombinedStatementView({
     query.set("kind", "combined");
     if (f.customer) query.set("customer", String(f.customer));
     if (f.supplier) query.set("supplier", String(f.supplier));
+    // من غير «من» ← كل الفترات (الافتراضي من غيره: السنة المالية الحالية)
     if (f.from) query.set("from", f.from);
+    else query.set("all", "1");
     if (f.to) query.set("to", f.to);
     router.push(`${pathname}?${query.toString()}`);
   };
@@ -198,7 +206,7 @@ export default function CombinedStatementView({
       key: "notes",
       width: 200,
       ellipsis: true,
-      render: (_, l) => l.notes,
+      render: (_, l) => noteOf(l),
     },
   ];
 
@@ -259,7 +267,7 @@ export default function CombinedStatementView({
         debit: l.debit || null,
         credit: l.credit || null,
         balance: l.balance,
-        notes: l.notes ?? "",
+        notes: noteOf(l),
       })),
     ],
     totals: {
@@ -401,6 +409,8 @@ export default function CombinedStatementView({
               }
             />
           </div>
+          {/* السنة المالية ← من / إلى بتواريخها */}
+          <FiscalYearPicker size="large" onPick={(from, to) => setFilters((f) => ({ ...f, from, to }))} />
           <div>
             <div className="text-gray-500 text-xs mb-1">{t("From")}</div>
             <DayPicker

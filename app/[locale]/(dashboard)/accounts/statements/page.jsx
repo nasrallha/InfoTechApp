@@ -1,5 +1,6 @@
 // Server Component: كشف حساب عميل/مورد (?kind=customer&id=5&from=...&to=...)
 import { Suspense } from "react";
+import { currentFiscalStart } from "@/services/fiscal-year.service";
 import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
@@ -34,7 +35,9 @@ async function Content({ searchParams }) {
   const sp = await searchParams;
   const kind = kinds.includes(sp.kind) ? sp.kind : kinds[0];
   const id = parseId(sp.id);
-  const from = isDay(sp.from) ? sp.from : null;
+  // الفترة الافتراضية: السنة المالية الحالية (والرصيد اللي قبلها افتتاحي)
+  // ?all=1 ← كل الفترات
+  const from = isDay(sp.from) ? sp.from : sp.all ? null : await currentFiscalStart();
   const to = isDay(sp.to) ? sp.to : null;
   // موظف الفرع: أطراف فرعه، وحركات فرعه بس
   const range = {

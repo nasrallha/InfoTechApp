@@ -120,6 +120,8 @@ model Branch {
   printJobs          PrintJob[]
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWallets LaundryWallet[]
+  // المقاولات (وحدة contracting)
+  constructionContracts ConstructionContract[]
   @@index([warehouseId])
   @@index([priceListId])
   @@map("branches")
@@ -196,6 +198,10 @@ model User {
   laundryOrdersDelivered LaundryOrder[] @relation("LaundryOrderDeliveredBy")
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWalletsCreated LaundryWallet[] @relation("LaundryWalletCreatedBy")
+  constructionContractsCreated ConstructionContract[]
+  constructionChangesCreated   ConstructionChangeOrder[]
+  constructionCertsCreated     ConstructionCertificate[]
+  constructionPaymentsCreated  ConstructionPayment[]
   @@index([roleId])
   @@index([branchId])
   @@map("users")
@@ -647,6 +653,8 @@ model Customer {
   laundryOrders LaundryOrder[]
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWallets LaundryWallet[]
+  // المقاولات: عقود المالك (إحنا المقاول)
+  constructionContracts ConstructionContract[]
   @@unique([idScheme, idNumber])
   @@map("customers")
 }
@@ -694,6 +702,8 @@ model Supplier {
   // طلبات الضمان المبعوتة له
   warrantyClaims WarrantyClaim[]
 
+  // المقاولات: عقود مقاولي الباطن
+  constructionContracts ConstructionContract[]
   @@map("suppliers")
 }
 
@@ -913,8 +923,32 @@ model PaymentMethod {
 //   exclusive = غير شامل الضريبة / inclusive = شامل الضريبة / none = بدون ضريبة
 // ============================================================
 
+// ============================================================
+// السنوات المالية: ترقيم المستندات لكل سنة (DM-SI-2026-15)
+// - السنة بتتعمل أوتوماتيك مع أول مستند بتاريخ فيها (من «بداية السنة المالية» في الإعدادات)
+// - code: السنة اللي بتبدأ فيها (2026) ← بتظهر في رقم المستند
+// - status: open مفتوحة | closed مقفلة (مفيش مستندات جديدة بتاريخ فيها)
+//   (الإقفال المحاسبي الكامل وترحيل الأرصدة: مع الشجرة المحاسبية)
+// ============================================================
+model FiscalYear {
+  id        Int       @id @default(autoincrement())
+  code      Int       @unique
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  status    String    @default("open") @db.VarChar(10)
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("fiscal_years")
+}
+
 model SystemSettings {
   id              Int    @id
+  // بداية السنة المالية (الشهر 1-12): السنوات الجديدة بتتعمل بيه
+  fiscalStartMonth Int @default(1)
+  // البند الحر في فواتير البيع والشراء (إعداد المالك): null = حسب النشاط
+  freeLines Boolean?
   purchaseTaxMode String @default("exclusive") @db.VarChar(10)
 
   // الضريبة: نسبة الضريبة في البرنامج (0 لو الشركة غير مسجلة في الضريبة)
@@ -1140,7 +1174,10 @@ model Purchase {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([branchId, type, number])
+  // المقاولات: فاتورة الدفعة المقدمة / مستخلص مقاول الباطن
+  constructionAdvance     ConstructionContract?    @relation("ConstructionAdvancePurchase")
+  constructionCertificate ConstructionCertificate? @relation("ConstructionCertPurchase")
+  @@unique([branchId, type, docCode, number])
   // نفس رقم فاتورة المورد لا يتكرر لنفس المورد
   @@unique([type, supplierId, supplierInvoiceNo])
   @@index([supplierInvoiceNo])
@@ -1384,7 +1421,7 @@ model StockTransfer {
   @@index([status])
   @@map("stock_transfers")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
   @@index([branchId])
 }
 
@@ -1454,7 +1491,7 @@ model StockAdjustment {
   @@index([date])
   @@map("stock_adjustments")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
   @@index([branchId])
 }
 
@@ -1528,7 +1565,7 @@ model InventoryCount {
   @@index([postedById])
   @@map("inventory_counts")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
   @@index([branchId])
 }
 
@@ -1717,7 +1754,10 @@ model Sale {
   tailorOrder     TailorOrder?
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWalletUses LaundryWalletUse[]
-  @@unique([branchId, type, number])
+  // المقاولات: فاتورة الدفعة المقدمة / فاتورة مستخلص (عقد المالك)
+  constructionAdvance     ConstructionContract?    @relation("ConstructionAdvanceSale")
+  constructionCertificate ConstructionCertificate? @relation("ConstructionCertSale")
+  @@unique([branchId, type, docCode, number])
   @@index([date])
   @@index([branchId])
   @@index([warehouseId])
@@ -1892,7 +1932,7 @@ model Quotation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
   @@index([branchId])
   @@index([customerId])
   @@index([createdById])
@@ -2008,7 +2048,7 @@ model Shift {
   @@index([businessDay])
   @@map("shifts")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
 }
 
 // ============================================================
@@ -2078,7 +2118,10 @@ model Voucher {
 
   // المغسلة (وحدة laundry): الاشتراكات
   laundryWallet LaundryWallet?
-  @@unique([branchId, type, number])
+  // المقاولات: تحصيل / سداد على عقد، أو تسوية غرامة تأخير على مستخلص
+  constructionPayment ConstructionPayment?
+  constructionPenalty ConstructionCertificate? @relation("ConstructionPenaltyVoucher")
+  @@unique([branchId, type, docCode, number])
   @@index([branchId])
   @@index([shiftId])
   @@index([customerId])
@@ -2591,7 +2634,7 @@ model WarrantyClaim {
   @@index([newSerialId])
   @@map("warranty_claims")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
 }
 
 // قطع الغيار والمصنعية في طلب الصيانة (بتتحول لفاتورة)
@@ -2740,7 +2783,7 @@ model MaintenanceContract {
   @@index([status])
   @@map("maintenance_contracts")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
 }
 
 // زيارة صيانة دورية: pending مستنية | done اتنفذت | skipped اتلغت
@@ -2922,7 +2965,7 @@ model Booking {
   @@index([createdById])
   @@map("bookings")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
 }
 
 model BookingItem {
@@ -3143,7 +3186,7 @@ model LaundryWallet {
   @@index([createdById])
   @@map("laundry_wallets")
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
 }
 
 // الصرف من الاشتراك في فاتورة: credit = اللي اتخصم من الرصيد
@@ -3765,7 +3808,7 @@ model RentContract {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
   @@index([customerId])
   @@index([status])
   @@index([endDate])
@@ -3961,7 +4004,7 @@ model TailorOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([branchId, number])
+  @@unique([branchId, docCode, number])
   @@index([customerId])
   @@index([technicianId])
   @@index([createdById])
@@ -4005,4 +4048,291 @@ model TailorOrderLine {
   @@index([measurementId])
   @@index([fabricId])
   @@map("tailor_order_lines")
+}
+
+// ============================================================
+// المقاولات (وحدة contracting)
+// - العقد: مع المالك (owner: إحنا المقاول ← فواتير بيع) أو مقاول باطن (sub ← فواتير شراء)
+// - المقايسة (بنود حرة) + أوامر التغيير + الدفعة المقدمة + المستخلصات + التحصيل / السداد
+// - المستخلص = فاتورة ضريبية: الأعمال - استرداد الدفعة المقدمة (خصم على الفاتورة)
+//   حجز الضمان مش بيقلل الفاتورة (بيفضل على الطرف لحد الإفراج بسند)
+//   غرامة التأخير = سند تسوية (خارج نطاق الضريبة)
+// ============================================================
+
+// نماذج صيغة العقد
+model ConstructionTemplate {
+  id        Int     @id @default(autoincrement())
+  name      String  @db.VarChar(100)
+  // owner / sub / فاضي = للكل
+  kind      String? @db.VarChar(10)
+  content   String  @db.Text
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  contracts ConstructionContract[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("construction_templates")
+}
+
+model ConstructionContract {
+  id      Int     @id @default(autoincrement())
+  number  Int // مسلسل لكل فرع (DM-CT-5)
+  docCode String? @db.VarChar(10)
+  // owner مع المالك | sub مع مقاول باطن
+  kind    String  @db.VarChar(10)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  supplierId Int?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  // عقد الباطن: عقد المشروع الرئيسي مع المالك (ربحية المشروع)
+  parentId Int?
+  parent   ConstructionContract?  @relation("ConstructionParent", fields: [parentId], references: [id], onDelete: SetNull)
+  subs     ConstructionContract[] @relation("ConstructionParent")
+
+  // حساب المستخلصات السريعة للعميل (من غير عقد): مخفي من قوائم العقود
+  // بيجمّع مستخلصات العميل السريعة عشان الضمان المحجوز والإفراج عنه
+  isDirect Boolean @default(false)
+
+  projectName     String  @db.VarChar(200)
+  projectLocation String? @db.VarChar(255)
+  // رقم العقد عند الطرف التاني (اختياري)
+  refNo           String? @db.VarChar(60)
+
+  signDate  DateTime  @db.Date
+  startDate DateTime? @db.Date
+  // موعد التسليم
+  endDate   DateTime  @db.Date
+
+  // نسبة الضريبة وقت العقد
+  taxRate     Decimal @default(15) @db.Decimal(5, 2)
+  // الدفعة المقدمة: النسبة والمبلغ (قبل الضريبة)
+  advancePct    Decimal @default(0) @db.Decimal(7, 4)
+  advanceAmount Decimal @default(0) @db.Decimal(18, 4)
+  // رصيد دفعة مقدمة اتفوترت قبل كده برّه البرنامج (قبل الضريبة) ← بيتسترد من المستخلصات
+  priorAdvance  Decimal @default(0) @db.Decimal(18, 4)
+  // نسبة استرداد الدفعة المقدمة من كل مستخلص
+  recoveryPct   Decimal @default(0) @db.Decimal(7, 4)
+  // حجز ضمان الأعمال + موعد الإفراج عنه
+  retentionPct         Decimal   @default(0) @db.Decimal(7, 4)
+  retentionReleaseDate DateTime? @db.Date
+  // غرامة التأخير: قيمة اليوم + الحد الأقصى (نسبة من قيمة العقد)
+  penaltyPerDay Decimal @default(0) @db.Decimal(18, 4)
+  penaltyMaxPct Decimal @default(0) @db.Decimal(7, 4)
+
+  // قيمة المقايسة الأصلية / الحالية بعد أوامر التغيير (قبل الضريبة)
+  baseAmount  Decimal @default(0) @db.Decimal(18, 4)
+  totalAmount Decimal @default(0) @db.Decimal(18, 4)
+
+  // فاتورة الدفعة المقدمة (بيع لعقد المالك / شراء لعقد الباطن)
+  advanceSaleId     Int?      @unique
+  advanceSale       Sale?     @relation("ConstructionAdvanceSale", fields: [advanceSaleId], references: [id], onDelete: SetNull)
+  advancePurchaseId Int?      @unique
+  advancePurchase   Purchase? @relation("ConstructionAdvancePurchase", fields: [advancePurchaseId], references: [id], onDelete: SetNull)
+
+  // active ساري | completed منتهي (المستخلص الختامي) | cancelled ملغي
+  status String @default("active") @db.VarChar(12)
+
+  templateId Int?
+  template   ConstructionTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  content    String?               @db.Text
+  notes      String?               @db.VarChar(1000)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  items        ConstructionItem[]
+  changeOrders ConstructionChangeOrder[]
+  certificates ConstructionCertificate[]
+  payments     ConstructionPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, docCode, number])
+  @@index([kind])
+  @@index([customerId])
+  @@index([supplierId])
+  @@index([parentId])
+  @@index([status])
+  @@index([templateId])
+  @@index([createdById])
+  @@map("construction_contracts")
+}
+
+// بند المقايسة (نص حر)
+model ConstructionItem {
+  id         Int                  @id @default(autoincrement())
+  contractId Int
+  contract   ConstructionContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  seq        Int
+  itemNo     String?              @db.VarChar(30)
+  description String              @db.VarChar(500)
+  unitName   String?              @db.VarChar(30)
+  // الكمية التعاقدية الحالية (بعد أوامر التغيير) والأصلية
+  qty         Decimal @db.Decimal(18, 3)
+  originalQty Decimal @db.Decimal(18, 3)
+  price       Decimal @db.Decimal(18, 4)
+  // إجمالي البند (محفوظ: البند المكتوب بإجماليه والسعر محسوب منه مايتأثرش بالتقريب)
+  amount      Decimal @default(0) @db.Decimal(18, 4)
+  // البند اتضاف بأمر تغيير
+  changeOrderId Int?
+  changeOrder   ConstructionChangeOrder? @relation("ConstructionChangeItems", fields: [changeOrderId], references: [id], onDelete: SetNull)
+
+  certLines   ConstructionCertificateLine[]
+  changeLines ConstructionChangeLine[]
+
+  @@index([contractId])
+  @@index([changeOrderId])
+  @@map("construction_items")
+}
+
+// أمر تغيير (أعمال إضافية / ملغية): بيعدّل كميات البنود أو يضيف بنود
+model ConstructionChangeOrder {
+  id         Int                  @id @default(autoincrement())
+  contractId Int
+  contract   ConstructionContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  seq        Int
+  date       DateTime             @db.Date
+  title      String               @db.VarChar(255)
+  // فرق قيمة العقد (+ زيادة / - نقص) قبل الضريبة
+  amount     Decimal              @default(0) @db.Decimal(18, 4)
+  notes      String?              @db.VarChar(1000)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  changeLines ConstructionChangeLine[]
+  newItems    ConstructionItem[]       @relation("ConstructionChangeItems")
+
+  createdAt DateTime @default(now())
+
+  @@unique([contractId, seq])
+  @@index([createdById])
+  @@map("construction_change_orders")
+}
+
+model ConstructionChangeLine {
+  id            Int                     @id @default(autoincrement())
+  changeOrderId Int
+  changeOrder   ConstructionChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  itemId        Int
+  item          ConstructionItem        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  // فرق الكمية (+ / -) وسعر الوحدة
+  qtyDelta      Decimal                 @db.Decimal(18, 3)
+  price         Decimal                 @db.Decimal(18, 4)
+  amount        Decimal                 @db.Decimal(18, 4)
+
+  @@index([changeOrderId])
+  @@index([itemId])
+  @@map("construction_change_lines")
+}
+
+// المستخلص
+model ConstructionCertificate {
+  id         Int                  @id @default(autoincrement())
+  contractId Int
+  contract   ConstructionContract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  // ترتيبه في العقد (1، 2، 3 ...)
+  seq        Int
+  // رقم المستخلص: مسلسل واحد لكل المستخلصات (عقود + سريعة) لكل فرع زي الفواتير (DM-CR-5)
+  branchId   Int?
+  number     Int?
+  docCode    String?              @db.VarChar(10)
+  date       DateTime             @db.Date
+  periodFrom DateTime?            @db.Date
+  periodTo   DateTime?            @db.Date
+  // qty بالكميات لكل بند | lump مبلغ إجمالي
+  mode       String               @db.VarChar(10)
+  // المستخلص الختامي (بيقفل العقد ويسترد باقي الدفعة المقدمة)
+  isFinal    Boolean              @default(false)
+
+  // الأعمال قبل الضريبة - الاسترداد = الخاضع، والضريبة عليه
+  gross        Decimal @default(0) @db.Decimal(18, 4)
+  recovery     Decimal @default(0) @db.Decimal(18, 4)
+  taxRate      Decimal @default(0) @db.Decimal(5, 2)
+  taxAmount    Decimal @default(0) @db.Decimal(18, 4)
+  invoiceTotal Decimal @default(0) @db.Decimal(18, 4)
+  // حجز الضمان (من الأعمال قبل الضريبة) وغرامة التأخير ← الصافي المستحق
+  retention    Decimal @default(0) @db.Decimal(18, 4)
+  penalty      Decimal @default(0) @db.Decimal(18, 4)
+  netPayable   Decimal @default(0) @db.Decimal(18, 4)
+
+  // رقم المستخلص عند العميل (المستخلص السريع)
+  clientRef   String? @db.VarChar(60)
+  // ملغي بمرتجع (الفاتورة اترجعت بالكامل) ← خارج حسابات العقد
+  cancelled   Boolean @default(false)
+  // رقم المرتجع (مرتجع مبيعات / مشتريات) اللي لغى المستخلص
+  returnDocId Int?
+
+  saleId     Int?      @unique
+  sale       Sale?     @relation("ConstructionCertSale", fields: [saleId], references: [id], onDelete: SetNull)
+  purchaseId Int?      @unique
+  purchase   Purchase? @relation("ConstructionCertPurchase", fields: [purchaseId], references: [id], onDelete: SetNull)
+  // سند تسوية غرامة التأخير
+  penaltyVoucherId Int?     @unique
+  penaltyVoucher   Voucher? @relation("ConstructionPenaltyVoucher", fields: [penaltyVoucherId], references: [id], onDelete: SetNull)
+
+  notes String? @db.VarChar(1000)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  certLines ConstructionCertificateLine[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([contractId, seq])
+  @@index([branchId, number])
+  @@index([date])
+  @@index([createdById])
+  @@map("construction_certificates")
+}
+
+// سطر المستخلص: بند من المقايسة (الكمية الحالية) أو بند حر
+model ConstructionCertificateLine {
+  id            Int                     @id @default(autoincrement())
+  certificateId Int
+  certificate   ConstructionCertificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  itemId        Int?
+  item          ConstructionItem?       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  description   String                  @db.VarChar(500)
+  unitName      String?                 @db.VarChar(30)
+  qty           Decimal                 @db.Decimal(18, 3)
+  price         Decimal                 @db.Decimal(18, 4)
+  amount        Decimal                 @db.Decimal(18, 4)
+
+  @@index([certificateId])
+  @@index([itemId])
+  @@map("construction_certificate_lines")
+}
+
+// التحصيل من المالك / السداد لمقاول الباطن (سند قبض / صرف) - والإفراج عن الضمان
+model ConstructionPayment {
+  id         Int                  @id @default(autoincrement())
+  contractId Int
+  contract   ConstructionContract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  // payment دفعة عادية | retention إفراج عن حجز الضمان
+  kind       String               @db.VarChar(12)
+  date       DateTime             @db.Date
+  amount     Decimal              @db.Decimal(18, 4)
+  voucherId  Int                  @unique
+  voucher    Voucher              @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  notes      String?              @db.VarChar(500)
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([contractId])
+  @@index([createdById])
+  @@map("construction_payments")
 }

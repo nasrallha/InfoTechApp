@@ -294,6 +294,8 @@ export async function getStatement(
         notes: true,
         noteReason: true,
         branch: { select: { arName: true, enName: true } },
+        // المقاولات: حجز الضمان والصافي المستحق للمستخلص (للتوضيح في الكشف)
+        constructionCertificate: { select: { retention: true, netPayable: true } },
       },
     }),
     prisma.voucher.findMany({
@@ -345,6 +347,8 @@ export async function getStatement(
         credit: isCredit ? n(d.totalAmount) : n(d.paidAmount),
         notes: d.noteReason || d.notes,
         branch: d.branch,
+        retention: n(d.constructionCertificate?.retention),
+        netPayable: d.constructionCertificate ? n(d.constructionCertificate.netPayable) : null,
       };
     }),
     ...vouchers.map((v) => ({

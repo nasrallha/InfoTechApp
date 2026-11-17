@@ -1,7 +1,11 @@
 // Server Component: تعديل فاتورة بيع
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { can } from "@/lib/permissions";
+import { contractingDocOf } from "@/services/contract-certificate.service";
+import { getActiveUnits } from "@/services/unit.service";
+import CertificateInvoiceEdit from "@/components/contracting/CertificateInvoiceEdit";
 import { getPageAccess } from "@/lib/auth";
 import { getPurchasePaymentMethods, parseId } from "@/lib/purchase-pages";
 import { salePerms } from "@/lib/sale-pages";
@@ -29,6 +33,23 @@ async function Content({ params }) {
   const { id } = await params;
   const saleId = parseId(id);
   if (!saleId) notFound();
+
+  // فاتورة مقاولات: المستخلص بيتعدل من تعديل المستخلص، والدفعة المقدمة من شاشة العقد
+  const ct = await contractingDocOf({ saleId });
+  if (ct?.contractId) redirect(`/contracting/${ct.contractId}`);
+  if (ct?.certId) {
+    if (!can(user, "constructionContracts.editInvoice")) return <NoAccess />;
+    if (await isSaleSigned(saleId)) return <ZatcaLocked saleId={saleId} />;
+    const [{ methods: payMethods }, units] = await Promise.all([getPurchasePaymentMethods(), getActiveUnits()]);
+    return (
+      <CertificateInvoiceEdit
+        certId={ct.certId}
+        backHref={`/invoices/sales/${saleId}`}
+        methods={payMethods.filter((m) => m.type !== "credit")}
+        units={units}
+      />
+    );
+  }
 
   const [sale, customers, categories, { methods, creditMethod }] =
     await Promise.all([

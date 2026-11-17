@@ -1,5 +1,6 @@
 // Server Component: متابعة الفواتير الإلكترونية (وتقرير الفواتير المرفوعة للزكاة)
 import { Suspense } from "react";
+import { currentFiscalStart } from "@/services/fiscal-year.service";
 import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
@@ -17,7 +18,8 @@ async function Content({ searchParams }) {
   const sp = await searchParams;
   const now = today();
   const filters = {
-    from: sp.from || `${now.slice(0, 8)}01`,
+    // الافتراضي: من أول السنة المالية الحالية
+    from: sp.from || (await currentFiscalStart()),
     to: sp.to || now,
     status: sp.status || null,
     kind: null,

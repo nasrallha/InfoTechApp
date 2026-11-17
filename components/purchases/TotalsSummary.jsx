@@ -5,7 +5,9 @@ import { useCurrency } from "@/components/common/CurrencyProvider";
 
 // ملخص الإجماليات (للشاشة)
 // totals: { subtotal, itemsDiscount, invoiceDiscount, net, tax, total }
-export default function TotalsSummary({ totals, taxMode }) {
+// discountLabel: تسمية خصم الفاتورة (المستخلص: استرداد الدفعة المقدمة)
+// after: سطور بعد الإجمالي [[التسمية، القيمة، net؟]] (المستخلص: حجز الضمان والصافي المستحق)
+export default function TotalsSummary({ totals, taxMode, discountLabel = null, after = [] }) {
   const t = useTranslations("Purchases");
   const { amount: money, symbolNode: symbol } = useCurrency();
   const discount = (totals.itemsDiscount ?? 0) + (totals.invoiceDiscount ?? 0);
@@ -26,7 +28,7 @@ export default function TotalsSummary({ totals, taxMode }) {
       )}
       {totals.invoiceDiscount > 0 && (
         <div className="pur-totals__discount">
-          <span>{t("InvoiceDiscount")}</span>
+          <span>{discountLabel ?? t("InvoiceDiscount")}</span>
           <bdi>-{money(totals.invoiceDiscount)}</bdi>
         </div>
       )}
@@ -50,6 +52,20 @@ export default function TotalsSummary({ totals, taxMode }) {
           {money(totals.total)} {symbol}
         </bdi>
       </div>
+      {after.map(([label, value, net]) => (
+        <div key={label} className={net ? "pur-totals__grand" : "pur-totals__discount"}>
+          <span>{label}</span>
+          <bdi>
+            {net ? (
+              <>
+                {money(value)} {symbol}
+              </>
+            ) : (
+              `-${money(value)}`
+            )}
+          </bdi>
+        </div>
+      ))}
     </div>
   );
 }

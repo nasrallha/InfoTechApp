@@ -1,10 +1,13 @@
 import "server-only";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
+import { assertDocYear } from "./fiscal-year.service";
+import { isFreeLine } from "@/lib/free-line";
 import { recomputeAvgCost } from "./cost.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
+import { contractingPrintInfo, CONTRACT_PRINT_SELECT, CERT_PRINT_SELECT } from "@/lib/contracting";
 import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
 import {
@@ -149,8 +152,9 @@ function purchaseMovements({
 
 // الرقم التالي للمستند (داخل transaction: الصف يُقفل حتى نهاية العملية)
 // الرقم التالي في فرع المستند + رمز الفرع (DM-PI-5) - مفيش تكرار مهما كان عدد المستخدمين
-async function nextNumber(tx, type, branchId) {
-  return nextBranchNumber(tx, SEQUENCE_KEY[type], branchId);
+// date: تاريخ المستند (السنة المالية منه) ← DM-PI-2026-5
+async function nextNumber(tx, type, branchId, date = null) {
+  return nextBranchNumber(tx, SEQUENCE_KEY[type], branchId, date);
 }
 
 // ------------------------------------------------------------
@@ -382,8 +386,9 @@ async function preparePurchase(data, user, existing = null) {
   const itemRows = lines.map((l) => ({
     productId: l.product.id,
     code: l.product.code,
-    arName: l.product.arName,
-    enName: l.product.enName,
+    // البند الحر: الوصف اللي اتكتب هو اسم السطر
+    arName: isFreeLine(l.product.code) && l.name ? l.name : l.product.arName,
+    enName: isFreeLine(l.product.code) && l.name ? l.name : l.product.enName,
     note: l.note ?? null,
     unitId: l.unitId,
     factor: l.factor,
@@ -446,6 +451,7 @@ async function createPurchaseNow(data, user) {
         tx,
         PURCHASE,
         user.branch.id,
+        header.date,
       );
       const { items: createdItems, ...created } = await tx.purchase.create({
         data: {
@@ -507,6 +513,7 @@ export async function updatePurchase({ id, ...data }, user) {
       supplierId: true,
       taxMode: true,
       date: true,
+      docCode: true,
       items: { select: { productId: true } },
     },
   });
@@ -522,6 +529,8 @@ export async function updatePurchase({ id, ...data }, user) {
 
   try {
     return await runTx(async (tx) => {
+      // السنة المالية: التاريخ الجديد في نفس سنة الرقم، والسنة مش مقفلة
+      await assertDocYear(tx, existing.docCode, header.date);
       // نتأكد داخل العملية أنه لم يُعمل مرتجع في نفس اللحظة
       const returns = await tx.purchase.count({ where: { returnOfId: id } });
       if (returns > 0) throw new AppError("PurchaseHasReturns");
@@ -859,6 +868,7 @@ async function createPurchaseReturnNow(data, user) {
       tx,
       PURCHASE_RETURN,
       user.branch.id,
+      day,
     );
     const date = dayToDateTime(day);
     const { items: returnItems, ...created } = await tx.purchase.create({
@@ -1109,11 +1119,21 @@ export async function listPurchases({
         returnOf: { select: { id: true, number: true, docCode: true } },
         // المرتجعات بس (الإشعارات مربوطة بنفس العلاقة)
         _count: { select: { returns: { where: { type: PURCHASE_RETURN } } } },
+        // مستخلص المقاول الآخر: حجز الضمان مش بيعتبر متأخر في حالة السداد
+        constructionCertificate: { select: { retention: true } },
       },
     }),
   ]);
 
-  return { total, page, pageSize, rows: rows.map(toPurchaseDTO) };
+  return {
+    total,
+    page,
+    pageSize,
+    rows: rows.map(({ constructionCertificate, ...r }) => ({
+      ...toPurchaseDTO(r),
+      retention: constructionCertificate ? Number(constructionCertificate.retention) : 0,
+    })),
+  };
 }
 
 // فاتورة كاملة للعرض والطباعة
@@ -1221,10 +1241,15 @@ export async function getPurchase(id, type, user) {
           paymentMethod: { select: { arName: true, enName: true } },
         },
       },
+      // المقاولات: فاتورة الدفعة المقدمة / مستخلص مقاول الباطن ← العقد للطباعة
+      constructionAdvance: { select: CONTRACT_PRINT_SELECT },
+      constructionCertificate: { select: CERT_PRINT_SELECT },
     },
   });
   if (!p) return null;
-  const dto = toPurchaseDTO(p);
+  const { constructionAdvance, constructionCertificate, ...rest } = p;
+  const contracting = contractingPrintInfo({ constructionAdvance, constructionCertificate });
+  const dto = { ...toPurchaseDTO(rest), contracting };
   const linked = dto.returns ?? [];
   return {
     ...dto,

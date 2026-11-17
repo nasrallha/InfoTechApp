@@ -98,7 +98,7 @@ function SavedJob({ job, onClose }) {
 
   return (
     <Alert
-      className="mb-3"
+      className="mb-3 saved-doc-print"
       type="success"
       showIcon
       closable

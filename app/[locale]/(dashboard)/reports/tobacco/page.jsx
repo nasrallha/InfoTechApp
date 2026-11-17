@@ -1,5 +1,6 @@
 // Server Component: تقرير التبغ (وحدة المطعم): أصناف التبغ ورسوم التبغ
 import { Suspense } from "react";
+import { currentFiscalStart } from "@/services/fiscal-year.service";
 import { connection } from "next/server";
 import { getPageAccess } from "@/lib/auth";
 import { hasModule } from "@/lib/modules";
@@ -15,8 +16,10 @@ async function Content({ searchParams }) {
   if (!allowed || !(await hasModule("restaurant"))) return <NoAccess />;
   await connection();
   // الافتراضي: من أول الشهر (يوم العمل)
+  // الفترة الافتراضية: السنة المالية الحالية (من أولها لحد النهارده)
   const filters = parseReportFilters(await searchParams, {
-    defaultRange: "month",
+    defaultRange: "fiscal",
+    fiscalFrom: await currentFiscalStart(),
     dayStartHour: await getDayStartHour(),
   });
   const [data, options] = await Promise.all([

@@ -162,6 +162,108 @@
   font-weight: var(--w-label);
 }
 
+/* سطر ثنائي اللغة: العربي (البداية) - القيمة (النص) - الإنجليزي (النهاية)، كله في سطر واحد */
+.a4__kv3 {
+  display: grid;
+  /* أعمدة بعرض ثابت ← القيم كلها تحت بعض في نفس العمود */
+  grid-template-columns: 34% 1fr 30%;
+  align-items: center;
+  gap: 2mm;
+}
+/* الإجماليات: التسميات أطول (إجمالي الفاتورة شامل الضريبة ...) */
+.a4__totals .a4__kv3 {
+  grid-template-columns: 38% 1fr 30%;
+}
+/* بيانات الفاتورة وبيانات العميل: نفس شكل الإجماليات (الأعمدة والمسافات والفواصل) */
+.a4__box .a4__kv3 {
+  grid-template-columns: 38% 1fr 30%;
+  padding: 0.6mm 1mm;
+  border-bottom: 1px solid #e3e8ef;
+}
+/* القيمة الطويلة (اسم العميل / العنوان ...) بتنزل سطر تاني بدل ما تلزق في التسميات */
+.a4__box .a4__kv3 > b {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.a4__box .a4__kv3:last-child {
+  border-bottom: 0;
+}
+.a4__kv3 > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.a4__kv3 > span {
+  white-space: nowrap;
+}
+/* القيمة في النص ما بين التسمية العربية والإنجليزية */
+.a4__kv3 > b {
+  text-align: center;
+  white-space: nowrap;
+}
+/* العربي ملزوق يمين والإنجليزي ملزوق شمال (اتجاه ثابت، مش حسب dir بتاع الخانة) */
+.a4__kv3 > span:first-child {
+  text-align: right;
+}
+.a4__kv3 > span:last-child {
+  text-align: left;
+}
+.a4__grand.a4__kv3 {
+  padding: 2mm 1.5mm;
+}
+.a4__grand.a4__kv3 > span {
+  color: inherit;
+}
+/* المبلغ بالحروف + QR جنبه (ثنائي اللغة / الورق الجاهز) - خط أصغر */
+.a4__words--qr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2mm;
+  flex: 1;
+  padding: 1.5mm 2mm;
+}
+.a4__words--qr > div:first-child {
+  font-size: 0.9em;
+}
+.a4__words-qr {
+  width: 32mm;
+  height: 32mm;
+  flex: none;
+}
+/* صندوق الدفع: خط أصغر وكل سطر في سطر واحد */
+.a4__payments {
+  font-size: 0.9em;
+}
+.a4__payments .a4__kv > span,
+.a4__payments .a4__kv > b {
+  white-space: nowrap;
+}
+/* الإجمالي شامل الضريبة جوه صندوق الإجماليات: من غير خلفية (الخلفية على الصافي المستحق بس) */
+.a4__totals .a4__grand {
+  background: transparent;
+  color: var(--accent);
+  border-top: 1.5px solid var(--accent);
+}
+.a4__totals .a4__grand > span {
+  color: var(--accent);
+}
+
+/* المستخلص: الخصومات بالأحمر والصافي المستحق بلون الفاتورة */
+.a4__kv--minus > b {
+  color: #b00;
+}
+.a4__kv--total > b,
+.a4__kv--total > span {
+  font-weight: var(--w-head);
+}
+.a4__totals .a4__kv--net {
+  background: var(--accent);
+  color: #fff;
+}
+.a4__totals .a4__kv--net > span {
+  color: #fff;
+}
+
 /* ---------- الأصناف ---------- */
 .a4__items {
   width: 100%;
@@ -174,8 +276,9 @@
 
 /* رأس الجدول عريض وسطور الأصناف عادية: الفرق واضح بين العنوان والصنف */
 .a4__items th {
-  background: var(--accent);
-  color: #fff;
+  background: #f4f7fb;
+  color: var(--accent);
+  border-bottom: 1px solid #d6dde6;
   font-weight: var(--w-head);
   font-size: 0.95em;
   padding: 2mm 1.5mm;
@@ -222,10 +325,10 @@
 /* ---------- الأسفل ---------- */
 .a4__bottom {
   display: grid;
-  /* نصين متساويين: المبلغ بالحروف والمدفوعات | الإجماليات */
-  grid-template-columns: 1fr 1fr;
-  gap: 5mm;
-  margin-top: 5mm;
+  /* المبلغ بالحروف والـ QR والمدفوعات | الإجماليات */
+  grid-template-columns: 2fr 3fr;
+  gap: 3mm;
+  margin-top: 2mm;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -234,6 +337,7 @@
   display: flex;
   flex-direction: column;
   gap: 3mm;
+  font-size: 0.88em;
 }
 
 .a4__notes > div:last-child {
@@ -248,7 +352,7 @@
 }
 
 .a4__totals .a4__kv {
-  padding: 1.6mm 3.5mm;
+  padding: 1.2mm 1.5mm;
   border-bottom: 1px solid #e3e8ef;
 }
 
@@ -271,6 +375,62 @@
 }
 .a4__grand span {
   font-size: 0.85em;
+}
+
+/* ---------- المقاولات: ملخص المستخلص ---------- */
+.a4__ct {
+  margin-top: 3mm;
+  border: 1px solid #d6dde6;
+  border-radius: 2mm;
+  overflow: hidden;
+}
+.a4__ct .a4__box-title {
+  padding: 1.2mm 3mm;
+}
+.a4__ct table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.85em;
+}
+.a4__ct th,
+.a4__ct td {
+  padding: 1.2mm 1mm;
+  border-top: 1px solid #e3e8ef;
+  border-inline-start: 1px solid #e3e8ef;
+  text-align: center;
+  vertical-align: middle;
+}
+.a4__ct th:first-child,
+.a4__ct td:first-child {
+  border-inline-start: 0;
+}
+.a4__ct th {
+  font-weight: 600;
+  background: #f4f7fb;
+}
+.a4__ct td {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.a4__ct--info {
+  font-weight: 400 !important;
+  color: #555;
+}
+.a4__ct--minus {
+  color: #b00;
+}
+.a4__ct--net {
+  background: var(--accent);
+  color: #fff;
+}
+.a4__ct-note {
+  padding: 1.2mm 3mm;
+  font-size: 0.8em;
+  color: #444;
+}
+.a4__ct table + .a4__ct-note {
+  border-top: 1px solid #e3e8ef;
 }
 
 /* ---------- التوقيعات والذيل ---------- */

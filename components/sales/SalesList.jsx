@@ -12,6 +12,7 @@ import {
   PAYMENT_STATUS_COLOR,
   saleDocNo,
 } from "@/lib/doc-number";
+import { useModule, useNoPos } from "@/components/auth/AuthProvider";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import SearchBox from "@/components/common/SearchBox";
 import "@/components/common/table.css";
@@ -50,6 +51,10 @@ export default function SalesList({
   const isQuotation = kind === "quotation";
   const isReturn = kind === "return";
   const todayDay = today();
+  // أنشطة من غير كاشير (العقارات / الخياط / المقاولات): من غير زرار شاشة الكاشير
+  const noPos = useNoPos();
+  // المقاولات: فواتير البيع من المستخلصات (مفيش «فاتورة بيع جديدة»)
+  const noNewSale = useModule("contracting") && kind === "sale";
 
   const go = (params) => {
     const query = new URLSearchParams();
@@ -185,8 +190,9 @@ export default function SalesList({
             width: 120,
             align: "center",
             render: (_, r) => {
+              // فاتورة مستخلص: المطلوب = الإجمالي - حجز الضمان (الضمان بيتحصّل عند الإفراج)
               const st = paymentStatus(
-                r.totalAmount,
+                r.totalAmount - (r.retention ?? 0),
                 r.paidAmount + (r.settledAmount ?? 0),
               );
               return (
@@ -254,14 +260,14 @@ export default function SalesList({
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="font-bold text-xl">{title}</h1>
         <Space wrap>
-          {kind === "sale" && canPos && (
+          {kind === "sale" && canPos && !noPos && (
             <Link href="/pos">
               <Button size="large" icon={<DesktopOutlined />}>
                 {t("OpenPos")}
               </Button>
             </Link>
           )}
-          {canCreate && (
+          {canCreate && !noNewSale && (
             <Link href={`${basePath}/new`}>
               <Button type="primary" size="large" icon={<PlusOutlined />}>
                 {newLabel}

@@ -50,6 +50,8 @@ const saleItemSchema = z
     ...discountFields,
     // ملاحظة / وصف السطر (اختياري)
     note: optionalText(500),
+    // البند الحر: الوصف اللي اتكتب (بيبقى اسم السطر)
+    name: optionalText(150),
   })
   .refine(percentMax, { message: "PercentMax", path: ["discountValue"] });
 

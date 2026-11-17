@@ -10,6 +10,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/routing";
 import PageHeader from "@/components/common/PageHeader";
 import DayPicker from "@/components/common/DayPicker";
+import FiscalYearPicker from "@/components/common/FiscalYearPicker";
 import ExportButtons from "@/components/reports/ExportButtons";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { formatDate, formatDay, today } from "@/lib/dates";
@@ -84,6 +85,8 @@ export default function RentReportsView({ tab, data, filters, options, canInvoic
       <Space wrap align="end" size={[8, 8]}>
         {showPeriod && (
           <>
+            {/* السنة المالية ← من / إلى بتواريخها */}
+            <FiscalYearPicker onPick={(from, to) => setF((x) => ({ ...x, from, to }))} />
             <div>
               <div className="text-xs text-slate-500 mb-1">{tab === "invoices" || tab === "owner" ? t("InvoiceDateFrom") : t("From")}</div>
               <DayPicker style={{ width: 150 }} value={f.from} max={f.to} onChange={(v) => setF((x) => ({ ...x, from: v }))} />

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { BRANCH_CODE_RE, parseDocRef } from "@/lib/doc-number";
+import { currentFiscalCode, ensureFiscalYear } from "./fiscal-year.service";
 
 // ============================================================
 // أرقام المستندات
@@ -13,6 +14,8 @@ import { BRANCH_CODE_RE, parseDocRef } from "@/lib/doc-number";
 //   (المفتاح "النوع@الفرع") ورمز الفرع قبل الرقم (DM-SI-5)، وبيكمل بعد أكبر رقم في الفرع
 // - وكمان التحويلات والتوالف والجرد والورديات والحجوزات والصيانة والعقود واشتراكات المغسلة
 // - peek: الرقم المتوقع للعرض في شاشة "جديد" (بيتحدث أول بأول)
+// - الترقيم لكل سنة مالية: المفتاح «النوع@الفرع@السنة»، وبيبدأ من 1 أول كل سنة
+//   docCode = السنة + رمز الفرع (2026DM) ← DM-SI-2026-15 (السنة من تاريخ المستند)
 // ============================================================
 export const SEQUENCE_KEYS = {
   purchase: "purchase",
@@ -34,6 +37,8 @@ export const SEQUENCE_KEYS = {
   laundryWallet: "LW",
   rentContract: "rent_contract",
   tailorOrder: "tailor_order",
+  constructionContract: "construction_contract",
+  constructionCertificate: "construction_certificate",
   // الإشعارات (كل نوع بمسلسل مستقل)
   saleCredit: "sale_credit",
   saleDebit: "sale_debit",
@@ -67,9 +72,12 @@ export const BRANCH_DOCS = {
   laundryWallet: { model: "laundryWallet", type: null },
   rentContract: { model: "rentContract", type: null },
   tailorOrder: { model: "tailorOrder", type: null },
+  constructionContract: { model: "constructionContract", type: null },
+  constructionCertificate: { model: "constructionCertificate", type: null },
 };
 
-const branchKey = (kind, branchId) => `${SEQUENCE_KEYS[kind]}@${branchId}`;
+// المسلسل لكل نوع وفرع وسنة مالية
+const branchKey = (kind, branchId, year) => `${SEQUENCE_KEYS[kind]}@${branchId}@${year}`;
 
 // ------------------------------------------------------------
 // رمز الفرع
@@ -128,19 +136,22 @@ async function lockBranchCode(tx, branchId) {
 
 // ------------------------------------------------------------
 // حجز الرقم التالي لمستند في فرع (جوه نفس الـ transaction اللي بيحفظ المستند)
-// kind: مفتاح من BRANCH_DOCS ← { number, docCode }
+// kind: مفتاح من BRANCH_DOCS | date: تاريخ المستند (السنة المالية منه، فاضي = النهارده)
+// ← { number, docCode } (docCode = السنة + رمز الفرع: 2026DM)
+// السنة المقفلة: ممنوع مستند جديد بتاريخ فيها
 // ------------------------------------------------------------
-export async function nextBranchNumber(tx, kind, branchId) {
+export async function nextBranchNumber(tx, kind, branchId, date = null) {
   const doc = BRANCH_DOCS[kind];
   if (!doc) throw new Error(`Unknown branch document kind: ${kind}`);
-  const docCode = await lockBranchCode(tx, branchId);
-  // البداية: بعد أكبر رقم موجود للنوع ده في الفرع (المستندات القديمة)
+  const [branchCode, fy] = [await lockBranchCode(tx, branchId), await ensureFiscalYear(tx, date)];
+  const docCode = `${fy.code}${branchCode}`;
+  // البداية: بعد أكبر رقم موجود للنوع ده في الفرع والسنة
   const agg = await tx[doc.model].aggregate({
-    where: { branchId, ...(doc.type ? { type: doc.type } : {}) },
+    where: { branchId, docCode, ...(doc.type ? { type: doc.type } : {}) },
     _max: { number: true },
   });
   const start = (agg._max.number ?? 0) + 1;
-  const key = branchKey(kind, branchId);
+  const key = branchKey(kind, branchId, fy.code);
   // عملية واحدة: أول مرة ← start، وبعدها ← +1 (والصف بيتقفل لحد نهاية الحفظ)
   await tx.$executeRaw`INSERT INTO document_sequences (\`key\`, \`last\`) VALUES (${key}, ${start}) ON DUPLICATE KEY UPDATE \`last\` = GREATEST(\`last\` + 1, ${start})`;
   const seq = await tx.documentSequence.findUnique({
@@ -164,24 +175,29 @@ export async function peekNextDoc(type, branchId) {
     });
     return { number: (seq?.last ?? 0) + 1, code: null };
   }
-  const [seq, agg, branch] = await Promise.all([
-    prisma.documentSequence.findUnique({
-      where: { key: branchKey(type, branchId) },
-      select: { last: true },
-    }),
-    prisma[doc.model].aggregate({
-      where: { branchId, ...(doc.type ? { type: doc.type } : {}) },
-      _max: { number: true },
-    }),
+  const [year, branch] = await Promise.all([
+    currentFiscalCode(),
     prisma.branch.findUnique({
       where: { id: branchId },
       select: { id: true, enName: true, code: true },
     }),
   ]);
-  const number = Math.max((seq?.last ?? 0) + 1, (agg._max.number ?? 0) + 1);
-  const code =
+  const branchCode =
     branch?.code ?? (branch ? await suggestBranchCode(prisma, branch, branch.id) : null);
-  return { number, code };
+  const docCode = branchCode ? `${year}${branchCode}` : null;
+  const [seq, agg] = await Promise.all([
+    prisma.documentSequence.findUnique({
+      where: { key: branchKey(type, branchId, year) },
+      select: { last: true },
+    }),
+    prisma[doc.model].aggregate({
+      where: { branchId, docCode, ...(doc.type ? { type: doc.type } : {}) },
+      _max: { number: true },
+    }),
+  ]);
+  const number = Math.max((seq?.last ?? 0) + 1, (agg._max.number ?? 0) + 1);
+  // code: نفس شكل docCode (السنة + الفرع) ← DM-SI-2026-15
+  return { number, code: docCode };
 }
 
 // الرقم بس (للاستخدامات القديمة اللي محتاجة رقم)
@@ -194,17 +210,20 @@ export async function peekNextNumber(type, branchId = null) {
 // - "DM-SI-5" ← فرع الرمز ده
 // - "5" أو "SI-5" ← الفرع المختار في الفلتر، وإلا فرع المستخدم الحالي
 //   (الرقم بقى بيتكرر بين الفروع، فمن غير رمز بيدوّر في فرعك)
+// - بالسنة المالية: "DM-SI-2026-5" / "2026-5" ← السنة دي بس (docCode بيبدأ بالسنة)
+//   من غير سنة ← الرقم ده في كل السنين
 // ------------------------------------------------------------
 export async function docNumberWhere(value, user, branchId = null) {
   const ref = parseDocRef(value);
   if (!ref) return null;
+  const year = ref.year ? { docCode: { startsWith: String(ref.year) } } : {};
   if (ref.code) {
     const b = await prisma.branch.findUnique({
       where: { code: ref.code },
       select: { id: true },
     });
     // رمز مش موجود ← مفيش نتيجة (فرع رقم 0)
-    return { number: ref.number, branchId: b?.id ?? 0 };
+    return { number: ref.number, branchId: b?.id ?? 0, ...year };
   }
-  return { number: ref.number, branchId: branchId ?? user.branch.id };
+  return { number: ref.number, branchId: branchId ?? user.branch.id, ...year };
 }

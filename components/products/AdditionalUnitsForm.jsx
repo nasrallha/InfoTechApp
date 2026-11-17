@@ -13,6 +13,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Button, Form, Input, InputNumber, Select, Row, Col } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import { C } from "@/lib/theme";
+import { useNoBarcode } from "@/components/auth/AuthProvider";
 
 // عنصر قابل للسحب (لترتيب الوحدات)
 const SortableItem = ({ id, children }) => {
@@ -48,6 +49,7 @@ const AdditionalUnitsForm = ({
   const tButtons = useTranslations("Buttons");
   const tAlerts = useTranslations("Alerts");
   const tPlaceholders = useTranslations("Placeholders");
+  const noBarcode = useNoBarcode();
   const tUnits = useTranslations("ProductUnits");
 
   // نراقب الوحدة الأساسية: لا تظهر في قائمة الوحدات الإضافية
@@ -143,7 +145,8 @@ const AdditionalUnitsForm = ({
                       </Form.Item>
                     </Col>
 
-                    {/* باركود الوحدة (اختياري) */}
+                    {/* باركود الوحدة (اختياري) - مش ظاهر في الأنشطة اللي من غير باركود */}
+                    {!noBarcode && (
                     <Col xs={12} {...sp(4, 10)}>
                       <Form.Item
                         {...restField}
@@ -153,6 +156,7 @@ const AdditionalUnitsForm = ({
                         <Input placeholder={tPlaceholders("Barcode")} />
                       </Form.Item>
                     </Col>
+                    )}
 
                     {/* سعر الوحدة */}
                     <Col xs={12} {...sp(3, 7)}>

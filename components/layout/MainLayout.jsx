@@ -13,6 +13,7 @@ import {
   UserOutlined,
   ApartmentOutlined,
   BankOutlined,
+  BuildOutlined,
   PrinterOutlined,
   BarcodeOutlined,
   FileTextOutlined,
@@ -24,6 +25,7 @@ import {
   DatabaseOutlined,
   BarChartOutlined,
   SwapOutlined,
+  ReconciliationOutlined,
   DiffOutlined,
   AuditOutlined,
   RiseOutlined,
@@ -58,6 +60,8 @@ import {
   ScissorOutlined,
   ProfileOutlined,
   PlusCircleOutlined,
+  FileAddOutlined,
+  UnorderedListOutlined,
   SolutionOutlined,
 } from "@ant-design/icons";
 import { Button, Grid, Layout, Menu, theme } from "antd";
@@ -90,6 +94,7 @@ import {
   useCan,
   useCurrentUser,
   useModule,
+  useNoBarcode,
 } from "@/components/auth/AuthProvider";
 
 import "./MainLayout.css";
@@ -126,10 +131,12 @@ const MainLayout = ({
   const realEstateOn = useModule("realEstate");
   // الخياط: الطلبات والعملاء ومقاساتهم والإعدادات
   const tailoringOn = useModule("tailoring");
+  // المقاولات: العقود والمقايسات والمستخلصات (من غير كاشير ولا ورديات ولا خدمات ما بعد البيع)
+  const contractingOn = useModule("contracting");
   const simpleMode = laundryOn  //|| restaurantOn;
   // أنشطة من غير باركود (المطعم / المغسلة / تأجير العقارات - والمقاولات لما تتعمل):
   // إعدادات الباركود وطباعته مش ظاهرة
-  const noBarcode = laundryOn || restaurantOn || realEstateOn || tailoringOn;
+  const noBarcode = useNoBarcode();
   const [reportsOpen, setReportsOpen] = useState(false);
   const reports = useVisibleReports();
   const [accountsOpen, setAccountsOpen] = useState(false);
@@ -163,6 +170,7 @@ const MainLayout = ({
     "/settings/owner",
     "/settings/backup",
     "/zatca/documents",
+    "/admin/fiscal-years",
     "/admin/backup",
     "/admin/data-reset",
     "/admin/products-bulk",
@@ -180,6 +188,11 @@ const MainLayout = ({
     "/tailoring/customers",
     "/tailoring/settings",
     "/tailoring",
+    "/contracting/quick/new",
+    "/contracting/certificates",
+    "/contracting/templates",
+    "/contracting/reports",
+    "/contracting",
     "/reports/vat",
     "/reports/profit",
     "/follow-ups",
@@ -237,6 +250,11 @@ const MainLayout = ({
     </span>
   );
 
+  // المشتريات ومرتجعها: بتفتح على الإنشاء على طول (البحث عن فاتورة زرار جوه الشاشة)
+  const purchasesHref = can("purchases.create") ? "/invoices/purchases/new" : "/invoices/purchases";
+  const purchaseReturnsHref = can("purchaseReturns.create")
+    ? "/invoices/purchase-returns/new"
+    : "/invoices/purchase-returns";
   const link = (path, icon, labelKey, permission) =>
     !permission || can(permission)
       ? {
@@ -258,24 +276,29 @@ const MainLayout = ({
     link("/", <HomeFilled />, "Home"),
     // نظام المغسلة: الأقسام والوحدات والأصناف مش ظاهرة
     // (القطع وأسعارها من شاشة المغسلة)
+    // المقاولات: الشغل بالبنود الحرة (من غير أصناف ولا فئات ولا مخزون)
     !laundryOn &&
       !realEstateOn &&
+      !contractingOn &&
       link("/categories", <AppstoreOutlined />, "Categories", "categories.view"),
     !simpleMode &&
       !realEstateOn &&
       link("/units", <ColumnWidthOutlined />, "Units", "units.view"),
     !simpleMode &&
       !realEstateOn &&
+      !contractingOn &&
       link("/products", <ShoppingOutlined />, "Products", "products.view"),
     // العروض والخصومات: في كل الأنشطة (والمغسلة كمان)
     // (تأجير العقارات: مفيش عروض ولا خصومات أصناف)
-    !realEstateOn &&
+    // (المقاولات: مفيش عروض ولا خصومات)
+    !realEstateOn && !contractingOn &&
       link("/promotions", <GiftOutlined />, "Promotions", "promotions.view"),
     // الفواتير: زر واحد يفتح نافذة لاختيار نوع الفاتورة (يظهر لو يقدر يفتح نوع واحد على الأقل)
     // (تأجير العقارات: الفواتير من العقود، والإشعارات لينك في مجموعته)
     // المطعم والمغسلة: البيع من شاشاتهم، فبدل زر الفواتير: المشتريات ومرتجعها بس
     // الخياط: الفاتورة من الطلب، والمشتريات ومرتجعها في مجموعته
-    invoiceTypes.length && !realEstateOn && !restaurantOn && !laundryOn && !tailoringOn
+    // المقاولات: الفواتير من العقود والمستخلصات، والإشعارات والمشتريات في مجموعتها
+    invoiceTypes.length && !realEstateOn && !restaurantOn && !laundryOn && !tailoringOn && !contractingOn
       ? {
           key: "invoices",
           icon: <FileDoneOutlined />,
@@ -285,14 +308,14 @@ const MainLayout = ({
       : null,
     (restaurantOn || laundryOn) &&
       link(
-        "/invoices/purchases",
+        purchasesHref,
         <ShoppingCartOutlined />,
         "PurchasesLink",
         "purchases.view",
       ),
     (restaurantOn || laundryOn) &&
       link(
-        "/invoices/purchase-returns",
+        purchaseReturnsHref,
         <RollbackOutlined />,
         "PurchaseReturnsLink",
         "purchaseReturns.view",
@@ -300,7 +323,7 @@ const MainLayout = ({
     // الكاشير والورديات
     // نظام المغسلة: الكاشير بيتفتح من نافذة المغسلة (استلام الملابس)
     // تأجير العقارات والخياط: مفيش كاشير ولا ورديات
-    !laundryOn && !realEstateOn && !tailoringOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
+    !laundryOn && !realEstateOn && !tailoringOn && !contractingOn && link("/pos", <DesktopOutlined />, "Pos", "sales.pos"),
     // الحجوزات (وحدة bookings - الكوافير / الحلاق / المساج)
     link("/bookings", <CalendarOutlined />, "Bookings", "bookings.view"),
     // المطعم / المقهى (وحدة restaurant): المنيو والأحجام والإضافات والسائقين
@@ -314,7 +337,7 @@ const MainLayout = ({
           onClick: () => setLaundryOpen(true),
         }
       : null,
-    !realEstateOn && !tailoringOn && (can("shifts.view") || can("sales.pos"))
+    !realEstateOn && !tailoringOn && !contractingOn && (can("shifts.view") || can("sales.pos"))
       ? link("/sales/shifts", <FieldTimeOutlined />, "Shifts")
       : null,
     // تأجير العقارات (وحدة realEstate): الوحدات والعقارات والملّاك ونماذج العقود
@@ -340,13 +363,13 @@ const MainLayout = ({
       ),
       // المشتريات ومرتجعها (مصروفات العقارات من الموردين)
       link(
-        "/invoices/purchases",
+        purchasesHref,
         <ShoppingCartOutlined />,
         "PurchasesLink",
         "purchases.view",
       ),
       link(
-        "/invoices/purchase-returns",
+        purchaseReturnsHref,
         <RollbackOutlined />,
         "PurchaseReturnsLink",
         "purchaseReturns.view",
@@ -380,13 +403,30 @@ const MainLayout = ({
       link("/technicians", <IdcardOutlined />, "Technicians", "technicians.view"),
       link("/reports/commissions", <TeamOutlined />, "StaffCommissions", "technicians.commissions"),
       // المشتريات ومرتجعها (الأقمشة والخامات)
-      link("/invoices/purchases", <ShoppingCartOutlined />, "PurchasesLink", "purchases.view"),
-      link("/invoices/purchase-returns", <RollbackOutlined />, "PurchaseReturnsLink", "purchaseReturns.view"),
+      link(purchasesHref, <ShoppingCartOutlined />, "PurchasesLink", "purchases.view"),
+      link(purchaseReturnsHref, <RollbackOutlined />, "PurchaseReturnsLink", "purchaseReturns.view"),
+    ]),
+    // المقاولات (وحدة contracting): عقود المالك ومقاولي الباطن والتقارير ونماذج العقود
+    group("contracting", <BuildOutlined />, "Contracting", !contractingOn ? [] : [
+      link("/contracting", <FileTextOutlined />, "OwnerContracts", "constructionContracts.view"),
+      link("/contracting?kind=sub", <TeamOutlined />, "SubContracts", "constructionContracts.view"),
+      link("/contracting/new?kind=owner", <PlusCircleOutlined />, "NewConstructionContract", "constructionContracts.create"),
+      // المستخلص السريع (من غير عقد)
+      link("/contracting/quick/new", <FileAddOutlined />, "NewQuickCertificate", "constructionContracts.invoice"),
+      link("/contracting/certificates", <UnorderedListOutlined />, "AllCertificates", "constructionContracts.view"),
+      link("/contracting/reports", <PieChartOutlined />, "ContractingReports", "contracting.reports"),
+      link("/contracting/templates", <ProfileOutlined />, "ContractTemplates", "contracting.view"),
+      // إشعارات العملاء (دائن / مدين على فواتير المستخلصات)
+      link("/invoices/sales-notes", <SwapOutlined />, "SalesNotes", "salesNotes.view"),
+      // المشتريات ومرتجعها وإشعارات الموردين
+      link(purchasesHref, <ShoppingCartOutlined />, "PurchasesLink", "purchases.view"),
+      link(purchaseReturnsHref, <RollbackOutlined />, "PurchaseReturnsLink", "purchaseReturns.view"),
+      link("/invoices/purchase-notes", <ReconciliationOutlined />, "PurchaseNotes", "purchaseNotes.view"),
     ]),
     // خدمات ما بعد البيع (وحدات الأنشطة): الأرقام التسلسلية، الضمان والصيانة،
     // الفنيون ومواعيدهم، عقود الصيانة الدورية
     // الخياط: مفيش خدمات ما بعد البيع (الخياطين في مجموعته)
-    group("afterSales", <ToolOutlined />, "AfterSales", tailoringOn ? [] : [
+    group("afterSales", <ToolOutlined />, "AfterSales", tailoringOn || contractingOn ? [] : [
       // السيارات (وحدة vehicles - الورش)
       link("/vehicles", <CarOutlined />, "Vehicles", "vehicles.view"),
       link("/serials", <NumberOutlined />, "SerialSearch", "serials.view"),
@@ -435,7 +475,7 @@ const MainLayout = ({
     // المخزون: المستودعات، الأرصدة، التحويلات، الجرد
     // نظام المغسلة: مفيش مخازن
     // تأجير العقارات: مفيش مخزون ولا مستودعات
-    group("inventory", <InboxOutlined />, "Inventory", simpleMode || realEstateOn ? [] : [
+    group("inventory", <InboxOutlined />, "Inventory", simpleMode || realEstateOn || contractingOn ? [] : [
       link("/inventory/stock", <BarChartOutlined />, "Stock", "stock.view"),
       // الصلاحية والدفعات (ميزة expiry): الصلاحية مقفولة لو الميزة مش في الباقة
       link(
@@ -479,6 +519,8 @@ const MainLayout = ({
     group("administration", <ApartmentOutlined />, "Administration", [
       link("/branches", <ShopOutlined />, "Branches", "branches.view"),
       link("/roles", <SafetyCertificateOutlined />, "Roles", "roles.view"),
+      // السنوات المالية (ترقيم المستندات لكل سنة + الإقفال)
+      link("/admin/fiscal-years", <CalendarOutlined />, "FiscalYears", "fiscalYears.view"),
       link(
         "/settings/price-lists",
         <TagsOutlined />,

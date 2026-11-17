@@ -48,6 +48,9 @@ const KINDS = {
   // تأجير العقارات: دفعة مستحقة / عقد بيخلص
   rentDue: { color: C.warningText, Icon: FileDoneOutlined },
   rentEnd: { color: C.magenta, Icon: BankOutlined },
+  // المقاولات: الإفراج عن حجز الضمان / موعد تسليم المشروع
+  retentionDue: { color: C.warningText, Icon: SafetyCertificateOutlined },
+  projectEnd: { color: C.magenta, Icon: BankOutlined },
 };
 const LEVEL_COLORS = { overdue: C.dangerText, today: C.warningText, soon: C.info };
 // الفلاتر جوه القايمة
@@ -63,6 +66,7 @@ const TABS = {
   zatca: (i) => i.kind === "zatca",
   expiry: (i) => i.kind === "expiry",
   rent: (i) => i.kind === "rentDue" || i.kind === "rentEnd",
+  contracting: (i) => i.kind === "retentionDue" || i.kind === "projectEnd",
 };
 
 // اليوم والوقت الحالي بتوقيت السعودية
@@ -310,6 +314,8 @@ export default function NotificationBell() {
       ? `#${i.ref.number}`
       : i.ref?.kind === "rentContract"
       ? formatDocNo("rentContract", i.ref.number, i.ref.docCode)
+      : i.ref?.kind === "constructionContract"
+      ? formatDocNo("constructionContract", i.ref.number, i.ref.docCode)
       : i.ref?.kind === "booking"
       ? formatDocNo("booking", i.ref.number, i.ref.docCode)
       : i.ref?.kind === "sale"

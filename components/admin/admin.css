@@ -21,23 +21,47 @@
   word-break: break-all;
 }
 
-/* تصفير البيانات: اختيار اللي يتمسح */
-.reset-group + .reset-group {
-  margin-top: 14px;
+/* تصفير البيانات: اختيار اللي يتمسح - المجموعات مربعات جنب بعض */
+/* أعمدة (masonry): المجموعات بتملى العمود اللي فيه مكان من غير فراغات */
+.reset-groups {
+  columns: 3 300px;
+  column-gap: 8px;
+}
+.reset-group {
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 8px;
+  padding: 2px 6px 4px;
+}
+/* الكروت: حشو أقل */
+.reset-card .ant-card-body,
+.reset-bottom .ant-card-body {
+  padding: 8px 10px;
+}
+/* خارج التصفير + التصفير النهائي جنب بعض */
+.reset-bottom {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 8px;
+  align-items: start;
 }
 .reset-group__head {
-  padding: 6px 0;
+  padding: 3px 0;
   border-bottom: 1px solid rgba(128, 128, 128, 0.25);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .reset-item {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto;
   column-gap: 12px;
   align-items: center;
-  padding: 6px 8px;
+  padding: 2px 6px;
   border-radius: 6px;
-  padding-inline-start: 24px;
+  padding-inline-start: 22px;
+  line-height: 1.35;
 }
 .reset-item.is-on {
   background: rgba(255, 77, 79, 0.08);

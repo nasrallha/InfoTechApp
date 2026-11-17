@@ -23,6 +23,9 @@ export const INVOICE_TYPES = [
   {
     key: "SalesInvoice",
     href: "/invoices/sales",
+    // بتفتح على الإنشاء على طول (البحث عن فاتورة زرار جوه الشاشة)
+    newHref: "/invoices/sales/new",
+    createPermission: "sales.create",
     Icon: ShoppingCartOutlined,
     color: C.primary,
     permission: "sales.view",
@@ -38,6 +41,9 @@ export const INVOICE_TYPES = [
   {
     key: "SalesReturn",
     href: "/invoices/sales-returns",
+    // بتفتح على الإنشاء على طول (البحث عن فاتورة زرار جوه الشاشة)
+    newHref: "/invoices/sales-returns/new",
+    createPermission: "salesReturns.create",
     Icon: RollbackOutlined,
     color: C.dangerText,
     permission: "salesReturns.view",
@@ -53,6 +59,9 @@ export const INVOICE_TYPES = [
   {
     key: "PurchaseInvoice",
     href: "/invoices/purchases",
+    // بتفتح على الإنشاء على طول (البحث عن فاتورة زرار جوه الشاشة)
+    newHref: "/invoices/purchases/new",
+    createPermission: "purchases.create",
     Icon: ShoppingOutlined,
     color: C.infoText,
     permission: "purchases.view",
@@ -60,6 +69,9 @@ export const INVOICE_TYPES = [
   {
     key: "PurchaseReturn",
     href: "/invoices/purchase-returns",
+    // بتفتح على الإنشاء على طول (البحث عن فاتورة زرار جوه الشاشة)
+    newHref: "/invoices/purchase-returns/new",
+    createPermission: "purchaseReturns.create",
     Icon: UndoOutlined,
     color: C.warningText,
     permission: "purchaseReturns.view",
@@ -91,11 +103,17 @@ export function useVisibleInvoiceTypes() {
   const can = useCan();
   const laundryOn = useModule("laundry");
   const realEstateOn = useModule("realEstate");
+  // فاتورة التصدير: ميزة إضافية للشركة (وحدة exportInvoices)
+  const exportOn = useModule("exportInvoices");
   return INVOICE_TYPES.filter(
     (type) =>
       can(type.permission) &&
+      (type.key !== "ExportInvoice" || exportOn) &&
       !(laundryOn && LAUNDRY_HIDDEN.includes(type.key)) &&
       !(realEstateOn && REAL_ESTATE_HIDDEN.includes(type.key)),
+  ).map((type) =>
+    // اللي يقدر ينشئ: شاشة الإنشاء على طول / غير كده: القايمة (عرض بس)
+    type.newHref && can(type.createPermission) ? { ...type, href: type.newHref } : type,
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Input, InputNumber, Modal, Select, Space } from "antd";
+import { Alert, Button, Flex, Input, InputNumber, Modal, Segmented, Select, Space } from "antd";
 import {
   BankOutlined,
   CheckOutlined,
@@ -56,6 +56,10 @@ export default function PayModal({
   loading,
   onCancel,
   onPay,
+  // مقاس طباعة الفاتورة دي: الكاشير (thermal = 80mm / 58mm) أو A4
+  paper,
+  thermal,
+  onPaperChange,
 }) {
   const locale = useLocale();
   const t = useTranslations("Pos");
@@ -149,20 +153,36 @@ export default function PayModal({
       destroyOnHidden
       title={t("Payment")}
       footer={
-        <Button
-          type="primary"
-          size="large"
-          icon={<CheckOutlined />}
-          loading={loading}
-          onClick={confirm}
-          style={{
-            background: C.success,
-            borderColor: C.success,
-            minWidth: 200,
-          }}
-        >
-          {t("ConfirmPay")}
-        </Button>
+        <Flex justify="space-between" align="center" gap={8} wrap>
+          {/* الفاتورة: كاشير أو A4 (للشركات) - بيرجع للافتراضي بعد كل فاتورة */}
+          {onPaperChange ? (
+            <Segmented
+              size="large"
+              value={paper}
+              onChange={onPaperChange}
+              options={[
+                { value: thermal, label: t("PrintThermal", { size: thermal }) },
+                { value: "A4", label: t("PrintA4") },
+              ]}
+            />
+          ) : (
+            <span />
+          )}
+          <Button
+            type="primary"
+            size="large"
+            icon={<CheckOutlined />}
+            loading={loading}
+            onClick={confirm}
+            style={{
+              background: C.success,
+              borderColor: C.success,
+              minWidth: 200,
+            }}
+          >
+            {t("ConfirmPay")}
+          </Button>
+        </Flex>
       }
     >
       <div className="pos-paid-total mb-3">

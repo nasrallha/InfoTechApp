@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import PageHeader from "@/components/common/PageHeader";
 import "@/components/common/status-colors.css";
 import DayPicker from "@/components/common/DayPicker";
+import FiscalYearPicker from "@/components/common/FiscalYearPicker";
 import TimeBox from "@/components/common/TimeBox";
 import ExportButtons from "@/components/reports/ExportButtons";
 import { showActionError } from "@/components/common/actionError";
@@ -121,6 +122,10 @@ export default function CommissionsView({ technicians = [] }) {
       />
       <Card size="small" className="mb-3">
         <Row gutter={[12, 12]}>
+          {/* السنة المالية ← من / إلى بتواريخها */}
+          <Col xs={12} md={3}>
+            <FiscalYearPicker label={false} style={{ width: "100%" }} onPick={(from, to) => set({ from, to })} />
+          </Col>
           <Col xs={12} md={5}>
             <DayPicker
               value={filters.from}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { qtyText, savedLineConversion } from "@/lib/unit-qty";
 import { qrDataUrl } from "@/lib/qr";
 import { imageUrl } from "@/lib/image";
@@ -8,7 +9,6 @@ import { zatcaQrValue } from "@/lib/zatca";
 import { formatDateTime, formatDay } from "@/lib/dates";
 import { formatDocNo, purchaseDocNo, saleDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
-import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import "./invoice-a4.css";
 import SerialPrintLines from "@/components/serials/SerialPrintLines";
@@ -178,6 +178,8 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
     "رقم فرعي",
   );
   const docDate = new Date(doc.date);
+  // فاتورة مقاولات (الدفعة المقدمة / مستخلص)
+  const ct = doc.contracting ?? null;
   const biMeta = [
     [isNote ? "رقم الإشعار" : "رقم الفاتورة", isNote ? "Note No" : "Invoice No", <bdi key="n">{number}</bdi>],
     ["التاريخ", "Date", <bdi key="d">{formatDay(docDate.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }))}</bdi>],
@@ -186,36 +188,38 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
     settings.showCashier && user && [isSale ? "البائع" : "المستخدم", isSale ? "Salesperson" : "User", user],
     isQuotation && doc.validUntil && ["صالح حتى", "Valid until", <bdi key="v">{formatDay(doc.validUntil)}</bdi>],
   ].filter(Boolean);
+  const wc = wordsCurrency(currency);
   const showTax = !(isPurchase && doc.taxMode === "none");
   const discount = (doc.itemsDiscount ?? 0) + (doc.invoiceDiscount ?? 0);
   const showDiscount = doc.items.some((l) => Number(l.itemDiscount) > 0);
-  const wc = wordsCurrency(currency);
 
+  // تسمية بالعربي والإنجليزي (السطر: العربي يمين - القيمة في النص - الإنجليزي شمال)
+  const P = (ar, en) => ({ ar, en });
   const meta = [
     [
-      isNote ? L("رقم الإشعار", "Note No") : L("رقم الفاتورة", "Invoice No"),
+      isNote ? P("رقم الإشعار", "Note No") : P("رقم الفاتورة", "Invoice No"),
       <bdi key="n">{number}</bdi>,
     ],
-    [L("التاريخ", "Date"), <bdi key="d">{formatDateTime(doc.date)}</bdi>],
+    [P("التاريخ", "Date"), <bdi key="d">{formatDateTime(doc.date)}</bdi>],
     isQuotation &&
       doc.validUntil && [
-        L("صالح حتى", "Valid until"),
+        P("صالح حتى", "Valid until"),
         <bdi key="v">{formatDay(doc.validUntil)}</bdi>,
       ],
     kind === "return" &&
       doc.returnOf && [
-        L("الفاتورة الأصلية", "Original invoice"),
+        P("الفاتورة الأصلية", "Original invoice"),
         <bdi key="o">{saleDocNo("sale", doc.returnOf.number, doc.returnOf.docCode)}</bdi>,
       ],
     kind === "purchaseReturn" &&
       doc.returnOf && [
-        L("فاتورة الشراء", "Purchase invoice"),
+        P("فاتورة الشراء", "Purchase invoice"),
         <bdi key="o">{formatDocNo("purchase", doc.returnOf.number, doc.returnOf.docCode)}</bdi>,
       ],
     // الإشعار: الفاتورة الأصلية (أو المرجع) والسبب
     isNote &&
       (doc.returnOf || doc.billingRef) && [
-        L("الفاتورة الأصلية", "Original invoice"),
+        P("الفاتورة الأصلية", "Original invoice"),
         <bdi key="ref">
           {doc.returnOf
             ? isSale
@@ -226,43 +230,97 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
       ],
     isNote &&
       doc.noteReason && [
-        L("سبب الإشعار", "Reason"),
+        P("سبب الإشعار", "Reason"),
         N(doc.noteReason, doc.noteReasonEn || doc.noteReason),
       ],
     isPurchase &&
       doc.supplierInvoiceNo && [
         isNote
-          ? L("رقم إشعار المورد", "Supplier note No")
-          : L("رقم فاتورة المورد", "Supplier invoice"),
+          ? P("رقم إشعار المورد", "Supplier note No")
+          : P("رقم فاتورة المورد", "Supplier invoice"),
         <bdi key="s">{doc.supplierInvoiceNo}</bdi>,
       ],
     isPurchase &&
       doc.supplierInvoiceDate && [
         isNote
-          ? L("تاريخ إشعار المورد", "Supplier note date")
-          : L("تاريخ فاتورة المورد", "Supplier inv. date"),
+          ? P("تاريخ إشعار المورد", "Supplier note date")
+          : P("تاريخ فاتورة المورد", "Supplier inv. date"),
         <bdi key="sd">{formatDay(doc.supplierInvoiceDate)}</bdi>,
       ],
     doc.branch && [
-      L("الفرع", "Branch"),
+      P("الفرع", "Branch"),
       lang === "en" ? doc.branch.enName : doc.branch.arName,
     ],
     settings.showCashier &&
       user && [
-        isSale ? L("البائع", "Salesperson") : L("المستخدم", "User"),
+        isSale ? P("البائع", "Salesperson") : P("المستخدم", "User"),
         user,
       ],
   ].filter(Boolean);
 
+  // سطور الإجماليات: [عربي، إنجليزي، القيمة، النوع]
+  // ثنائي اللغة: العربي يمين والرقم في النص والإنجليزي شمال (مش «عربي / إنجليزي» في سطر)
+  const ctPct = (v) => (v ? ` ${v}%` : "");
+  const certTotals = Boolean(ct?.cert);
   const totals = [
-    [L("الإجمالي قبل الخصم", "Subtotal"), money(doc.subtotal)],
-    discount > 0 && [L("الخصم", "Discount"), `-${money(discount)}`],
-    showTax && [
-      L("الإجمالي بدون الضريبة", "Total excl. VAT"),
-      money(doc.netAmount),
-    ],
-    showTax && [L("ضريبة القيمة المضافة", "VAT"), money(doc.taxAmount)],
+    certTotals
+      ? ["الإجمالي قبل الضريبة", "Total before VAT", money(doc.subtotal)]
+      : ["الإجمالي قبل الخصم", "Subtotal", money(doc.subtotal)],
+    // المستخلص: الخصم = استرداد الدفعة المقدمة
+    discount > 0 &&
+      (ct?.certNo
+        ? [
+            `استرداد الدفعة المقدمة${ctPct(ct.recoveryPct)}`,
+            `Advance recovery${ctPct(ct.recoveryPct)}`,
+            `-${money(discount)}`,
+            "minus",
+          ]
+        : ["الخصم", "Discount", `-${money(discount)}`, "minus"]),
+    showTax && [certTotals ? "الخاضع للضريبة" : "الإجمالي بدون الضريبة", certTotals ? "Taxable amount" : "Total excl. VAT", money(doc.netAmount)],
+    showTax && [`ضريبة القيمة المضافة${certTotals ? ctPct(ct.cert.taxRate) : ""}`, `VAT${certTotals ? ctPct(ct.cert.taxRate) : ""}`, money(doc.taxAmount)],
   ].filter(Boolean);
+  // المستخلص: بعد إجمالي الفاتورة ← حجز الضمان والغرامة والصافي المستحق (للطباعة بس)
+  const certAfter = certTotals
+    ? [
+        ct.cert.retention > 0 && [
+          `حجز الضمان${ctPct(ct.retentionPct)}`,
+          `Retention${ctPct(ct.retentionPct)}`,
+          `-${money(ct.cert.retention)}`,
+          "minus",
+        ],
+        ct.cert.penalty > 0 && ["غرامة التأخير", "Delay penalty", `-${money(ct.cert.penalty)}`, "minus"],
+        // الصافي المستحق (زي شاشة عرض الفاتورة)
+        [
+          "الصافي المستحق",
+          "Net payable",
+          <>
+            {money(ct.cert.netPayable)} {symbol}
+          </>,
+          "net",
+        ],
+      ].filter(Boolean)
+    : [];
+  // سطر: ثلاث خانات في ثنائي اللغة (العربي - القيمة - الإنجليزي)، واتنين في اللغة الواحدة
+  const totalRow = ([ar, en, value, cls], className = "a4__kv") => (
+    <div key={ar} className={`${className}${lang === "both" ? " a4__kv3" : ""}${cls ? ` a4__kv--${cls}` : ""}`}>
+      {lang === "both" ? (
+        <>
+          <span>{ar}</span>
+          <b>
+            <bdi>{value}</bdi>
+          </b>
+          <span dir="ltr">{en}</span>
+        </>
+      ) : (
+        <>
+          <span>{lang === "en" ? en : ar}</span>
+          <b>
+            <bdi>{value}</bdi>
+          </b>
+        </>
+      )}
+    </div>
+  );
 
   const payments = !isQuotation ? (doc.payments ?? []) : [];
   // فاتورة دفعة إيجار: شكل مضغوط، والعقد ومدته في بيانات العميل،
@@ -402,24 +460,17 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
               ? L("بيانات العميل", "Bill to")
               : L("بيانات المورد", "Supplier")}
           </div>
-          <div className="a4__party-name">
-            {partyAr || partyEn
-              ? N(partyAr, partyEn)
-              : L("عميل نقدي", "Cash customer")}
-          </div>
-          {/* بيانات الطرف كاملة (ظاهرة دايماً حتى لو فاضية) */}
-          <div>
-            {L("الجوال", "Phone")}: <bdi>{doc.customer?.phone ?? doc.supplier?.phone ?? ""}</bdi>
-          </div>
-          <div>
-            {L("الرقم الضريبي", "VAT No")}: <bdi>{partyTax ?? ""}</bdi>
-          </div>
-          <div>
-            {L("السجل التجاري", "C.R")}: <bdi>{partyCr ?? ""}</bdi>
-          </div>
-          <div>
-            {L("العنوان", "Address")}: {partyAddress}
-          </div>
+          {[
+            [
+              isSale ? "اسم العميل" : "اسم المورد",
+              isSale ? "Customer name" : "Supplier name",
+              <b key="n">{(lang === "en" ? partyEn || partyAr : partyAr || partyEn) || L("عميل نقدي", "Cash customer")}</b>,
+            ],
+            ["الجوال", "Phone", <bdi key="p">{doc.customer?.phone ?? doc.supplier?.phone ?? ""}</bdi>],
+            ["الرقم الضريبي", "VAT No", <bdi key="t">{partyTax ?? ""}</bdi>],
+            ["السجل التجاري", "C.R", <bdi key="c">{partyCr ?? ""}</bdi>],
+            ["العنوان", "Address", partyAddress],
+          ].map((row) => totalRow(row))}
           {/* طلب التفصيل (الخياط) */}
           {doc.tailor && (
             <>
@@ -461,12 +512,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
           <div className="a4__box-title text-center">
             {L("بيانات الفاتورة", "Invoice details")}
           </div>
-          {meta.map(([label, value]) => (
-            <div key={label} className="a4__kv">
-              <span>{label}</span>
-              <b>{value}</b>
-            </div>
-          ))}
+          {meta.map(([label, value]) => totalRow([label.ar, label.en, value]))}
         </div>
       </section>
       )}
@@ -554,19 +600,20 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
       {/* ============ الإجماليات + المبلغ بالحروف ============ */}
       <section className="a4__bottom">
         <div className="a4__left">
-          {/* المبلغ بالحروف (فاتورة الإيجار: من غير عنوان المربع) */}
-          <div className="a4__words">
-            {!rent && (
-              <div className="a4__box-title">
-                {L("المبلغ بالحروف", "Amount in words")}
-              </div>
-            )}
-            {lang !== "en" && (
-              <div>{amountInWords(doc.totalAmount, "ar", wc)}</div>
-            )}
-            {lang !== "ar" && (
-              <div dir="ltr">{amountInWords(doc.totalAmount, "en", wc)}</div>
-            )}
+          {/* المبلغ بالحروف (من غير عنوان المربع) + QR جنبه (ثنائي اللغة / الورق الجاهز) */}
+          <div className={`a4__words${!classic && qrValue ? " a4__words--qr" : ""}`}>
+            <div>
+              {lang !== "en" && <div>{amountInWords(doc.totalAmount, "ar", wc)}</div>}
+              {lang !== "ar" && <div dir="ltr">{amountInWords(doc.totalAmount, "en", wc)}</div>}
+            </div>
+            {!classic &&
+              qrValue &&
+              (qr ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="a4__words-qr" src={qr} alt="QR" />
+              ) : (
+                <div className="a4__words-qr a4__qr--empty" />
+              ))}
           </div>
           {payments.length > 0 && (
             <div className="a4__payments">
@@ -578,14 +625,15 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
                   <b>{money(p.amount)}</b>
                 </div>
               ))}
-              {doc.remainingAmount > 0 && (
+              {/* فاتورة مستخلص: حجز الضمان مش «متبقي» (بيتحصّل عند الإفراج) */}
+              {doc.remainingAmount - (ct?.cert?.retention ?? 0) > 0.0001 && (
                 <div className="a4__kv">
                   <span>
                     {isReturn
                       ? L("على الحساب", "To account")
                       : L("المتبقي (آجل)", "Balance due (credit)")}
                   </span>
-                  <b>{money(doc.remainingAmount)}</b>
+                  <b>{money(doc.remainingAmount - (ct?.cert?.retention ?? 0))}</b>
                 </div>
               )}
             </div>
@@ -627,7 +675,7 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
                 )}
               </div>
             )}
-          {doc.notes && !rent && (
+          {doc.notes && !rent && !ct && (
             <div className="a4__notes">
               <div className="a4__box-title">{L("ملاحظات", "Notes")}</div>
               <div>{doc.notes}</div>
@@ -635,41 +683,20 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
           )}
         </div>
         <div className="a4__totals">
-          {totals.map(([label, value]) => (
-            <div key={label} className="a4__kv">
-              <span>{label}</span>
-              <b>
-                <bdi>{value}</bdi>
-              </b>
-            </div>
-          ))}
-          {classic && (
-          <div className="a4__grand">
-            <span>{L("الإجمالي شامل الضريبة", "Total incl. VAT")}</span>
-            <b>
-              <bdi>
-                {money(doc.totalAmount)} {symbol}
-              </bdi>
-            </b>
-          </div>
-          )}
+          {totals.map((row) => totalRow(row))}
+          {totalRow(
+              [
+                certTotals ? "إجمالي الفاتورة شامل الضريبة" : "الإجمالي شامل الضريبة",
+                "Total incl. VAT",
+                <>
+                  {money(doc.totalAmount)} {symbol}
+                </>,
+              ],
+              "a4__grand",
+            )}
+          {certAfter.map((row) => totalRow(row))}
         </div>
       </section>
-
-      {/* ثنائي اللغة / الورق الجاهز: الإجمالي النهائي و QR في الآخر */}
-      {!classic && (
-        <section className="bi-final">
-          <div>
-            <div>{L("الإجمالي شامل الضريبة", "Total incl. VAT")}</div>
-            <div className="bi-final__total">
-              <bdi>
-                {money(doc.totalAmount)} {symbol}
-              </bdi>
-            </div>
-          </div>
-          {qrValue && (qr ? <img src={qr} alt="QR" /> : <div className="a4__qr--empty" />)}
-        </section>
-      )}
 
       {/* ============ التوقيعات (حسب إعدادات الطباعة) ============ */}
       {settings.showSignatures !== false && (

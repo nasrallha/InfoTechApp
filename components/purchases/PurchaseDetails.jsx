@@ -104,8 +104,14 @@ export default function PurchaseDetails({
     ? "/invoices/purchase-returns"
     : "/invoices/purchases";
   const status = isReturn ? null : returnStatus(purchase.items);
+  // مستخلص المقاول الآخر: الخصم = استرداد الدفعة المقدمة، والضمان المحجوز عليه مش «متبقي»
+  const tC = useTranslations("Contracting");
+  const ctInfo = purchase.contracting?.cert ? purchase.contracting : null;
+  const openLeft = Math.max(0, purchase.remainingAmount - (purchase.settledAmount ?? 0));
+  const retentionLeft = ctInfo ? Math.min(openLeft, ctInfo.cert.retention) : 0;
+  // المطلوب سداده = الإجمالي - حجز الضمان (الضمان بيتصرف عند الإفراج)
   const payStatus = paymentStatus(
-    purchase.totalAmount,
+    purchase.totalAmount - (ctInfo ? ctInfo.cert.retention : 0),
     purchase.paidAmount + (purchase.settledAmount ?? 0),
   );
 
@@ -451,21 +457,19 @@ export default function PurchaseDetails({
                 <span>{t("Paid")}</span>
                 <b>{money(purchase.paidAmount)}</b>
               </div>
+              {/* المستخلص: الضمان المحجوز لوحده (مش آجل متأخر) */}
+              {retentionLeft > 0.0001 && (
+                <div>
+                  <span>{tC("RetentionOnPurchase")}</span>
+                  <Tag color="blue">{money(retentionLeft)}</Tag>
+                </div>
+              )}
               <div>
                 <span>
                   {isReturn ? t("CreditFromSupplier") : t("CreditOnSupplier")}
                 </span>
-                <Tag
-                  color={
-                    purchase.remainingAmount - (purchase.settledAmount ?? 0) >
-                    0.0001
-                      ? "orange"
-                      : "green"
-                  }
-                >
-                  {money(
-                    purchase.remainingAmount - (purchase.settledAmount ?? 0),
-                  )}
+                <Tag color={openLeft - retentionLeft > 0.0001 ? "orange" : "green"}>
+                  {money(openLeft - retentionLeft)}
                 </Tag>
               </div>
             </div>
@@ -495,7 +499,26 @@ export default function PurchaseDetails({
         </Col>
         <Col xs={24} lg={10}>
           <Card size="small" title={t("Totals")} className="h-full">
-            <TotalsSummary totals={totals} taxMode={purchase.taxMode} />
+            <TotalsSummary
+              totals={totals}
+              taxMode={purchase.taxMode}
+              discountLabel={
+                ctInfo
+                  ? `${tC("AdvanceRecovery")}${ctInfo.recoveryPct ? ` ${ctInfo.recoveryPct}%` : ""}`
+                  : null
+              }
+              after={
+                ctInfo
+                  ? [
+                      ...(ctInfo.cert.retention > 0
+                        ? [[`${tC("Retention")}${ctInfo.retentionPct ? ` ${ctInfo.retentionPct}%` : ""}`, ctInfo.cert.retention]]
+                        : []),
+                      ...(ctInfo.cert.penalty > 0 ? [[tC("DelayPenalty"), ctInfo.cert.penalty]] : []),
+                      [tC("NetPayable"), ctInfo.cert.netPayable, true],
+                    ]
+                  : []
+              }
+            />
           </Card>
         </Col>
       </Row>

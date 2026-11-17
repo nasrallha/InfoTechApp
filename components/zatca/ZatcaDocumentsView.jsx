@@ -30,6 +30,7 @@ import { downloadBlob } from "@/lib/excel";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import PageHeader from "@/components/common/PageHeader";
 import DayPicker from "@/components/common/DayPicker";
+import FiscalYearPicker from "@/components/common/FiscalYearPicker";
 import ExportButtons from "@/components/reports/ExportButtons";
 import {
   getZatcaXmlAction,
@@ -331,6 +332,10 @@ export default function ZatcaDocumentsView({
 
       <Card size="small" className="mb-3">
         <Row gutter={[12, 12]} align="bottom">
+          {/* السنة المالية ← من / إلى بتواريخها */}
+          <Col xs={12} md={3}>
+            <FiscalYearPicker style={{ width: "100%" }} onPick={(from, to) => set({ from, to })} />
+          </Col>
           <Col xs={12} md={4}>
             <div className="zatca-muted">{t("From")}</div>
             <DayPicker

@@ -841,7 +841,7 @@ export function useLaundryPos({
             onChange={setPickedIds}
             style={{ width: "100%" }}
           >
-            <Space direction="vertical" style={{ width: "100%" }}>
+            <Space orientation="vertical" style={{ width: "100%" }}>
               {found.map((o) => (
                 <Checkbox key={o.id} value={o.id}>
                   <b>{o.dailyNo}</b> ({formatDay(o.bizDay)}) — {o.customerName}{" "}

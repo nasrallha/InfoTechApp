@@ -415,3 +415,16 @@ canvas {
 .ant-btn-primary:not(.ant-btn-dangerous):has(> .ant-btn-icon > .anticon-save) {
   box-shadow: 0 2px 6px color-mix(in srgb, var(--c-primary-active) 25%, transparent);
 }
+
+/* إشعار «الفاتورة جاهزة للطباعة» (SavedDocPrint): في المكان الضيق (زي نافذة حفظ المستخلص)
+   أزرار الطباعة بتنزل سطر لوحدها بدل ما النص يتكتب حرف تحت حرف */
+.saved-doc-print.ant-alert {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.saved-doc-print .ant-alert-section {
+  min-width: 180px;
+}
+.saved-doc-print .ant-alert-actions {
+  flex-wrap: wrap;
+}

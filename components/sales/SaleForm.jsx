@@ -53,8 +53,11 @@ import LineConversion from "@/components/common/LineConversion";
 import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import PageHeader from "@/components/common/PageHeader";
+import InvoiceSearchButton from "@/components/invoices/InvoiceSearchButton";
 import DayPicker from "@/components/common/DayPicker";
 import ProductPicker from "@/components/purchases/ProductPicker";
+import FreeLineButton from "@/components/invoices/FreeLineButton";
+import { isFreeLine } from "@/lib/free-line";
 import ProductBrowser from "@/components/purchases/ProductBrowser";
 import PaymentsEditor, {
   newPaymentKey,
@@ -421,6 +424,9 @@ export default function SaleForm({
       return [...prev, line];
     });
   };
+  // البند الحر: سطر جديد دايماً بوصف فاضي يتكتب (الوحدة والسعر من السطر)
+  const addFreeLine = (product) =>
+    setItems((prev) => [...prev, { ...lineFromProduct(product, product.units[0].unit.id, 1, 0), arName: "", enName: "" }]);
   const updateLine = (key, patch) =>
     setItems((prev) =>
       prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
@@ -538,6 +544,8 @@ export default function SaleForm({
       discountType: l.discountType,
       discountValue: Number(l.discountValue) || 0,
       note: l.note?.trim() || null,
+      // البند الحر: الوصف
+      ...(isFreeLine(l) ? { name: l.arName?.trim() || null } : {}),
       // عرض السعر من غير أرقام تسلسلية أو ضمان
       ...(isQuotation
         ? {}
@@ -713,7 +721,20 @@ export default function SaleForm({
         return (
           <div>
             <div className="pur-line__name">
-              {nameOf(l)}{" "}
+              {/* البند الحر: الوصف بيتكتب هنا */}
+              {isFreeLine(l) ? (
+                <Input
+                  size="small"
+                  autoFocus={!l.arName}
+                  maxLength={150}
+                  placeholder={t("FreeLineName")}
+                  value={l.arName}
+                  status={l.arName?.trim() ? undefined : "warning"}
+                  onChange={(e) => updateLine(l.key, { arName: e.target.value, enName: e.target.value })}
+                />
+              ) : (
+                nameOf(l)
+              )}{" "}
               {l.promo && (
                 <Tag color="magenta" icon={<GiftOutlined />}>
                   {nameOf(l.promo)}
@@ -962,6 +983,7 @@ export default function SaleForm({
             </span>
           )
         }
+        extra={!isQuotation && <InvoiceSearchButton kind="sale" />}
       />
 
       {exportMode && (
@@ -1169,6 +1191,8 @@ export default function SaleForm({
               searchAction={searchSaleProductsAction}
             />
           </div>
+          {/* البند الحر: وصف يتكتب في السطر (مش صنف متسجل) */}
+          <FreeLineButton side="sale" onAdd={addFreeLine} />
           <ProductBrowser
             categories={categories}
             onAdd={addProduct}

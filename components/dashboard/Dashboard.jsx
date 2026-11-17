@@ -36,7 +36,7 @@ import { saleDocHref } from "@/lib/doc-number";
 import { formatDateTime } from "@/lib/dates";
 import { useBizToday } from "@/components/common/useBusinessDay";
 import { useCurrency } from "@/components/common/CurrencyProvider";
-import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
+import { useCan, useCurrentUser, useModule, useNoPos } from "@/components/auth/AuthProvider";
 import { AreaLines, Donut, HBars } from "@/components/reports/Charts";
 import { C } from "@/lib/theme";
 import "./dashboard.css";
@@ -225,7 +225,16 @@ export default function Dashboard({ data }) {
   const [period, setPeriod] = useState("days");
   const nm = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
   const un = (x) => (x ? (locale === "ar" ? x.arFullname : x.enFullname) : "");
-  const actions = QUICK_ACTIONS.filter((a) => can(a.perm));
+  // أنشطة من غير كاشير: مفيش اختصار الكاشير ولا كارت الوردية
+  const noPos = useNoPos();
+  // المقاولات: الفواتير من المستخلصات ← من غير «فاتورة بيع جديدة» و«عرض سعر جديد»
+  const contractingOn = useModule("contracting");
+  const actions = QUICK_ACTIONS.filter(
+    (a) =>
+      can(a.perm) &&
+      !(noPos && a.key === "pos") &&
+      !(contractingOn && ["newSale", "newQuotation"].includes(a.key)),
+  );
 
   // التحية حسب الوقت
   const hour = Number(
@@ -294,7 +303,7 @@ export default function Dashboard({ data }) {
               {nm(user?.branch)}
             </div>
           </div>
-          {data.shift && (
+          {data.shift && !noPos && (
             <div className="dash-shift">
               <FieldTimeOutlined className="dash-shift__icon" />
               {data.shift.open ? (

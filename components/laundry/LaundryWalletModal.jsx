@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatDocNo } from "@/lib/doc-number";
 import {
   Alert,
   Button,
@@ -396,7 +397,7 @@ export default function LaundryWalletModal({
               {
                 title: t("WalletNo"),
                 width: 90,
-                render: (_, w) => <bdi>{w.docCode ? `${w.docCode}-` : ""}LW-{w.number}</bdi>,
+                render: (_, w) => <bdi>{formatDocNo("laundryWallet", w.number, w.docCode)}</bdi>,
               },
               {
                 title: t("Date"),

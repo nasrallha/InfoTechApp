@@ -1,5 +1,6 @@
 import "server-only";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
+import { assertDocYear } from "./fiscal-year.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
@@ -46,8 +47,9 @@ const branchScope = (user) =>
 
 // الرقم التالي في فرع السند + رمز الفرع (DM-RV-5) - مفيش تكرار مهما كان عدد المستخدمين
 // type: receipt / payment / settlement / offset (نفس مفاتيح BRANCH_DOCS)
-async function nextNumber(tx, type, branchId) {
-  return nextBranchNumber(tx, type, branchId);
+// date: تاريخ السند (السنة المالية منه) ← DM-RV-2026-5
+async function nextNumber(tx, type, branchId, date = null) {
+  return nextBranchNumber(tx, type, branchId, date);
 }
 
 // ------------------------------------------------------------
@@ -253,7 +255,7 @@ async function createVoucherNow(data, user) {
   const v = await prepareVoucher(data, user);
   return runTx(async (tx) => {
     await assertWithinBalance(tx, v);
-    const { number, docCode } = await nextNumber(tx, v.type, user.branch.id);
+    const { number, docCode } = await nextNumber(tx, v.type, user.branch.id, v.date);
     const created = await tx.voucher.create({
       data: {
         type: v.type,
@@ -283,6 +285,7 @@ export async function updateVoucher({ id, ...data }, user) {
       id: true,
       type: true,
       date: true,
+      docCode: true,
       shiftId: true,
       shift: { select: { status: true } },
       laundryWallet: { select: { id: true } },
@@ -302,6 +305,8 @@ export async function updateVoucher({ id, ...data }, user) {
     existing,
   );
   return runTx(async (tx) => {
+    // السنة المالية: التاريخ الجديد في نفس سنة الرقم، والسنة مش مقفلة
+    await assertDocYear(tx, existing.docCode, v.date);
     await unallocate(tx, id);
     // الرصيد من غير السند ده: نصفّر مبلغه مؤقتاً قبل الفحص
     await tx.voucher.update({ where: { id }, data: { amount: 0 } });
@@ -593,6 +598,7 @@ export async function createOffset(data, user) {
           tx,
           "offset",
           user.branch.id,
+          date,
         );
         const created = await tx.voucher.create({
           data: {

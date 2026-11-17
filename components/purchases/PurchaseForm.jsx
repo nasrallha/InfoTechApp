@@ -38,9 +38,12 @@ import { TAX_MODES } from "@/validations/system-settings.schema";
 import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import PageHeader from "@/components/common/PageHeader";
+import InvoiceSearchButton from "@/components/invoices/InvoiceSearchButton";
 import DayPicker from "@/components/common/DayPicker";
 import { formatDocNo } from "@/lib/doc-number";
 import ProductPicker from "./ProductPicker";
+import FreeLineButton from "@/components/invoices/FreeLineButton";
+import { isFreeLine } from "@/lib/free-line";
 import ProductBrowser from "./ProductBrowser";
 import PaymentsEditor, { newPaymentKey } from "./PaymentsEditor";
 import TotalsSummary from "./TotalsSummary";
@@ -285,6 +288,30 @@ export default function PurchaseForm({
     });
   };
 
+  // البند الحر: سطر جديد دايماً بوصف فاضي يتكتب (الوحدة والسعر من السطر)
+  const addFreeLine = (product) =>
+    setItems((prev) => [
+      ...prev,
+      {
+        key: `l${++lineSeq}`,
+        productId: product.id,
+        code: product.code,
+        arName: "",
+        enName: "",
+        units: product.units,
+        unitId: product.units[0].unit.id,
+        qty: 1,
+        price: 0,
+        discountType: "amount",
+        discountValue: 0,
+        taxRate: product.taxRate,
+        serialCount: 0,
+        serials: [],
+        trackExpiry: false,
+        batches: [],
+      },
+    ]);
+
   const updateLine = (key, patch) =>
     setItems((prev) =>
       prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
@@ -361,6 +388,8 @@ export default function PurchaseForm({
         discountType: l.discountType,
         discountValue: Number(l.discountValue) || 0,
         note: l.note?.trim() || null,
+        // البند الحر: الوصف
+        ...(isFreeLine(l) ? { name: l.arName?.trim() || null } : {}),
         serials: l.serials ?? [],
         batches: l.trackExpiry ? (l.batches ?? []) : [],
       })),
@@ -414,7 +443,22 @@ export default function PurchaseForm({
       width: 230,
       render: (_, l) => (
         <div>
-          <div className="pur-line__name">{nameOf(l)}</div>
+          <div className="pur-line__name">
+            {/* البند الحر: الوصف بيتكتب هنا */}
+            {isFreeLine(l) ? (
+              <Input
+                size="small"
+                autoFocus={!l.arName}
+                maxLength={150}
+                placeholder={t("FreeLineName")}
+                value={l.arName}
+                status={l.arName?.trim() ? undefined : "warning"}
+                onChange={(e) => updateLine(l.key, { arName: e.target.value, enName: e.target.value })}
+              />
+            ) : (
+              nameOf(l)
+            )}
+          </div>
           <div className="pur-line__code">
             <bdi>{l.code}</bdi>
           </div>
@@ -566,6 +610,7 @@ export default function PurchaseForm({
             </span>
           )
         }
+        extra={<InvoiceSearchButton kind="purchase" />}
       />
 
       {/* ============ بيانات الفاتورة ============ */}
@@ -761,6 +806,8 @@ export default function PurchaseForm({
           <div className="pur-add-bar__search">
             <ProductPicker onAdd={addProduct} />
           </div>
+          {/* البند الحر: وصف يتكتب في السطر (مش صنف متسجل، من غير مخزون) */}
+          <FreeLineButton side="purchase" onAdd={addFreeLine} />
           <ProductBrowser
             categories={categories}
             onAdd={addProduct}

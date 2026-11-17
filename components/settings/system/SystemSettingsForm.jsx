@@ -11,8 +11,10 @@ import {
   InputNumber,
   Radio,
   Row,
+  Segmented,
   Select,
   Switch,
+  Tooltip,
 } from "antd";
 import {
   SCALE_FORMATS,
@@ -35,12 +37,14 @@ import {
   FieldTimeOutlined,
   HourglassOutlined,
   BankOutlined,
+  QuestionCircleOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/routing";
 import { MAX_DAY_START_HOUR, hourText } from "@/lib/business-day";
 import PageHeader from "@/components/common/PageHeader";
-import { useModule, useModuleSettings } from "@/components/auth/AuthProvider";
+import { useCan, useModule, useModuleSettings, useNoBarcode } from "@/components/auth/AuthProvider";
+import { setFreeLinesAction } from "@/actions/free-line.actions";
 import { saveSystemSettingsAction } from "@/actions/system-settings.actions";
 import { STAFF_TITLES, TAX_MODES } from "@/validations/system-settings.schema";
 
@@ -69,6 +73,18 @@ export default function SystemSettingsForm({
   const tButtons = useTranslations("Buttons");
   const tSerial = useTranslations("Serials");
   const serialsOn = useModule("serials");
+  // البند الحر في الفواتير: إعداد المالك (auto = حسب النشاط)
+  const can = useCan();
+  const canFreeLines = can("systemSettings.freeLines");
+  const { freeLinesSetting } = useModuleSettings();
+  const freeLinesValue = freeLinesSetting == null ? "auto" : freeLinesSetting ? "on" : "off";
+  const saveFreeLines = async (v) => {
+    const res = await setFreeLinesAction(v === "auto" ? null : v === "on");
+    if (!res.success) return message.error(tAlerts(res.error));
+    message.success(t("FreeLinesSaved"));
+  };
+  // الأنشطة اللي من غير باركود: مفيش باركود الميزان
+  const noBarcode = useNoBarcode();
   // اسم مقدم الخدمة (وحدة الفنيين)
   // ثابت للنشاط من اللوحة ← مش بيظهر هنا
   const { staffTitleFixed = false } = useModuleSettings();
@@ -289,6 +305,26 @@ export default function SystemSettingsForm({
             >
               <Switch />
             </Form.Item>
+            {/* البند الحر في فواتير البيع والشراء: إعداد المالك (بيتحفظ على طول) */}
+            {canFreeLines && (
+              <div className="mt-3">
+                <div className="mb-1">
+                  {t("FreeLines")}{" "}
+                  <Tooltip title={t("FreeLinesHint")}>
+                    <QuestionCircleOutlined />
+                  </Tooltip>
+                </div>
+                <Segmented
+                  value={freeLinesValue}
+                  onChange={saveFreeLines}
+                  options={[
+                    { value: "auto", label: t("FreeLinesAuto") },
+                    { value: "on", label: t("FreeLinesOn") },
+                    { value: "off", label: t("FreeLinesOff") },
+                  ]}
+                />
+              </div>
+            )}
           </Card>
 
           {/* ============ يوم العمل (الورديات والتقارير) ============ */}
@@ -549,6 +585,7 @@ export default function SystemSettingsForm({
           )}
 
           {/* ============ باركود الميزان ============ */}
+          {!noBarcode && (
           <Card
             size="small"
             title={section(<BarcodeOutlined />, t("Scale"))}
@@ -678,6 +715,7 @@ export default function SystemSettingsForm({
               </>
             )}
           </Card>
+          )}
         </div>
 
         {canEdit && (

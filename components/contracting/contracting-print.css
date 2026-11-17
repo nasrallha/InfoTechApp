@@ -1,0 +1,140 @@
+/* ============================================================
+   طباعة المقاولات: المستخلص والعقد (A4)
+   ============================================================ */
+.ctp {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm 9mm;
+  box-sizing: border-box;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-family: var(--font-main);
+  font-size: 8.5pt;
+  line-height: 1.5;
+}
+.ctp--landscape {
+  width: 297mm;
+  min-height: 210mm;
+}
+.ctp__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4mm;
+  border-bottom: 2px solid var(--c-primary);
+  padding-bottom: 3mm;
+  margin-bottom: 3mm;
+}
+.ctp__company {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+}
+.ctp__company img {
+  height: 16mm;
+  max-width: 40mm;
+  object-fit: contain;
+}
+.ctp__company-name {
+  font-weight: 700;
+  font-size: 12pt;
+  color: var(--c-primary);
+}
+.ctp__title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13pt;
+}
+.ctp__title small {
+  display: block;
+  font-size: 9pt;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+.ctp__info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1mm 4mm;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2mm;
+  padding: 2mm 3mm;
+  margin-bottom: 3mm;
+}
+.ctp__info span {
+  color: var(--c-muted);
+}
+.ctp table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 3mm;
+}
+.ctp th,
+.ctp td {
+  border: 1px solid var(--c-border-strong);
+  padding: 1mm 1.2mm;
+  text-align: center;
+  vertical-align: middle;
+}
+.ctp th {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-weight: 700;
+}
+.ctp td.ctp__desc {
+  text-align: start;
+}
+.ctp td.ctp__num {
+  white-space: nowrap;
+}
+.ctp tfoot td {
+  font-weight: 700;
+  background: var(--c-primary-soft);
+}
+.ctp__group th {
+  background: var(--c-primary);
+  color: var(--c-surface);
+}
+.ctp__bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  align-items: start;
+}
+.ctp__sum td:first-child {
+  text-align: start;
+}
+.ctp__sum td:last-child {
+  text-align: end;
+  white-space: nowrap;
+}
+.ctp__sum tr.ctp__minus td {
+  color: var(--c-danger-text);
+}
+.ctp__sum tr.ctp__net td {
+  font-weight: 700;
+  font-size: 10.5pt;
+  background: var(--c-primary-soft);
+}
+.ctp__signs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+  margin-top: 8mm;
+  text-align: center;
+  font-weight: 600;
+}
+.ctp__signs div::after {
+  content: "";
+  display: block;
+  margin-top: 12mm;
+  border-top: 1px dotted var(--c-border-strong);
+}
+.ctp__text {
+  white-space: pre-wrap;
+  font-size: 10.5pt;
+  line-height: 1.9;
+}
+.ctp__note {
+  font-size: 8pt;
+  color: var(--c-muted);
+}

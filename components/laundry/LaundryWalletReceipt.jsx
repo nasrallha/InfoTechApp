@@ -2,6 +2,7 @@
 
 import { imageUrl } from "@/lib/image";
 import { formatDateTime, formatDay } from "@/lib/dates";
+import { formatDocNo } from "@/lib/doc-number";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCompany } from "@/components/common/CompanyProvider";
 import "./laundry-receipt.css";
@@ -50,7 +51,7 @@ export default function LaundryWalletReceipt({ wallet: w, phone, paperSize, lang
       <div className="lrc__title">{L("إيصال اشتراك", "Subscription receipt")}</div>
 
       <div className="lrc__meta">
-        {row(L("رقم الاشتراك", "Subscription No"), `${w.docCode ? `${w.docCode}-` : ""}LW-${w.number}`)}
+        {row(L("رقم الاشتراك", "Subscription No"), formatDocNo("laundryWallet", w.number, w.docCode))}
         {w.voucher && row(L("سند القبض", "Receipt voucher"), w.voucher.number)}
         {row(L("العميل", "Customer"), w.customer.arName)}
         {row(L("الجوال", "Phone"), phone)}

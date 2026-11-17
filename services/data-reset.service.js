@@ -47,6 +47,18 @@ export async function getResetCounts() {
     custOpening,
     suppOpening,
     expenseCategories,
+    construction,
+    rentContracts,
+    tailorOrders,
+    laundry,
+    users,
+    branches,
+    warehouses,
+    restaurantOrders,
+    bookings,
+    maintenanceContracts,
+    warrantyClaims,
+    followUps,
   ] = await Promise.all([
     prisma.sale.count({ where: { type: "sale" } }),
     prisma.sale.count({ where: { type: { in: ["return", "credit", "debit"] } } }),
@@ -72,6 +84,23 @@ export async function getResetCounts() {
     prisma.customer.count({ where: { openingBalance: notZero } }),
     prisma.supplier.count({ where: { openingBalance: notZero } }),
     prisma.expenseCategory.count(),
+    // مستندات الأنشطة
+    Promise.all([
+      prisma.constructionContract.count({ where: { isDirect: false } }),
+      prisma.constructionCertificate.count(),
+    ]).then(([a, b]) => a + b),
+    prisma.rentContract.count(),
+    prisma.tailorOrder.count(),
+    Promise.all([prisma.laundryOrder.count(), prisma.laundryWallet.count()]).then(([a, b]) => a + b),
+    // المستخدمين والفروع والمستودعات (من غير مدير النظام والرئيسي)
+    prisma.user.count({ where: { isOwner: false, role: { isSuper: false } } }),
+    prisma.branch.count().then((c) => Math.max(0, c - 1)),
+    prisma.warehouse.count({ where: { isMain: false } }),
+    prisma.restaurantOrder.count(),
+    prisma.booking.count(),
+    prisma.maintenanceContract.count(),
+    prisma.warrantyClaim.count(),
+    prisma.followUp.count(),
   ]);
 
   return {
@@ -95,6 +124,18 @@ export async function getResetCounts() {
       suppliers,
       openingBalances: custOpening + suppOpening,
       expenseCategories,
+      construction,
+      rentContracts,
+      tailorOrders,
+      laundry,
+      users,
+      branches,
+      warehouses,
+      restaurantOrders,
+      bookings,
+      maintenanceContracts,
+      warrantyClaims,
+      followUps,
     },
     // الفواتير الإلكترونية اللي هتتمسح مع البيع / المرتجع
     zatca: { sales: salesZatca, saleReturns: returnsZatca },
@@ -151,6 +192,54 @@ async function rewindProductionChains(tx) {
 const ids = async (model, where) =>
   (await model.findMany({ where, select: { id: true } })).map((r) => r.id);
 
+// مسح صفوف (users / branches / warehouses) من غير ما قاعدة البيانات ترفض:
+// كل جدول مربوط بيها برابط RESTRICT ← الصفوف المربوطة بتتنقل للبديل (مدير النظام / الفرع الرئيسي)
+// (اللي بيتعارض مع قيد فريد بعد النقل بيتمسح)، والروابط CASCADE / SET NULL بتتعمل لوحدها
+const SAFE_NAME = /^\w+$/;
+async function reassignAndDelete(tx, table, removeIds, targetId) {
+  if (!removeIds.length) return 0;
+  const fks = await tx.$queryRaw`
+    SELECT k.TABLE_NAME AS t, k.COLUMN_NAME AS c, r.DELETE_RULE AS d
+    FROM information_schema.KEY_COLUMN_USAGE k
+    JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+      ON r.CONSTRAINT_NAME = k.CONSTRAINT_NAME AND r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA
+    WHERE k.REFERENCED_TABLE_SCHEMA = DATABASE()
+      AND k.REFERENCED_TABLE_NAME = ${table}
+      AND k.REFERENCED_COLUMN_NAME = 'id'`;
+  const list = removeIds.map(Number).join(",");
+  for (const fk of fks) {
+    if (!["RESTRICT", "NO ACTION"].includes(String(fk.d).toUpperCase())) continue;
+    if (!SAFE_NAME.test(fk.t) || !SAFE_NAME.test(fk.c)) continue;
+    if (targetId) {
+      await tx.$executeRawUnsafe(
+        `UPDATE IGNORE \`${fk.t}\` SET \`${fk.c}\` = ${Number(targetId)} WHERE \`${fk.c}\` IN (${list})`,
+      );
+    }
+    await tx.$executeRawUnsafe(`DELETE FROM \`${fk.t}\` WHERE \`${fk.c}\` IN (${list})`);
+  }
+  return tx.$executeRawUnsafe(`DELETE FROM \`${table}\` WHERE id IN (${list})`);
+}
+
+// اللي مايتمسحش: مدير النظام (والمالك) والفرع الرئيسي (أول فرع) والمستودع الرئيسي
+async function keepers(db) {
+  const [admins, mainBranch, mainWarehouse] = await Promise.all([
+    db.user.findMany({
+      where: { OR: [{ isOwner: true }, { role: { isSuper: true } }] },
+      orderBy: { id: "asc" },
+      select: { id: true, isOwner: true },
+    }),
+    db.branch.findFirst({ orderBy: { id: "asc" }, select: { id: true } }),
+    db.warehouse.findFirst({ where: { isMain: true }, orderBy: { id: "asc" }, select: { id: true } }),
+  ]);
+  return {
+    adminIds: admins.map((u) => u.id),
+    // مستندات المستخدمين الممسوحين بتتنقل لمدير النظام (أو المالك لو مفيش)
+    adminId: (admins.find((u) => !u.isOwner) ?? admins[0])?.id ?? null,
+    mainBranchId: mainBranch?.id ?? null,
+    mainWarehouseId: mainWarehouse?.id ?? null,
+  };
+}
+
 export async function resetData({ keys, resetNumbers }, user) {
   const selected = expandSelection(keys.filter((k) => RESET_KEYS.includes(k)));
   if (!selected.size) throw new AppError("ResetNothingSelected");
@@ -203,6 +292,27 @@ export async function resetData({ keys, resetNumbers }, user) {
         });
         await tx.shift.deleteMany({});
       }
+
+      // ---------- مستندات الأنشطة (قبل الفواتير والعملاء والموردين) ----------
+      // المغسلة: الاستخدامات مربوطة بفواتير البيع، والطلبات والاشتراكات بالعملاء
+      if (has("laundry") || has("saleReturns")) await tx.laundryWalletUse.deleteMany({});
+      if (has("laundry")) {
+        await tx.laundryOrder.deleteMany({}); // القطع Cascade
+        await tx.laundryWallet.deleteMany({});
+      }
+      // المقاولات: الدفعات ثم المستخلصات (البنود Cascade) ثم العقود (المقايسة وأوامر التغيير Cascade)
+      if (has("construction")) {
+        await tx.constructionPayment.deleteMany({});
+        await tx.constructionCertificate.deleteMany({});
+        await tx.constructionContract.updateMany({ data: { parentId: null } });
+        await tx.constructionContract.deleteMany({});
+      }
+      // الإيجار (الوحدات والدفعات Cascade) والتفصيل (السطور Cascade)
+      if (has("rentContracts")) {
+        await tx.rentContract.updateMany({ data: { renewedFromId: null } });
+        await tx.rentContract.deleteMany({});
+      }
+      if (has("tailorOrders")) await tx.tailorOrder.deleteMany({});
 
       // ---------- 3) مرتجعات المبيعات ----------
       if (has("saleReturns")) {
@@ -332,22 +442,17 @@ export async function resetData({ keys, resetNumbers }, user) {
         await tx.productWarehouse.updateMany({ data: { openingQty: 0 } });
       }
 
-      // طلبات الضمان والصيانة: مربوطة بالعملاء والأصناف والموردين والفواتير
-      if (
-        has("sales") ||
-        has("customers") ||
-        has("products") ||
-        has("suppliers")
-      )
-        await tx.warrantyClaim.deleteMany({}); // القطع والسجل Cascade
+      // طلبات الضمان والصيانة: مربوطة بالعملاء والأصناف والموردين والفواتير (القطع والسجل Cascade)
+      if (has("warrantyClaims")) await tx.warrantyClaim.deleteMany({});
       // عقود الصيانة الدورية: مربوطة بالعملاء (الزيارات Cascade)
-      if (has("sales") || has("customers"))
-        await tx.maintenanceContract.deleteMany({});
+      if (has("maintenanceContracts")) await tx.maintenanceContract.deleteMany({});
       // المتابعات الدورية: مربوطة بالعملاء وفواتير البيع (السجل Cascade)
-      if (has("sales") || has("customers")) await tx.followUp.deleteMany({});
+      if (has("followUps")) await tx.followUp.deleteMany({});
       // الحجوزات: مربوطة بالعملاء والخدمات والفواتير (الخدمات Cascade)
-      if (has("sales") || has("customers") || has("products"))
-        await tx.booking.deleteMany({});
+      if (has("bookings")) await tx.booking.deleteMany({});
+      // طلبات المطعم (الأصناف Cascade)
+      if (has("restaurantOrders")) await tx.restaurantOrder.deleteMany({});
+
 
       // ---------- 8) البيانات الأساسية ----------
       if (has("promotions")) await tx.promotion.deleteMany({}); // الروابط Cascade، الفواتير SetNull
@@ -374,6 +479,26 @@ export async function resetData({ keys, resetNumbers }, user) {
         });
       }
       if (has("expenseCategories")) await tx.expenseCategory.deleteMany({});
+
+      // ---------- المستخدمين والفروع والمستودعات (ما عدا مدير النظام والرئيسي) ----------
+      if (has("users") || has("branches") || has("warehouses")) {
+        const k = await keepers(tx);
+        // مفيش مدير نظام ولا مالك ← المستخدمين مايتمسحوش (عشان الدخول بعد التصفير)
+        if (has("users") && k.adminId) {
+          const remove = await ids(tx.user, { id: { notIn: k.adminIds } });
+          await reassignAndDelete(tx, "users", remove, k.adminId);
+        }
+        if (has("branches") && k.mainBranchId) {
+          const remove = await ids(tx.branch, { id: { not: k.mainBranchId } });
+          await reassignAndDelete(tx, "branches", remove, k.mainBranchId);
+        }
+        if (has("warehouses") && k.mainWarehouseId) {
+          const remove = await ids(tx.warehouse, { id: { not: k.mainWarehouseId } });
+          // الفروع اللي مستودعها اتمسح ← على المستودع الرئيسي
+          await tx.branch.updateMany({ where: { warehouseId: { in: remove } }, data: { warehouseId: k.mainWarehouseId } });
+          await reassignAndDelete(tx, "warehouses", remove, k.mainWarehouseId);
+        }
+      }
 
       // ---------- 9) الأرصدة من جديد = مجموع الحركات اللي فضلت ----------
       if (stockTouched) {

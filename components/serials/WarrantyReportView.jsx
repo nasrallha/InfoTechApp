@@ -5,6 +5,7 @@ import { Card, Col, Input, Row, Segmented, Select, Table, Tag } from "antd";
 import { useLocale, useTranslations } from "next-intl";
 import PageHeader from "@/components/common/PageHeader";
 import DayPicker from "@/components/common/DayPicker";
+import FiscalYearPicker from "@/components/common/FiscalYearPicker";
 import ExportButtons from "@/components/reports/ExportButtons";
 import { showActionError } from "@/components/common/actionError";
 import { Link } from "@/i18n/routing";
@@ -178,6 +179,10 @@ export default function WarrantyReportView({
                 label: `${c.code} - ${nm(c)}${c.phone ? ` (${c.phone})` : ""}`,
               }))}
             />
+          </Col>
+          {/* السنة المالية ← من / إلى بتواريخها */}
+          <Col xs={12} lg={2}>
+            <FiscalYearPicker label={false} style={{ width: "100%" }} onPick={(from, to) => set({ from, to })} />
           </Col>
           <Col xs={12} lg={2}>
             <DayPicker

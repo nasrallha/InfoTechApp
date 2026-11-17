@@ -71,6 +71,8 @@ const purchaseItemSchema = z
     ...discountFields,
     // ملاحظة / وصف السطر (اختياري)
     note: optionalText(500),
+    // البند الحر: الوصف اللي اتكتب (بيبقى اسم السطر)
+    name: optionalText(150),
     serials: z.array(serialEntrySchema).max(1000).default([]),
     // دفعات الصنف المتتبع بالصلاحية (مجموعها = كمية السطر)
     batches: z.array(batchEntrySchema).max(100).default([]),

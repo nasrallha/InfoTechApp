@@ -397,6 +397,90 @@ async function rentAlerts(user, todayDay) {
   ];
 }
 
+// ------------------------------------------------------------
+// المقاولات: الإفراج عن حجز الضمان (المتأخر + خلال 30 يوم) وموعد تسليم العقود السارية
+// (المتأخر + خلال 30 يوم)
+// ------------------------------------------------------------
+const CONTRACTING_ALERT_DAYS = 30;
+async function contractingAlerts(user, todayDay) {
+  const until = dayToDbDate(addDays(todayDay, CONTRACTING_ALERT_DAYS));
+  const sel = {
+    id: true,
+    number: true,
+    docCode: true,
+    projectName: true,
+    customer: { select: { arName: true, enName: true, phone: true } },
+    supplier: { select: { arName: true, enName: true, phone: true } },
+  };
+  const [retentions, ends] = await Promise.all([
+    prisma.constructionContract.findMany({
+      where: {
+        ...branchScope(user),
+        status: { not: "cancelled" },
+        retentionReleaseDate: { not: null, lte: until },
+        certificates: { some: { retention: { gt: 0 }, cancelled: false } },
+      },
+      orderBy: { retentionReleaseDate: "asc" },
+      take: LIMIT,
+      select: {
+        ...sel,
+        retentionReleaseDate: true,
+        certificates: { where: { cancelled: false }, select: { retention: true } },
+        payments: { where: { kind: "retention" }, select: { amount: true } },
+      },
+    }),
+    prisma.constructionContract.findMany({
+      where: { ...branchScope(user), status: "active", isDirect: false, endDate: { lte: until } },
+      orderBy: { endDate: "asc" },
+      take: LIMIT,
+      select: { ...sel, endDate: true },
+    }),
+  ]);
+  const party = (c) => c.customer ?? c.supplier;
+  return [
+    ...retentions
+      // الضمان اللي لسه محجوز (اللي اتفرج عنه بالكامل مش بيظهر)
+      .filter(
+        (c) =>
+          c.certificates.reduce((s, x) => s + Number(x.retention), 0) -
+            c.payments.reduce((s, x) => s + Number(x.amount), 0) >
+          0.004,
+      )
+      .map((c) => {
+        const day = dbDateToDay(c.retentionReleaseDate);
+        const days = daysFrom(day, todayDay);
+        return {
+          key: `ct-ret-${c.id}`,
+          kind: "retentionDue",
+          level: levelOf(days),
+          days,
+          at: day,
+          title: c.projectName,
+          customer: party(c),
+          phone: party(c)?.phone ?? null,
+          ref: { kind: "constructionContract", number: c.number, docCode: c.docCode },
+          href: `/contracting/${c.id}`,
+        };
+      }),
+    ...ends.map((c) => {
+      const day = dbDateToDay(c.endDate);
+      const days = daysFrom(day, todayDay);
+      return {
+        key: `ct-end-${c.id}`,
+        kind: "projectEnd",
+        level: levelOf(days),
+        days,
+        at: day,
+        title: c.projectName,
+        customer: party(c),
+        phone: party(c)?.phone ?? null,
+        ref: { kind: "constructionContract", number: c.number, docCode: c.docCode },
+        href: `/contracting/${c.id}`,
+      };
+    }),
+  ];
+}
+
 export async function getNotifications(user) {
   const todayDay = today();
   const [techOn, contractsOn, claimsOn, followUpsOn, vehiclesOn, bookingsOn, restaurantOn] =
@@ -410,6 +494,7 @@ export async function getNotifications(user) {
       hasModule("restaurant"),
     ]);
   const realEstateOn = await hasModule("realEstate");
+  const contractingOn = await hasModule("contracting");
   const expiryOn = await hasFeature("expiry");
   const [zatca, expiry, ...lists] = await Promise.all([
     can(user, "zatca.view")
@@ -449,6 +534,10 @@ export async function getNotifications(user) {
     // تأجير العقارات: الدفعات المستحقة + العقود اللي بتخلص
     realEstateOn && can(user, "rentContracts.view")
       ? rentAlerts(user, todayDay)
+      : Promise.resolve([]),
+    // المقاولات: الإفراج عن الضمان + موعد التسليم
+    contractingOn && can(user, "constructionContracts.view")
+      ? contractingAlerts(user, todayDay)
       : Promise.resolve([]),
   ]);
   // الأهم الأول: المتأخر ← النهارده ← الجاي، وجوه كل مستوى بالأقرب

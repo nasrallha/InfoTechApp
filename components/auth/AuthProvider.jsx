@@ -30,6 +30,21 @@ export function useModule(key) {
   return Boolean(user?.modules?.includes(key));
 }
 
+// أنشطة من غير باركود (المطعم / المغسلة / تأجير العقارات / الخياط / المقاولات):
+// طباعة الباركود وباركود الميزان وباركود الوحدات مش ظاهرين
+export function useNoBarcode() {
+  const user = useContext(AuthContext);
+  const m = user?.modules ?? [];
+  return ["laundry", "restaurant", "realEstate", "tailoring", "contracting"].some((k) => m.includes(k));
+}
+
+// أنشطة من غير كاشير (تأجير العقارات / الخياط / المقاولات): زرار شاشة الكاشير مش ظاهر
+export function useNoPos() {
+  const user = useContext(AuthContext);
+  const m = user?.modules ?? [];
+  return ["realEstate", "tailoring", "contracting"].some((k) => m.includes(k));
+}
+
 // إعدادات الوحدات للواجهة (مثلاً { serialRequired })
 export function useModuleSettings() {
   const user = useContext(AuthContext);

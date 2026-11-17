@@ -19,10 +19,11 @@ import {
 import {
   PROTECTED_ITEMS,
   RESET_GROUPS,
-  RESET_ITEMS,
   expandSelection,
   requiredBy,
+  visibleResetItems,
 } from "@/lib/data-reset";
+import { useCurrentUser } from "@/components/auth/AuthProvider";
 import { C } from "@/lib/theme";
 import "./admin.css";
 
@@ -43,6 +44,9 @@ export default function DataResetView({ initialCounts, canBackup }) {
   const tAlerts = useTranslations("Alerts");
   const word = locale === "ar" ? "تصفير" : "RESET";
   const { counts, zatca, blocked, production } = data;
+  // البنود حسب نشاط الشركة (الشاشات اللي النشاط مبيستخدمهاش مش ظاهرة)
+  const user = useCurrentUser();
+  const RESET_ITEMS = useMemo(() => visibleResetItems(user?.modules ?? []), [user?.modules]);
 
   // ممنوع: فيه فواتير إنتاج في النوع ده أو في حاجة لازم تتمسح معاه
   const isBlocked = useMemo(() => {
@@ -51,7 +55,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
       out[i.key] = [...expandSelection([i.key])].some((k) => blocked[k]);
     }
     return out;
-  }, [blocked]);
+  }, [blocked, RESET_ITEMS]);
 
   const effective = useMemo(() => expandSelection([...chosen]), [chosen]);
   const selectable = RESET_ITEMS.filter((i) => !isBlocked[i.key]);
@@ -120,17 +124,17 @@ export default function DataResetView({ initialCounts, canBackup }) {
 
   return (
     <>
-      <PageHeader title={t("Title")} />
+      <PageHeader title={t("Title")} className="mb-2" />
 
-      <div style={{ maxWidth: 860 }}>
+      {/* عرض الصفحة كلها (المجموعات أعمدة، والأجزاء جنب بعض) */}
+      <div>
         <Alert
           type="warning"
           showIcon
-          className="mb-4"
-          title={t("Irreversible")}
-          description={
+          className="mb-2"
+          title={
             <span>
-              {t("BackupHint")}{" "}
+              <b>{t("Irreversible")}</b> — {t("BackupHint")}{" "}
               {canBackup && <Link href="/admin/backup">{t("GoBackup")}</Link>}
             </span>
           }
@@ -151,7 +155,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
 
         <Card
           size="small"
-          className="mb-4"
+          className="mb-2 reset-card"
           title={t("ChooseTitle")}
           extra={
             <Checkbox
@@ -164,8 +168,11 @@ export default function DataResetView({ initialCounts, canBackup }) {
             </Checkbox>
           }
         >
+          {/* المجموعات مربعات جنب بعض */}
+          <div className="reset-groups">
           {RESET_GROUPS.map((group) => {
             const items = RESET_ITEMS.filter((i) => i.group === group);
+            if (!items.length) return null;
             const groupSel = items.filter((i) => !isBlocked[i.key]);
             const groupAll =
               groupSel.length > 0 &&
@@ -242,9 +249,11 @@ export default function DataResetView({ initialCounts, canBackup }) {
               </div>
             );
           })}
+          </div>
         </Card>
 
-        <Card size="small" className="mb-4" title={t("WillKeep")}>
+        <div className="reset-bottom">
+        <Card size="small" title={t("WillKeep")}>
           <div className="reset-protected">
             {PROTECTED_ITEMS.map((k) => (
               <Tooltip key={k} title={t(`protectedHint.${k}`)}>
@@ -254,7 +263,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
               </Tooltip>
             ))}
           </div>
-          <div className="reset-muted" style={{ marginTop: 8 }}>
+          <div className="reset-muted" style={{ marginTop: 4 }}>
             {t("KeepNote")}
           </div>
         </Card>
@@ -268,7 +277,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
             </span>
           }
         >
-          <div className="mb-3">
+          <div className="mb-2">
             {someChosen ? (
               <span>{t("Summary", { types: effective.size, total })}</span>
             ) : (
@@ -279,11 +288,11 @@ export default function DataResetView({ initialCounts, canBackup }) {
             checked={resetNumbers}
             onChange={(e) => setResetNumbers(e.target.checked)}
             disabled={running}
-            className="mb-3"
+            className="mb-2"
           >
             {t("ResetNumbers")}
           </Checkbox>
-          <div className="reset-muted mb-3">{t("ResetNumbersHint")}</div>
+          <div className="reset-muted mb-2">{t("ResetNumbersHint")}</div>
 
           <div className="mb-1">{t("TypeToConfirm", { word })}</div>
           <Input
@@ -292,7 +301,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
             placeholder={word}
             disabled={running || !someChosen}
             style={{ maxWidth: 260 }}
-            className="mb-3"
+            className="mb-2"
           />
           <div>
             <Button
@@ -307,6 +316,7 @@ export default function DataResetView({ initialCounts, canBackup }) {
             </Button>
           </div>
         </Card>
+        </div>
       </div>
     </>
   );

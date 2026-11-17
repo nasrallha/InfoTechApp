@@ -21,6 +21,7 @@ import { formatDateTime, formatDay } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCan } from "@/components/auth/AuthProvider";
 import DayPicker from "@/components/common/DayPicker";
+import FiscalYearPicker from "@/components/common/FiscalYearPicker";
 import ExportButtons from "@/components/reports/ExportButtons";
 import { C } from "@/lib/theme";
 
@@ -53,6 +54,11 @@ export default function StatementView({
   const t = useTranslations("Accounts");
   const can = useCan();
   const { amount: money } = useCurrency();
+  // المستخلص: الملاحظة + حجز الضمان والصافي المستحق (الفاتورة مدينة بالكامل والضمان بيتحصل بعدين)
+  const noteOf = (l) =>
+    l.retention > 0
+      ? `${l.notes ?? ""} — ${t("CertRetentionNote", { retention: money(l.retention), net: money(l.netPayable) })}`
+      : (l.notes ?? "");
   const nameOf = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
 
   const [filters, setFilters] = useState({ kind, id: partyId, from, to });
@@ -61,7 +67,9 @@ export default function StatementView({
     const query = new URLSearchParams();
     query.set("kind", f.kind);
     if (f.id) query.set("id", String(f.id));
+    // من غير «من» ← كل الفترات (الافتراضي من غيره: السنة المالية الحالية)
     if (f.from) query.set("from", f.from);
+    else query.set("all", "1");
     if (f.to) query.set("to", f.to);
     router.push(`${pathname}?${query.toString()}`);
   };
@@ -137,7 +145,7 @@ export default function StatementView({
       key: "notes",
       width: 200,
       ellipsis: true,
-      render: (_, l) => l.notes,
+      render: (_, l) => noteOf(l),
     },
   ];
 
@@ -196,7 +204,7 @@ export default function StatementView({
           debit: l.debit || null,
           credit: l.credit || null,
           balance: l.balance,
-          notes: l.notes ?? "",
+          notes: noteOf(l),
         })),
       ],
       totals: {
@@ -278,6 +286,8 @@ export default function StatementView({
             }))}
             filterOption={(input, o) => o.search.includes(input.toLowerCase())}
           />
+          {/* السنة المالية ← من / إلى بتواريخها */}
+          <FiscalYearPicker size="large" onPick={(from, to) => setFilters((f) => ({ ...f, from, to }))} />
           <div>
             <div className="text-gray-500 text-xs mb-1">{t("From")}</div>
             <DayPicker

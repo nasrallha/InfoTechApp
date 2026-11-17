@@ -1,8 +1,9 @@
 // Server Component: فاتورة بيع جديدة (?quotation=ID ← تحويل عرض سعر لفاتورة، ?export=1 ← فاتورة تصدير)
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { can } from "@/lib/permissions";
+import { hasModule } from "@/lib/modules";
 import { getPageAccess } from "@/lib/auth";
 import { getPurchasePaymentMethods, parseId } from "@/lib/purchase-pages";
 import { salePerms } from "@/lib/sale-pages";
@@ -26,6 +27,8 @@ async function Content({ searchParams }) {
   if (!allowed) return <NoAccess />;
 
   await connection();
+  // المقاولات: الفواتير من المستخلصات ← «فاتورة بيع جديدة» بتفتح مستخلص جديد
+  if (await hasModule("contracting")) redirect("/contracting/quick/new");
   const {
     quotation: q,
     export: exp,
@@ -40,7 +43,8 @@ async function Content({ searchParams }) {
   // فاتورة صيانة من طلب ضمان/صيانة (?claim=ID): قطعه ومصنعيته
   const claimId = parseId(cl);
   // فاتورة تصدير (?export=1)
-  const isExport = exp === "1" && !q;
+  // (ميزة إضافية للشركة: وحدة exportInvoices، من غيرها بتفتح فاتورة بيع عادية)
+  const isExport = exp === "1" && !q && (await hasModule("exportInvoices"));
   const quotationId = parseId(q);
   if (quotationId && !can(user, "quotations.convert")) return <NoAccess />;
 

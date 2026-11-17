@@ -1,5 +1,7 @@
 import "server-only";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
+import { assertDocYear } from "./fiscal-year.service";
+import { isFreeLine } from "@/lib/free-line";
 import { partyInBranch } from "@/lib/party-scope";
 import { linkRestaurantSale } from "./restaurant-link.service";
 import { assertPlanLimit } from "@/lib/plan-limits";
@@ -7,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
 import { AppError } from "@/lib/errors";
+import { assertModule } from "@/lib/modules";
 import { assertUnitQty } from "./unit.service";
 import { isWholeQty } from "@/lib/unit-qty";
 import { can } from "@/lib/permissions";
@@ -19,6 +22,7 @@ import {
 } from "@/lib/invoice-calc";
 import { dayOf, dayToDateTime, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
 import { formatDocNo, saleDocNo } from "@/lib/doc-number";
+import { contractingPrintInfo, CONTRACT_PRINT_SELECT, CERT_PRINT_SELECT } from "@/lib/contracting";
 import {
   applyMovements,
   isNegativeStockAllowed,
@@ -103,9 +107,10 @@ export const canViewAllBranches = (user) => can(user, "allBranches.view");
 const branchScope = (user) =>
   !user || canViewAllBranches(user) ? {} : { branchId: user.branch.id };
 
-// الرقم التالي في فرع المستند + رمز الفرع (DM-SI-5) - مفيش تكرار مهما كان عدد المستخدمين
-async function nextNumber(tx, type, branchId) {
-  return nextBranchNumber(tx, SEQUENCE_KEY[type], branchId);
+// الرقم التالي في فرع المستند + رمز الفرع والسنة (DM-SI-2026-5) - مفيش تكرار مهما كان عدد المستخدمين
+// date: تاريخ المستند (السنة المالية منه)
+async function nextNumber(tx, type, branchId, date = null) {
+  return nextBranchNumber(tx, SEQUENCE_KEY[type], branchId, date);
 }
 
 // حركات المخزون: البيع يخرج من المستودع، والمرتجع يدخل
@@ -224,6 +229,8 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
     : existing
       ? (existing.exportKind ?? "standard")
       : "standard";
+  // فاتورة تصدير جديدة: الميزة لازم تكون مفعّلة للشركة (التعديل والإشعارات على القديمة مسموحة)
+  if (isExport && !existing) await assertModule("exportInvoices");
   if (isExport && !data.customerId) {
     throw new AppError("ExportCustomerRequired", null, {
       customerId: "ExportCustomerRequired",
@@ -399,6 +406,8 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
       claimedPrice(product.id, unit.unit.id, price) ||
       laundryPriced(product.id, price) ||
       restaurantPriced(product.id, price) ||
+      // البند الحر: السعر بيتكتب في السطر
+      isFreeLine(product.code) ||
       Math.abs((oldPrice.get(`${product.id}:${unit.unit.id}`) ?? -1) - price) <
         EPS;
     if (!allowedPrice) {
@@ -545,8 +554,9 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
       warrantyType: serialLines[i].warrantyType,
       productId: l.product.id,
       code: l.product.code,
-      arName: l.product.arName,
-      enName: l.product.enName,
+      // البند الحر: الوصف اللي اتكتب هو اسم السطر
+      arName: isFreeLine(l.product.code) && l.name ? l.name : l.product.arName,
+      enName: isFreeLine(l.product.code) && l.name ? l.name : l.product.enName,
       note: l.note ?? null,
       unitId: l.unitId,
       factor: l.factor,
@@ -688,7 +698,7 @@ async function createSaleNow(data, user) {
     Boolean(data.restaurantPrices?.length) || (await isNegativeStockAllowed());
 
   return runTx(async (tx) => {
-    const { number, docCode } = await nextNumber(tx, SALE, user.branch.id);
+    const { number, docCode } = await nextNumber(tx, SALE, user.branch.id, header.date);
     const { items: createdItems, ...created } = await tx.sale.create({
       data: {
         ...header,
@@ -811,6 +821,7 @@ export async function updateSale({ id, ...data }, user) {
       date: true,
       isExport: true,
       exportKind: true,
+      docCode: true,
       items: { select: { productId: true, unitId: true, price: true } },
       quotation: { select: { id: true } },
     },
@@ -827,6 +838,8 @@ export async function updateSale({ id, ...data }, user) {
 
   return runTx(async (tx) => {
     await assertEditable(tx, existing);
+    // السنة المالية: التاريخ الجديد في نفس سنة الرقم، والسنة مش مقفلة
+    await assertDocYear(tx, existing.docCode, header.date);
     // القطع القديمة ترجع زي ما كانت قبل الفاتورة، وبعدين نسجل الجديدة
     await releaseSaleSerials(tx, id);
     const { items: newItems, ...updated } = await tx.sale.update({
@@ -1047,10 +1060,12 @@ async function createSaleReturnNow(data, user) {
       throw new AppError("CashCustomerFullRefund");
     }
 
+    // السنة المالية من تاريخ المرتجع (يوم سابق لمن يملك الصلاحية)
     const { number, docCode } = await nextNumber(
       tx,
       SALE_RETURN,
       user.branch.id,
+      data.date && can(user, "salesReturns.changeDate") ? data.date : null,
     );
     // التاريخ: الآن، أو يوم سابق لمن يملك الصلاحية (ولا يسبق الفاتورة)
     const now = today();
@@ -1313,13 +1328,26 @@ export async function listSales({
         returnOf: { select: { id: true, number: true, docCode: true } },
         // المرتجعات بس (الإشعارات مربوطة بنفس العلاقة)
         _count: { select: { returns: { where: { type: SALE_RETURN } } } },
+        // فاتورة مستخلص (المقاولات): حجز الضمان مش بيعتبر متأخر في حالة السداد
+        constructionCertificate: { select: { retention: true } },
       },
     }),
   ]);
-  return { total, page, pageSize, rows };
+  return {
+    total,
+    page,
+    pageSize,
+    rows: rows.map(({ constructionCertificate, ...r }) => ({
+      ...r,
+      retention: constructionCertificate ? Number(constructionCertificate.retention) : 0,
+    })),
+  };
 }
 
 const saleDetailSelect = {
+  // المقاولات (وحدة contracting): فاتورة الدفعة المقدمة / مستخلص ← العقد والمشروع للطباعة
+  constructionAdvance: { select: CONTRACT_PRINT_SELECT },
+  constructionCertificate: { select: CERT_PRINT_SELECT },
   // فاتورة طلب تفصيل (وحدة tailoring): رقم الطلب والخياط وموعد التسليم للطباعة
   tailorOrder: {
     select: {
@@ -1572,6 +1600,9 @@ export async function getSale(id, type, user) {
     laundry: await laundryPrintInfo(sale),
     rent: rentPrintInfo(sale.rentInstallment),
     rentInstallment: undefined,
+    contracting: contractingPrintInfo(sale),
+    constructionAdvance: undefined,
+    constructionCertificate: undefined,
     tailor: sale.tailorOrder
       ? {
           orderNo: formatDocNo("tailorOrder", sale.tailorOrder.number, sale.tailorOrder.docCode),
@@ -1672,6 +1703,8 @@ export async function findSalesForReturn({ value }, user) {
   if (!ref) return [];
   return prisma.sale.findMany({
     where: { type: SALE, ...ref, ...branchScope(user) },
+    // الرقم بيتكرر بين السنين المالية ← الأحدث الأول
+    orderBy: { id: "desc" },
     take: 5,
     select: {
       id: true,

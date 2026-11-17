@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import InvoiceSearchButton from "@/components/invoices/InvoiceSearchButton";
 import {
   Alert,
   Button,
@@ -461,9 +462,12 @@ export default function PurchaseReturnForm({
   return (
     <div className="pur">
       <SavedDocPrint job={printJob} onClose={() => setPrintJob(null)} />
-      <h1 className="font-bold text-xl mb-4 flex flex-wrap items-center gap-3">
-        {t("NewReturn")} <NextDocNo type="purchaseReturn" />
-      </h1>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <h1 className="font-bold text-xl flex flex-wrap items-center gap-3">
+          {t("NewReturn")} <NextDocNo type="purchaseReturn" />
+        </h1>
+        <InvoiceSearchButton kind="purchaseReturn" />
+      </div>
 
       {/* ============ البحث عن فاتورة الشراء ============ */}
       <Card size="small" className="mb-3">

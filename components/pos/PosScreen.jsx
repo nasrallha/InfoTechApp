@@ -62,7 +62,8 @@ import ProductPicker from "@/components/purchases/ProductPicker";
 import DiscountInput from "@/components/purchases/DiscountInput";
 import PrintDocument from "@/components/printing/PrintDocument";
 import { bookingLines, lineFromProduct } from "@/components/sales/SaleForm";
-import { useModule, useModuleSettings } from "@/components/auth/AuthProvider";
+import { useModule, useModuleSettings, useNoBarcode } from "@/components/auth/AuthProvider";
+import InvoiceA4 from "@/components/printing/invoice/InvoiceA4";
 import LineSerials, {
   serialInLines,
   serialsShort,
@@ -247,6 +248,14 @@ export default function PosScreen({
   const [held, setHeld] = useState([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
+  // مقاس طباعة الفاتورة: الافتراضي من إعدادات الطباعة، ويتغير لفاتورة واحدة من نافذة الدفع
+  // (الكاشير 80mm / 58mm أو A4 للشركات)
+  const defaultPaper = printSettings?.paperSize ?? "80mm";
+  const thermalPaper = defaultPaper === "A4" ? "80mm" : defaultPaper;
+  const [payPaper, setPayPaper] = useState(defaultPaper);
+  const [receiptPaper, setReceiptPaper] = useState(defaultPaper);
+  // الأنشطة اللي من غير باركود: نص السلة الفاضية من غير «امسح الباركود»
+  const noBarcode = useNoBarcode();
   const [lastSale, setLastSale] = useState(null);
   // المغسلة: مرتجع فاتورة من نفس الشاشة
   const [returnOpen, setReturnOpen] = useState(false);
@@ -325,8 +334,9 @@ export default function PosScreen({
 
   // الفاتورة: المطعم على طابعة الكاشير عن طريق وسيط الطباعة (من غير نافذة)،
   // ولو مفيش وسيط / طابعة: نافذة الطباعة زي الأول
-  const printSale = (doc) => {
-    if (!rp.on) return setReceipt(doc);
+  const printSale = (doc, paper = defaultPaper) => {
+    setReceiptPaper(paper);
+    if (!rp.on || paper === "A4") return setReceipt(doc);
     const viaAgent = rp.printReceipt({
       title: `${tR("Invoice")} ${doc.number ?? ""}`.trim(),
       render: (paper) => (
@@ -656,6 +666,9 @@ export default function PosScreen({
     }
     setPayOpen(false);
     setLastSale(res.data);
+    // مقاس الفاتورة دي، وبعدها يرجع للافتراضي
+    const salePaper = payPaper;
+    setPayPaper(defaultPaper);
     // المطعم: رقم الطلب + تذكرة المطبخ بعد إيصال الفاتورة
     if (rp.on) {
       if (res.data.order)
@@ -674,7 +687,7 @@ export default function PosScreen({
     if (printSettings) {
       const full = await getSaleAction(res.data.id);
       if (full.success && full.data) {
-        printSale(full.data);
+        printSale(full.data, salePaper);
         if (lp.on) waAfterPrint.current = { kind: "sale", doc: full.data };
       }
     }
@@ -950,7 +963,7 @@ export default function PosScreen({
             {!lines.length ? (
               <div className="pos-cart__empty">
                 <ShoppingCartOutlined style={{ fontSize: 48 }} />
-                <div>{rp.on ? tR("EmptyCart") : t("EmptyCart")}</div>
+                <div>{rp.on ? tR("EmptyCart") : t(noBarcode ? "EmptyCartPick" : "EmptyCart")}</div>
                 <div style={{ fontSize: 12 }}>{rp.on ? tR("ShortcutsHint") : t("ShortcutsHint")}</div>
               </div>
             ) : (
@@ -1296,6 +1309,9 @@ export default function PosScreen({
           lp.clearWalletPlan();
         }}
         onPay={pay}
+        paper={payPaper}
+        thermal={thermalPaper}
+        onPaperChange={printSettings ? setPayPaper : undefined}
       />
 
       {/* شبكة المقاسات: المقاس بوحدة واحدة بينزل على طول، وأكتر ← اختيار الوحدة */}
@@ -1469,7 +1485,7 @@ export default function PosScreen({
 
       {receipt && printSettings && (
         <PrintDocument
-          paperSize={printSettings.paperSize}
+          paperSize={receiptPaper}
           onDone={() => {
             setReceipt(null);
             focusSearch();
@@ -1478,12 +1494,16 @@ export default function PosScreen({
             rp.flushTicket();
           }}
         >
-          <SaleDocument
-            settings={printSettings}
-            company={company}
-            doc={receipt}
-            kind="sale"
-          />
+          {receiptPaper === "A4" ? (
+            <InvoiceA4 kind="sale" doc={receipt} company={company} settings={printSettings} />
+          ) : (
+            <SaleDocument
+              settings={{ ...printSettings, paperSize: receiptPaper }}
+              company={company}
+              doc={receipt}
+              kind="sale"
+            />
+          )}
         </PrintDocument>
       )}
     </div>

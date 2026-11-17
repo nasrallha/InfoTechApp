@@ -145,7 +145,7 @@ export default function LaundryReturnModal({
       />
 
       {found && (
-        <Space direction="vertical" className="mb-3" style={{ width: "100%" }}>
+        <Space orientation="vertical" className="mb-3" style={{ width: "100%" }}>
           {found.map((s) => (
             <Button key={s.id} block onClick={() => open(s.id)}>
               <bdi>{saleDocNo("sale", s.number, s.docCode)}</bdi> —{" "}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, Input, Select, Space } from "antd";
 import TimeBox from "@/components/common/TimeBox";
 import { ClearOutlined, SearchOutlined } from "@ant-design/icons";
@@ -10,6 +10,7 @@ import { today } from "@/lib/dates";
 import { bizToday } from "@/lib/business-day";
 import { useDayStartHour } from "@/components/common/useBusinessDay";
 import DayPicker from "@/components/common/DayPicker";
+import { fiscalYearOptionsAction } from "@/actions/fiscal-year.actions";
 
 const pad = (x) => String(x).padStart(2, "0");
 const shift = (day, days) => {
@@ -68,6 +69,17 @@ export default function ReportFilters({
   const dayStartHour = useDayStartHour();
   const now = realDates ? today() : bizToday(dayStartHour);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v ?? null }));
+  // السنوات المالية: اختيار سنة بيحط الفترة من / إلى بتاعتها (ولحد النهارده لو السنة الحالية)
+  const [fiscalYears, setFiscalYears] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    fiscalYearOptionsAction().then((res) => {
+      if (alive && res.success) setFiscalYears(res.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
   const userOf = (x) => (locale === "ar" ? x.arFullname : x.enFullname);
 
@@ -135,9 +147,31 @@ export default function ReportFilters({
     ? null
     : Object.keys(P).find((k) => f.from === P[k].from && f.to === P[k].to);
 
+  // السنة المالية المختارة: الفترة مطابقة لسنة
+  const activeFiscal = fiscalYears.find(
+    (y) => !f.year && f.from === y.startDate && (f.to === y.endDate || (f.to === now && now <= y.endDate)),
+  );
+
   return (
     <Card size="small" className="mb-4 report-filters">
       <Space wrap size={[8, 8]} className="mb-2">
+        {fiscalYears.length > 0 && (
+          <Select
+            size="small"
+            allowClear
+            style={{ width: 170 }}
+            placeholder={t("FiscalYear")}
+            value={activeFiscal?.code}
+            options={fiscalYears.map((y) => ({ value: y.code, label: `${t("FiscalYear")} ${y.code}` }))}
+            onChange={(code) => {
+              const y = fiscalYears.find((x) => x.code === code);
+              if (!y) return;
+              const next = { ...f, from: y.startDate, to: y.endDate < now ? y.endDate : now, year: null, qtr: null };
+              setF(next);
+              go(next);
+            }}
+          />
+        )}
         {Object.keys(P).map((k) => (
           <Button
             key={k}

@@ -29,6 +29,7 @@ import { productTax } from "@/lib/zatca-tax";
 import { getBaseCurrency } from "./currency.service";
 import { getBranchSaleContext } from "./sale-catalog.service";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
+import { assertDocYear } from "./fiscal-year.service";
 import { searchPurchaseProducts } from "./purchase.service";
 import {
   assertNotProductionLive,
@@ -85,8 +86,9 @@ const branchScope = (user) =>
   !user || can(user, "allBranches.view") ? {} : { branchId: user.branch.id };
 
 // الرقم التالي في فرع الإشعار + رمز الفرع (DM-CN-5) - مفيش تكرار مهما كان عدد المستخدمين
-async function nextNumber(tx, side, type, branchId) {
-  return nextBranchNumber(tx, SIDE[side].seq[type], branchId);
+// date: تاريخ الإشعار (السنة المالية منه) ← DM-CN-2026-5
+async function nextNumber(tx, side, type, branchId, date = null) {
+  return nextBranchNumber(tx, SIDE[side].seq[type], branchId, date);
 }
 
 // ------------------------------------------------------------
@@ -802,9 +804,11 @@ async function createNoteNow(side, data, user, existing = null) {
           : "CashCustomerFullPay",
       );
 
+    // تعديل: التاريخ الجديد في نفس سنة الرقم، والسنة مش مقفلة
+    if (existing) await assertDocYear(tx, existing.docCode, date);
     const { number, docCode } = existing
       ? { number: existing.number, docCode: existing.docCode ?? null }
-      : await nextNumber(tx, side, data.type, user.branch.id);
+      : await nextNumber(tx, side, data.type, user.branch.id, date);
     const itemRows = lines.map((l) => ({
       lineKind: l.lineKind,
       productId: l.productId,

@@ -1,8 +1,11 @@
 // Server Component: تعديل فاتورة شراء
 // (ممنوع لو عليها مرتجعات: لازم تُحذف المرتجعات أولاً)
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { contractingDocOf } from "@/services/contract-certificate.service";
+import { getActiveUnits } from "@/services/unit.service";
+import CertificateInvoiceEdit from "@/components/contracting/CertificateInvoiceEdit";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
 import { getPurchasePaymentMethods, parseId } from "@/lib/purchase-pages";
@@ -29,6 +32,22 @@ async function Content({ params }) {
   const { id } = await params;
   const purchaseId = parseId(id);
   if (!purchaseId) notFound();
+
+  // مستخلص مقاول الباطن: بيتعدل من تعديل المستخلص، والدفعة المقدمة من شاشة العقد
+  const ct = await contractingDocOf({ purchaseId });
+  if (ct?.contractId) redirect(`/contracting/${ct.contractId}`);
+  if (ct?.certId) {
+    if (!can(user, "constructionContracts.editInvoice")) return <NoAccess />;
+    const [{ methods: payMethods }, units] = await Promise.all([getPurchasePaymentMethods(), getActiveUnits()]);
+    return (
+      <CertificateInvoiceEdit
+        certId={ct.certId}
+        backHref={`/invoices/purchases/${purchaseId}`}
+        methods={payMethods.filter((m) => m.type !== "credit")}
+        units={units}
+      />
+    );
+  }
 
   const purchase = await getPurchaseForEdit(purchaseId, user);
   if (!purchase) notFound();

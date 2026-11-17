@@ -128,8 +128,9 @@ export default function PurchasesList({
             width: 120,
             align: "center",
             render: (_, r) => {
+              // مستخلص المقاول الآخر: المطلوب = الإجمالي - حجز الضمان
               const st = paymentStatus(
-                r.totalAmount,
+                r.totalAmount - (r.retention ?? 0),
                 r.paidAmount + (r.settledAmount ?? 0),
               );
               return (
