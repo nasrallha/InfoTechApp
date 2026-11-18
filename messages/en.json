@@ -1794,6 +1794,14 @@
     "TooMany": "Maximum {max} labels per print"
   },
   "InvoicePrint": {
+    "AndroidPrint": "Android printing (no print dialog)",
+    "AndroidPrintOnDevice": "Enable on this device",
+    "AndroidPrintHint": "For Android POS devices (built-in, Bluetooth or network printer): 80mm and 58mm receipts print directly through the RawBT app. This setting is for this device only; A4 printing stays as it is.",
+    "AndroidPrintSteps": "1) Install RawBT from Google Play. 2) In RawBT choose the printer (InnerPrinter for the built-in one, a Bluetooth printer, or a network printer by its address) and print its test page. 3) Enable the option here and press “Test print”.",
+    "AndroidPrintEnabled": "Android printing enabled on this device",
+    "AndroidPrintDisabled": "Android printing disabled on this device",
+    "AndroidPrintStorageBlocked": "The browser blocks saving the setting on this device",
+    "TestPrintTitle": "Test print",
     "showSignatures": "Signatures & stamp",
     "SignaturesHint": "Seller signature, customer signature and stamp at the bottom of the A4 invoice",
     "A4Template": "A4 print template",

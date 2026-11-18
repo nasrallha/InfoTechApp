@@ -46,6 +46,7 @@ import InvoiceA4 from "./InvoiceA4";
 import InvoiceView, { PRINT_AREA } from "./InvoiceView";
 import PrintInvoice from "./PrintInvoice";
 import ScaledBox from "../ScaledBox";
+import AndroidPrintCard from "../AndroidPrintCard";
 import { sampleA4Doc, sampleInvoice } from "./sampleInvoice";
 import "../printing.css";
 import { actionErrorText } from "@/components/common/actionError";
@@ -274,6 +275,9 @@ export default function InvoicePrintSettingsForm({
                 </Row>
                 <p className="text-xs text-slate-400 m-0">{t("MarginsHint")}</p>
               </Card>
+
+              {/* طباعة أندرويد (RawBT): إعداد الجهاز ده بس */}
+              <AndroidPrintCard />
 
               {/* نموذج A4: الحالي / ثنائي اللغة / ورق مطبوع جاهز (كل المستندات A4) */}
               <Card

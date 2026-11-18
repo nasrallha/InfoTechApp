@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PRINT_AREA } from "./invoice/InvoiceView";
+import { androidPrintable, printViaRawbt } from "@/lib/android-print";
 import "./printing.css";
 
 const PX_PER_MM = 96 / 25.4;
@@ -13,6 +14,8 @@ const PX_PER_MM = 96 / 25.4;
 // - A4: صفحة A4 عادية
 // - الكاشير (80/58mm): طول الصفحة = طول المستند (بدون ورق زيادة)
 // children: المستند نفسه، onDone: بعد إغلاق نافذة الطباعة
+// - طباعة أندرويد (مفعّلة على الجهاز): الإيصال الحراري بيروح لتطبيق RawBT
+//   على طول من غير نافذة، ولو فشل الرسم: نافذة الطباعة زي الأول
 // ============================================================
 // margin: هامش صفحة A4 بالمللي (التقارير الطويلة: كل صفحة لها هامش)
 export default function PrintDocument({
@@ -52,6 +55,20 @@ export default function PrintDocument({
       timer = setTimeout(async () => {
         await document.fonts?.ready;
         if (cancelled) return;
+        if (androidPrintable(paperSize) && page.current) {
+          // العنصر مخفي (visibility) ← يبان بره الشاشة وقت الرسم بس
+          root.style.visibility = "visible";
+          try {
+            await printViaRawbt(page.current, paperSize);
+            if (!cancelled) setTimeout(finish, 300);
+            return;
+          } catch (e) {
+            console.error("[android-print]", e);
+          } finally {
+            root.style.visibility = "";
+          }
+          if (cancelled) return;
+        }
         if (paperSize === "A4" || paperSize === "A4L") {
           // A4L = A4 بالعرض (التقارير العريضة)
           const size = paperSize === "A4L" ? "A4 landscape" : "A4";
