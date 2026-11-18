@@ -8,6 +8,7 @@ import {
   getSaleCustomers,
 } from "@/services/sale-catalog.service";
 import SaleForm from "@/components/sales/SaleForm";
+import { listSalesReps } from "@/services/sales-rep.service";
 import { getActivePromotions } from "@/services/promotion.service";
 import NoAccess from "@/components/common/NoAccess";
 import TableSkeleton from "@/components/common/TableSkeleton";
@@ -17,10 +18,11 @@ async function Content() {
   if (!allowed) return <NoAccess />;
 
   await connection();
-  const [customers, categories, promotions] = await Promise.all([
+  const [customers, categories, promotions, salesReps] = await Promise.all([
     getSaleCustomers(user),
     getSaleCategories(),
     getActivePromotions(user.branch.id),
+    listSalesReps(),
   ]);
   return (
     <SaleForm
@@ -29,6 +31,7 @@ async function Content() {
       categories={categories}
       perms={quotationPerms(user)}
       promotions={promotions}
+      salesReps={salesReps}
     />
   );
 }

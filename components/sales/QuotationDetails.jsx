@@ -265,6 +265,17 @@ export default function QuotationDetails({
                 : quotation.createdBy?.enFullname}
             </span>
           </div>
+          {/* المندوب (وحدة salesReps) */}
+          {quotation.salesRep && (
+            <div>
+              <span>{t("SalesRep")}</span>
+              <span>
+                {locale === "ar"
+                  ? quotation.salesRep.arFullname
+                  : quotation.salesRep.enFullname}
+              </span>
+            </div>
+          )}
           {quotation.sale && (
             <div>
               <span>{t("ConvertedTo")}</span>

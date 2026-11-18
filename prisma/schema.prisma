@@ -175,6 +175,10 @@ model User {
   countsPosted      InventoryCount[] @relation("CountPostedBy")
   sales             Sale[]
   quotations        Quotation[]
+  // المندوب (وحدة salesReps): نسبة العمولة من صافي مبيعاته (من غير الضريبة)
+  commissionRate    Decimal          @default(0) @db.Decimal(5, 2)
+  repSales          Sale[]           @relation("SaleSalesRep")
+  repQuotations     Quotation[]      @relation("QuotationSalesRep")
   warrantyClaims    WarrantyClaim[]
   claimLogs         WarrantyClaimLog[]
   maintenanceContracts MaintenanceContract[]
@@ -1731,6 +1735,10 @@ model Sale {
 
   createdById Int
   createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  // المندوب (وحدة salesReps): للعمولة - ممكن يختلف عن اللي عمل المستند
+  salesRepId Int?
+  salesRep   User? @relation("SaleSalesRep", fields: [salesRepId], references: [id], onDelete: SetNull)
   // بصمة الحفظ (idempotency): نفس الطلب لو اتبعت تاني يرجّع نفس المستند بدل ما يتكرر
   requestId   String? @unique @db.VarChar(36)
 
@@ -1772,6 +1780,7 @@ model Sale {
   @@index([customerId])
   @@index([returnOfId])
   @@index([createdById])
+  @@index([salesRepId])
   @@index([promotionId])
   @@index([vehicleId])
   @@map("sales")
@@ -1931,6 +1940,10 @@ model Quotation {
   createdById Int
   createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
 
+  // المندوب (وحدة salesReps): للعمولة - ممكن يختلف عن اللي عمل المستند
+  salesRepId Int?
+  salesRep   User? @relation("QuotationSalesRep", fields: [salesRepId], references: [id], onDelete: SetNull)
+
   promotionId Int?
   promotion   Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 
@@ -1943,6 +1956,7 @@ model Quotation {
   @@index([branchId])
   @@index([customerId])
   @@index([createdById])
+  @@index([salesRepId])
   @@index([date])
   @@index([promotionId])
   @@map("quotations")

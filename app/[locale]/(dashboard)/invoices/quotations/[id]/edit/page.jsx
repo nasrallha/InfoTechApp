@@ -11,6 +11,7 @@ import {
 } from "@/services/sale-catalog.service";
 import { getQuotationForForm } from "@/services/quotation.service";
 import SaleForm from "@/components/sales/SaleForm";
+import { listSalesReps } from "@/services/sales-rep.service";
 import { getActivePromotions } from "@/services/promotion.service";
 import { dayOf } from "@/lib/dates";
 import NoAccess from "@/components/common/NoAccess";
@@ -30,6 +31,9 @@ async function Content({ params }) {
     getSaleCategories(),
   ]);
   if (!quotation || quotation.status !== "open") notFound();
+  const salesReps = await listSalesReps({
+    includeIds: quotation.salesRepId ? [quotation.salesRepId] : [],
+  });
   // العروض اللي كانت شغالة يوم العرض
   const promotions = await getActivePromotions(
     quotation.branch?.id ?? user.branch.id,
@@ -44,6 +48,7 @@ async function Content({ params }) {
       categories={categories}
       perms={quotationPerms(user)}
       promotions={promotions}
+      salesReps={salesReps}
     />
   );
 }

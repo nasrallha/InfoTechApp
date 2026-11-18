@@ -47,7 +47,12 @@ const userSelect = {
   grantedPermissions: true,
   revokedPermissions: true,
   branch: { select: { id: true, arName: true, enName: true } },
+  // نسبة عمولة المندوب (وحدة salesReps)
+  commissionRate: true,
 };
+
+// Decimal ← رقم (الواجهة)
+const toUser = (u) => (u ? { ...u, commissionRate: Number(u.commissionRate ?? 0) } : u);
 
 // المستخدمون الذين يقدر المستخدم الحالي يراهم ويديرهم
 // (حساب مالك البرنامج المخفي مش بيظهر لحد ومحدش يقدر يعدّله من هنا)
@@ -68,7 +73,7 @@ export async function getUsers(currentUser) {
     select: userSelect,
   });
   const locks = await lockedUsernames(users.map((u) => u.username));
-  return users.map((u) => ({ ...u, lockedUntil: locks.get(userKey(u.username)) ?? null }));
+  return users.map((u) => ({ ...toUser(u), lockedUntil: locks.get(userKey(u.username)) ?? null }));
 }
 
 // ------------------------------------------------------------
@@ -140,10 +145,12 @@ export async function createUser({ password, image, ...data }, currentUser) {
   const imagePath = image ? await saveImage(image, IMAGES_FOLDER) : null;
 
   try {
-    return await prisma.user.create({
-      data: { ...data, image: imagePath, password: await hashPassword(password) },
-      select: userSelect,
-    });
+    return toUser(
+      await prisma.user.create({
+        data: { ...data, image: imagePath, password: await hashPassword(password) },
+        select: userSelect,
+      }),
+    );
   } catch (error) {
     await deleteImage(imagePath);
     handleUniqueError(error);
@@ -227,7 +234,7 @@ export async function updateUser({ id, password, image, removeImage, ...data }, 
     await deleteUserSessions([id], isSelf ? currentUser.sessionId : null);
   }
 
-  return updated;
+  return toUser(updated);
 }
 
 // ------------------------------------------------------------

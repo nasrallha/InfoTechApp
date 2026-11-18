@@ -4,6 +4,7 @@ import { AppError } from "@/lib/errors";
 import { can, isOwnerPermission } from "@/lib/permissions";
 import { multiTenant } from "@/lib/tenant";
 import { customRolesAllowed } from "@/lib/plan-features";
+import { REP_PERMISSION } from "@/lib/sales-reps";
 
 // الحقول التي نرجعها للواجهة
 const roleSelect = {
@@ -43,15 +44,23 @@ export async function getRoles() {
 // الأدوار النشطة فقط (لقائمة الاختيار في فورم المستخدم)
 // غير مدير النظام لا يرى دور "مدير النظام" لأنه لا يقدر يعطيه لأحد
 export async function getActiveRoles(currentUser) {
-  return prisma.role.findMany({
+  const roles = await prisma.role.findMany({
     where: {
       isActive: true,
       isOwner: false,
       ...(currentUser?.isSuper ? {} : { isSuper: false }),
     },
     orderBy: { id: "asc" },
-    select: { id: true, arName: true, enName: true, isSuper: true },
+    select: {
+      id: true,
+      arName: true,
+      enName: true,
+      isSuper: true,
+      // دور مندوب (وحدة salesReps): فورم المستخدم بيظهر فيه نسبة العمولة
+      permissions: { where: { permission: REP_PERMISSION }, select: { id: true } },
+    },
   });
+  return roles.map(({ permissions, ...r }) => ({ ...r, isRep: permissions.length > 0 }));
 }
 
 // ------------------------------------------------------------

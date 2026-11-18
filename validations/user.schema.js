@@ -12,6 +12,8 @@ const userFields = {
   isActive: z.boolean().default(true),
   // الصورة اختيارية (لو موجودة تظهر بدل الأفاتار)
   image: imageField,
+  // نسبة عمولة المندوب % (وحدة salesReps) - مش موجودة = مبتتغيرش
+  commissionRate: z.number({ error: "FieldOnlyNumber" }).min(0, "FieldOnlyNumber").max(100, "PercentMax").optional(),
 };
 
 // الإضافة: كلمة المرور إجبارية

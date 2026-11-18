@@ -17,6 +17,7 @@ import { getFollowUpForSale } from "@/services/follow-up.service";
 import { bookingForSale } from "@/services/booking.service";
 import { getOpenShift } from "@/services/shift.service";
 import SaleForm from "@/components/sales/SaleForm";
+import { listSalesReps } from "@/services/sales-rep.service";
 import { getActivePromotions } from "@/services/promotion.service";
 import { getBranchZatcaInfo } from "@/services/zatca-invoice.service";
 import NoAccess from "@/components/common/NoAccess";
@@ -79,6 +80,10 @@ async function Content({ searchParams }) {
   ]);
   if (claimId && !quotationId && !claim) notFound();
   if (quotationId && (!quotation || quotation.status !== "open")) notFound();
+  // المناديب (وحدة salesReps)
+  const salesReps = await listSalesReps({
+    includeIds: quotation?.salesRepId ? [quotation.salesRepId] : [],
+  });
 
   return (
     <SaleForm
@@ -109,6 +114,7 @@ async function Content({ searchParams }) {
       booking={booking}
       isExport={isExport}
       shift={shift?.branchId === user.branch.id ? shift : null}
+      salesReps={salesReps}
     />
   );
 }

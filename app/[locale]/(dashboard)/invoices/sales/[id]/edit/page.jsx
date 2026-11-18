@@ -15,6 +15,7 @@ import {
 } from "@/services/sale-catalog.service";
 import { getSaleForEdit } from "@/services/sale.service";
 import SaleForm from "@/components/sales/SaleForm";
+import { listSalesReps } from "@/services/sales-rep.service";
 import { getActivePromotions } from "@/services/promotion.service";
 import { dayOf } from "@/lib/dates";
 import {
@@ -59,6 +60,10 @@ async function Content({ params }) {
       getPurchasePaymentMethods(),
     ]);
   if (!sale) notFound();
+  // المناديب (وحدة salesReps): مندوب الفاتورة يفضل ظاهر حتى لو اتوقف
+  const salesReps = await listSalesReps({
+    includeIds: sale.salesRepId ? [sale.salesRepId] : [],
+  });
   // اتوقّعت للزكاة: مقفولة (التصحيح بمرتجع)
   if (await isSaleSigned(saleId)) return <ZatcaLocked saleId={saleId} />;
   const zatca = await getBranchZatcaInfo(sale.branch?.id ?? user.branch.id);
@@ -79,6 +84,7 @@ async function Content({ params }) {
       perms={salePerms(user)}
       promotions={promotions}
       zatca={zatca}
+      salesReps={salesReps}
     />
   );
 }

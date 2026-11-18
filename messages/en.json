@@ -955,7 +955,9 @@
     "DurationMinHint": "In minutes; bookings use it for the end time (0 = default slot)",
     "Minutes": "min",
     "AllowDecimals": "Allows fractions",
-    "AllowDecimalsHint": "Like kilogram and gram (0.250). Turn it off for units sold whole, like piece and pack, so fractional quantities are rejected."
+    "AllowDecimalsHint": "Like kilogram and gram (0.250). Turn it off for units sold whole, like piece and pack, so fractional quantities are rejected.",
+    "CommissionRate": "Sales rep commission",
+    "CommissionRateHint": "Calculated on the rep's net sales before VAT after returns; can also be changed from the sales rep commissions report"
   },
   "Alerts": {
     "BranchShiftHasOpenDrawers": "Close all the shift's drawers first",
@@ -1472,7 +1474,8 @@
     "QtyBaseNoDecimals": "The quantity in the base unit has a fraction (e.g. 15.6 pieces), adjust the quantity",
     "SizesRequired": "Enter at least one size",
     "VariantsNotForService": "Services have no sizes",
-    "TooManyVariants": "Too many sizes × colors (max {max})"
+    "TooManyVariants": "Too many sizes × colors (max {max})",
+    "SalesRepInvalid": "The selected sales rep is invalid or inactive"
   },
   "Headings": {
     "UserPermissionsHeading": "User permissions",
@@ -1661,7 +1664,8 @@
       "laundry": "Laundry",
       "laundryOrders": "Laundry orders",
       "laundrySubscriptions": "Laundry subscriptions",
-      "restaurant": "Restaurant (menu & delivery)"
+      "restaurant": "Restaurant (menu & delivery)",
+      "salesReps": "Sales reps & commissions"
     },
     "actions": {
       "changeOrders": "Change orders",
@@ -1723,7 +1727,9 @@
       "deliver": "Deliver to customer",
       "jobs": "Appointments and status",
       "commissions": "Commissions report",
-      "visits": "Perform and postpone visits"
+      "visits": "Perform and postpone visits",
+      "rep": "Sales rep (earns commission)",
+      "assign": "Choose the invoice sales rep"
     }
   },
   "Printing": {
@@ -2594,7 +2600,9 @@
     "ExportHint": "Export invoice: all items are zero-rated (export of goods VATEX-SA-32); choose a customer outside Saudi Arabia. A customer with an identifier gets a standard export (cleared before printing); without one, a simplified export (reported within 24 hours).",
     "ExportCustomerIncomplete": "Customer data is incomplete for an export invoice - edit it from the customers page",
     "LockedProductionLive": "Deleting is not allowed: invoices were sent to ZATCA production. Use a return instead",
-    "FromClaim": "from repair order"
+    "FromClaim": "from repair order",
+    "SalesRep": "Sales rep",
+    "NoSalesRep": "No sales rep"
   },
   "Shifts": {
     "DrawerOwner": "Drawer owner",
@@ -3090,7 +3098,8 @@
       "daily": "Daily report",
       "warranties": "Warranty report",
       "commissions": "Commissions",
-      "models": "Models report"
+      "models": "Models report",
+      "salesReps": "Sales rep commissions"
     },
     "hints": {
       "tobacco": "Tobacco items sold and the tobacco fee per invoice",
@@ -3101,7 +3110,8 @@
       "daily": "Cash, card, transfer and drawer",
       "warranties": "Sold devices and their warranty status",
       "commissions": "Earnings of {each} from services and sales",
-      "models": "Sales and stock per model and its sizes"
+      "models": "Sales and stock per model and its sizes",
+      "salesReps": "Each rep's sales in the period, rate and commission"
     },
     "presets": {
       "today": "Today",
@@ -3240,7 +3250,9 @@
     },
     "FromTime": "From time",
     "ToTime": "To time",
-    "AnyTime": "Whole day"
+    "AnyTime": "Whole day",
+    "AllReps": "All sales reps",
+    "SalesRep": "Sales rep"
   },
   "Promotions": {
     "Title": "Promotions & discounts",
@@ -6113,5 +6125,30 @@
     "StartMonthHint": "The month the fiscal year starts in; applies to new years only. Changed from the owner account.",
     "Save": "Save",
     "Saved": "Saved"
+  },
+  "SalesReps": {
+    "Title": "Sales rep commissions",
+    "Subtitle": "Each rep's net sales in the period (before VAT, after returns) × rate",
+    "AllReps": "All sales reps",
+    "AllBranches": "All branches",
+    "Branch": "Branch",
+    "Period": "Period",
+    "Rep": "Sales rep",
+    "Seller": "Seller",
+    "Invoices": "Invoices",
+    "SalesNet": "Net sales",
+    "ReturnsNet": "Returns",
+    "Net": "Net",
+    "Rate": "Rate",
+    "RateHint": "Change the rate to recalculate the commission; press save to make it the rep's rate",
+    "SaveRate": "Save as the rep's rate",
+    "RateSaved": "Sales rep rate saved",
+    "Commission": "Commission",
+    "Total": "Total",
+    "Doc": "Document",
+    "Date": "Date",
+    "Customer": "Customer",
+    "CashCustomer": "Cash customer",
+    "Truncated": "Too many documents; narrow the period to see all details"
   }
 }

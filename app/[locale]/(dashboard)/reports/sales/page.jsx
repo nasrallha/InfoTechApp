@@ -8,6 +8,7 @@ import { parseReportFilters } from "@/lib/report-pages";
 import { getDayStartHour } from "@/lib/business-day-server";
 import { getReportOptions, salesReport } from "@/services/report.service";
 import SalesReportView from "@/components/reports/SalesReportView";
+import { listSalesReps } from "@/services/sales-rep.service";
 import NoAccess from "@/components/common/NoAccess";
 import TableSkeleton from "@/components/common/TableSkeleton";
 
@@ -22,9 +23,11 @@ async function Content({ searchParams }) {
     fiscalFrom: await currentFiscalStart(),
     dayStartHour: await getDayStartHour(),
   });
-  const [data, options] = await Promise.all([
+  const [data, options, reps] = await Promise.all([
     salesReport(filters, user),
     getReportOptions(user, { parties: ["customer", "category"] }),
+    // المناديب (وحدة salesReps) - فاضية لو الوحدة مقفولة
+    listSalesReps({ includeIds: filters.salesRepId ? [filters.salesRepId] : [] }),
   ]);
   return (
     <SalesReportView
@@ -32,7 +35,7 @@ async function Content({ searchParams }) {
       key={JSON.stringify(filters)}
       data={data}
       filters={filters}
-      options={options}
+      options={{ ...options, reps }}
       showProfit={can(user, "reports.profit")}
     />
   );

@@ -83,6 +83,18 @@ export default function SalesReportView({
       ellipsis: true,
       render: (_, r) => un(r.user),
     },
+    // المندوب (وحدة salesReps)
+    ...(options.reps?.length
+      ? [
+          {
+            title: t("SalesRep"),
+            key: "rep",
+            width: 130,
+            ellipsis: true,
+            render: (_, r) => un(r.salesRep),
+          },
+        ]
+      : []),
     {
       title: t("NetBeforeTax"),
       key: "net",
@@ -190,6 +202,9 @@ export default function SalesReportView({
       { title: t("Date"), key: "date", type: "text", width: 18 },
       { title: t("Customer"), key: "customer", type: "text" },
       { title: t("User"), key: "user", type: "text", width: 18 },
+      ...(options.reps?.length
+        ? [{ title: t("SalesRep"), key: "rep", type: "text", width: 18 }]
+        : []),
       { title: t("NetBeforeTax"), key: "net", type: "money" },
       { title: t("Tax"), key: "tax", type: "money" },
       { title: t("Total"), key: "total", type: "money" },
@@ -204,6 +219,7 @@ export default function SalesReportView({
       date: formatDateTime(r.date),
       customer: customerOf(r),
       user: un(r.user),
+      rep: un(r.salesRep),
       net: r.net,
       tax: r.tax,
       total: r.total,
@@ -230,7 +246,7 @@ export default function SalesReportView({
       <ReportFilters
         filters={filters}
         options={options}
-        fields={["branch", "user", "customer", "method", "category", "source", "q"]}
+        fields={["branch", "user", "rep", "customer", "method", "category", "source", "q"]}
         quarters
       />
       <KpiRow

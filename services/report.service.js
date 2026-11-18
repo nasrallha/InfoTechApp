@@ -130,6 +130,8 @@ export async function salesReport(f, user) {
     ...dateRange(f, h),
     ...reportBranch(user, f.branchId),
     ...(f.userId ? { createdById: f.userId } : {}),
+    // المندوب (وحدة salesReps)
+    ...(f.salesRepId ? { salesRepId: f.salesRepId } : {}),
     ...(f.customerId ? { customerId: f.customerId } : {}),
     ...(f.source ? { source: f.source } : {}),
     ...(f.paymentMethodId
@@ -161,6 +163,7 @@ export async function salesReport(f, user) {
       invoiceDiscount: true,
       branch: branchSelect,
       createdBy: userSelect,
+      salesRep: userSelect,
       payments: { select: { amount: true, paymentMethod: methodSelect } },
       ...(catLines
         ? {
@@ -301,6 +304,7 @@ export async function salesReport(f, user) {
       customerEnName: d.customerEnName,
       branch: d.branch,
       user: d.createdBy,
+      salesRep: d.salesRep ?? null,
       net: sign * net,
       tax: sign * n(d.taxAmount),
       total: sign * n(d.totalAmount),

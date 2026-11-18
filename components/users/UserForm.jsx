@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { Form, Input, Select, Switch, Row, Col } from "antd";
+import { Form, Input, InputNumber, Select, Switch, Row, Col } from "antd";
 import { message } from "@/components/common/feedback";
 import { CrownFilled, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { createUserAction, updateUserAction } from "@/actions/user.actions";
-import { useCurrentUser } from "@/components/auth/AuthProvider";
+import { useCurrentUser, useModule } from "@/components/auth/AuthProvider";
+import { REP_PERMISSION } from "@/lib/sales-reps";
 import { applyFieldErrors } from "@/lib/form-errors";
 import { imageUrl } from "@/lib/image";
 import ImageUploadItem from "@/components/common/ImageUploadItem";
@@ -30,6 +31,10 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
 
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
 
+  // المندوب (وحدة salesReps): خانة النسبة بتظهر لما الدور المختار يكون دور مندوب
+  const repsOn = useModule("salesReps");
+  const roleId = Form.useWatch("roleId", form);
+
   // تعبئة الفورم في وضع التعديل
   useEffect(() => {
     if (user) {
@@ -40,6 +45,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
         roleId: user.role.id,
         branchId: user.branch.id,
         isActive: user.isActive,
+        commissionRate: user.commissionRate ?? 0,
         // الصورة الحالية (لو موجودة) تظهر في القائمة برابطها
         image: user.image
           ? [
@@ -69,6 +75,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
     if (all.roleId) formData.append("roleId", all.roleId);
     if (all.branchId) formData.append("branchId", all.branchId);
     formData.append("isActive", String(all.isActive ?? true));
+    if (showRate) formData.append("commissionRate", String(all.commissionRate ?? 0));
 
     // الصورة: 3 حالات
     const fileList = all.image ?? [];
@@ -114,6 +121,14 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
   const roleOptions = [...roles];
   if (isEdit && !roles.some((r) => r.id === user.role.id)) roleOptions.push(user.role);
 
+  const pickedRole = roleOptions.find((r) => r.id === roleId);
+  const showRate =
+    repsOn &&
+    Boolean(
+      pickedRole?.isRep ||
+        pickedRole?.permissions?.some((p) => p.permission === REP_PERMISSION),
+    );
+
   const branchOptions = [...branches];
   if (isEdit && !branches.some((b) => b.id === user.branch.id)) branchOptions.push(user.branch);
 
@@ -127,6 +142,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
       onFinish={onFinish}
       initialValues={{
         isActive: true,
+        commissionRate: 0,
         // غير مدير النظام: الفرع ثابت على فرعه الحالي
         branchId: branches.length === 1 ? branches[0].id : undefined,
       }}
@@ -241,6 +257,20 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
             <Input.Password prefix={<LockOutlined />} dir="ltr" autoComplete="new-password" />
           </Form.Item>
         </Col>
+
+        {/* نسبة عمولة المندوب (وحدة salesReps): من صافي مبيعاته من غير الضريبة */}
+        {showRate && (
+          <Col xs={24} md={8}>
+            <Form.Item
+              name="commissionRate"
+              label={tForm("CommissionRate")}
+              tooltip={tForm("CommissionRateHint")}
+              rules={[{ type: "number", min: 0, max: 100, message: tAlerts("PercentMax") }]}
+            >
+              <InputNumber min={0} max={100} step={0.5} suffix="%" style={{ width: "100%" }} />
+            </Form.Item>
+          </Col>
+        )}
 
         {/* الصورة (اختيارية): لو موجودة تظهر بدل الأفاتار */}
         <Col xs={24} md={8}>

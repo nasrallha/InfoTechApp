@@ -12,6 +12,7 @@ import {
   ShoppingCartOutlined,
   TeamOutlined,
   ShoppingOutlined,
+  SolutionOutlined,
 } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 import { useStaffWords } from "@/components/technicians/useStaffT";
@@ -90,6 +91,14 @@ export const REPORTS = [
     Icon: TeamOutlined,
     color: C.purple,
     permission: "technicians.commissions",
+  },
+  // عمولات المناديب (وحدة salesReps - الصلاحية بتتقفل مع الوحدة)
+  {
+    key: "salesReps",
+    href: "/reports/sales-reps",
+    Icon: SolutionOutlined,
+    color: C.info,
+    permission: "salesReps.commissions",
   },
 ];
 

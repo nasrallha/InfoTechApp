@@ -80,7 +80,13 @@ import {
 } from "@/lib/preview-doc";
 import { showZatcaResult } from "@/components/zatca/zatcaUi";
 import ScanSafeNumber from "@/components/common/ScanSafeNumber";
-import { useModule, useModuleSettings } from "@/components/auth/AuthProvider";
+import {
+  useCan,
+  useCurrentUser,
+  useModule,
+  useModuleSettings,
+} from "@/components/auth/AuthProvider";
+import { isSalesRep } from "@/lib/sales-reps";
 import LineJob from "@/components/technicians/LineJob";
 import LineFollowUp from "@/components/follow-ups/LineFollowUp";
 import RenewFollowUpsModal from "@/components/follow-ups/RenewFollowUpsModal";
@@ -266,6 +272,7 @@ export default function SaleForm({
   promotions = [],
   zatca = null, // { active, sendOnSave } لو الفرع مربوط بالزكاة
   isExport = false, // فاتورة تصدير جديدة (?export=1)
+  salesReps = [], // المناديب (وحدة salesReps)
 }) {
   const [form] = Form.useForm();
   // الإضافة السريعة: الجديد بيظهر في القائمة على طول (قبل ما الصفحة تتحدث)
@@ -330,6 +337,18 @@ export default function SaleForm({
   const [renewAsk, setRenewAsk] = useState(null);
   // السيارة (وحدة vehicles - الورش): فاتورة البيع بس (مش عرض السعر)
   const vehiclesOn = useModule("vehicles") && !isQuotation;
+  // المندوب (وحدة salesReps): الافتراضي = المستخدم نفسه لو مندوب،
+  // والتغيير بصلاحية اختيار المندوب (من غيرها السيرفر بيحط الافتراضي)
+  const repsOn = useModule("salesReps");
+  const canAssignRep = useCan()("salesReps.assign");
+  const currentUser = useCurrentUser();
+  // (التعديل / التحويل من عرض سعر: مندوب المستند المحفوظ)
+  const defaultRepId =
+    sale || quotation
+      ? ((sale ?? quotation).salesRepId ?? undefined)
+      : isSalesRep(currentUser)
+        ? currentUser.id
+        : undefined;
   const savedVehicle = sale?.vehicleId
     ? {
         id: sale.vehicleId,
@@ -571,6 +590,9 @@ export default function SaleForm({
       return message.error(tAlerts("ExportCustomerRequired"));
     const common = {
       customerId: header.customerId ?? null,
+      ...(repsOn && canAssignRep
+        ? { salesRepId: header.salesRepId ?? null }
+        : {}),
       discountType: discount.type,
       discountValue: Number(discount.value) || 0,
       notes: header.notes,
@@ -1031,6 +1053,7 @@ export default function SaleForm({
                 ? source?.customerArName
                 : undefined,
             notes: source?.notes ?? "",
+            salesRepId: defaultRepId,
             odometer: sale?.odometer ?? undefined,
             date: sale ? dayOf(sale.date) : todayDay,
             validUntil: isQuotation
@@ -1099,7 +1122,36 @@ export default function SaleForm({
                 </Form.Item>
               </Col>
             )}
-            <Col xs={24} md={isQuotation && !customerId ? 6 : 12}>
+            {/* المندوب (وحدة salesReps): للعمولة - ممكن يكون غير اللي بيعمل الفاتورة */}
+            {repsOn && (
+              <Col xs={12} md={4}>
+                <Form.Item
+                  name="salesRepId"
+                  label={
+                    <span>
+                      {t("SalesRep")} {!canAssignRep && <LockOutlined />}
+                    </span>
+                  }
+                >
+                  <Select
+                    showSearch
+                    allowClear
+                    disabled={!canAssignRep}
+                    optionFilterProp="label"
+                    placeholder={t("NoSalesRep")}
+                    options={salesReps.map((r) => ({
+                      value: r.id,
+                      label: nameOf(r),
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+            )}
+            <Col
+              xs={24}
+              // عرض السعر من غير عميل مسجّل + المندوب: الملاحظات في سطر لوحدها
+              md={isQuotation && !customerId ? (repsOn ? 24 : 6) : repsOn ? 8 : 12}
+            >
               <Form.Item name="notes" label={t("Notes")} className="mb-2">
                 <Input.TextArea
                   rows={1}

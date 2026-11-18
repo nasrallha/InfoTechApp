@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveSalesRep } from "./sales-rep.service";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
@@ -157,8 +158,11 @@ async function prepareQuotation(data, user, existing = null) {
   });
 
   const name = data.customerName?.trim() || null;
+  // المندوب (وحدة salesReps)
+  const salesRepId = await resolveSalesRep(data.salesRepId, user, { existing });
   return {
     header: {
+      salesRepId,
       customerId: customer?.id ?? null,
       customerArName: customer?.arName ?? name,
       customerEnName: customer?.enName ?? name,
@@ -232,6 +236,7 @@ async function findOpen(id, user) {
       status: true,
       branchId: true,
       customerId: true,
+      salesRepId: true,
       date: true,
       items: { select: { productId: true, unitId: true, price: true } },
     },
@@ -358,6 +363,8 @@ export async function getQuotation(id, user) {
         },
       },
       createdBy: { select: { arFullname: true, enFullname: true } },
+      salesRepId: true,
+      salesRep: { select: { arFullname: true, enFullname: true } },
       customer: { select: { id: true, code: true, phone: true } },
       sale: { select: { id: true, number: true, docCode: true } },
       items: {

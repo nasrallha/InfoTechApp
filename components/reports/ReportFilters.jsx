@@ -23,6 +23,7 @@ const shift = (day, days) => {
 const FIELD_KEY = {
   branch: "branchId",
   user: "userId",
+  rep: "salesRepId",
   customer: "customerId",
   supplier: "supplierId",
   method: "paymentMethodId",
@@ -98,6 +99,7 @@ export default function ReportFilters({
     const map = {
       branch: next.branchId,
       user: next.userId,
+      rep: next.salesRepId,
       customer: next.customerId,
       supplier: next.supplierId,
       method: next.paymentMethodId,
@@ -261,6 +263,8 @@ export default function ReportFilters({
         </div>
         {sel("branch", options.branches, t("AllBranches"))}
         {sel("user", options.users, t("AllUsers"), userOf)}
+        {/* المندوب (وحدة salesReps): القايمة فاضية لو الوحدة مقفولة */}
+        {options.reps?.length > 0 && sel("rep", options.reps, t("AllReps"))}
         {sel("customer", options.customers, t("AllCustomers"))}
         {sel("supplier", options.suppliers, t("AllSuppliers"))}
         {sel("method", options.methods, t("AllMethods"))}

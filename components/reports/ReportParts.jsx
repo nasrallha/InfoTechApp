@@ -104,6 +104,7 @@ export function useFilterInfo(filters, options = {}) {
         nm(find(options.branches, filters.branchId)),
       ],
       filters.userId && [t("User"), un(find(options.users, filters.userId))],
+      filters.salesRepId && [t("SalesRep"), nm(find(options.reps, filters.salesRepId))],
       filters.customerId && [
         t("Customer"),
         nm(find(options.customers, filters.customerId)),

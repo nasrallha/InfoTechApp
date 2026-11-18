@@ -154,6 +154,12 @@ export default function SaleDocument({ settings, company, doc, kind }) {
       ? doc.createdBy.enFullname
       : doc.createdBy.arFullname
     : null;
+  // المندوب (وحدة salesReps): بيظهر لو مختلف عن الكاشير أو في عرض السعر
+  const salesRep = doc.salesRep
+    ? lang === "en"
+      ? doc.salesRep.enFullname
+      : doc.salesRep.arFullname
+    : null;
   const customerName = lang === "en" ? doc.customerEnName : doc.customerArName;
   const customerAddress = [doc.customer?.street, doc.customer?.district, doc.customer?.city]
     .map((x) => x?.trim())
@@ -394,7 +400,7 @@ export default function SaleDocument({ settings, company, doc, kind }) {
             <bdi>{Number(doc.odometer).toLocaleString("en")} km</bdi>
           </div>
         )}
-        {settings.showCashier && cashier && (
+        {settings.showCashier && cashier && !(isQuotation && salesRep) && (
           <div>
             <span>
               {isQuotation
@@ -402,6 +408,12 @@ export default function SaleDocument({ settings, company, doc, kind }) {
                 : L("الكاشير", "Cashier")}
             </span>
             <span>{cashier}</span>
+          </div>
+        )}
+        {salesRep && (isQuotation || salesRep !== cashier || !settings.showCashier) && (
+          <div>
+            <span>{L("المندوب", "Sales rep")}</span>
+            <span>{salesRep}</span>
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import { runTx } from "@/lib/transaction";
 import { saveOnce } from "@/lib/idempotency";
 import { AppError } from "@/lib/errors";
 import { assertModule } from "@/lib/modules";
+import { resolveSalesRep } from "./sales-rep.service";
 import { assertUnitQty } from "./unit.service";
 import { isWholeQty } from "@/lib/unit-qty";
 import { can } from "@/lib/permissions";
@@ -324,6 +325,7 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
         id: true,
         status: true,
         saleId: true,
+        salesRepId: true,
         items: { select: { productId: true, unitId: true, price: true } },
       },
     });
@@ -592,8 +594,15 @@ async function prepareSale(data, user, existing = null, { preview = false } = {}
     };
   });
 
+  // المندوب (وحدة salesReps): المختار / المستخدم لو مندوب / مندوب عرض السعر
+  const salesRepId = await resolveSalesRep(data.salesRepId, user, {
+    existing,
+    fallback: quotation?.salesRepId ?? null,
+  });
+
   const header = {
     warehouseId,
+    salesRepId,
     customerId: customer?.id ?? null,
     customerArName: customer?.arName ?? null,
     customerEnName: customer?.enName ?? null,
@@ -820,6 +829,7 @@ export async function updateSale({ id, ...data }, user) {
       isExport: true,
       exportKind: true,
       docCode: true,
+      salesRepId: true,
       items: { select: { productId: true, unitId: true, price: true } },
       quotation: { select: { id: true } },
     },
@@ -944,6 +954,7 @@ async function createSaleReturnNow(data, user) {
       isExport: true,
       exportKind: true,
       date: true,
+      salesRepId: true,
       items: { select: { id: true } },
     },
   });
@@ -1143,6 +1154,8 @@ async function createSaleReturnNow(data, user) {
         ),
         notes: data.notes,
         returnOfId: original.id,
+        // المرتجع على مندوب الفاتورة الأصلية (بيتخصم من عمولته)
+        salesRepId: original.salesRepId ?? null,
         createdById: user.id,
         requestId: data.requestId ?? null,
         items: { create: itemRows },
@@ -1436,6 +1449,9 @@ const saleDetailSelect = {
   warehouseId: true,
   warehouse: { select: { id: true, arName: true, enName: true } },
   createdBy: { select: { arFullname: true, enFullname: true } },
+  // المندوب (وحدة salesReps)
+  salesRepId: true,
+  salesRep: { select: { arFullname: true, enFullname: true } },
   customer: {
     select: {
       id: true,

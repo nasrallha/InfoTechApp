@@ -114,6 +114,8 @@ const saleFields = {
   source: z.enum(["pos", "invoice"]).default("invoice"),
   // فاضي = عميل نقدي
   customerId: idField.nullish(),
+  // المندوب (وحدة salesReps): undefined = الافتراضي، null = من غير مندوب
+  salesRepId: idField.nullish(),
   // السيارة (وحدة vehicles - الورش) + قراءة العداد (اختيارية)
   vehicleId: idField.nullish(),
   odometer: z
@@ -185,6 +187,8 @@ export const findSaleSchema = z.object({
 // ------------------------------------------------------------
 const quotationFields = {
   customerId: idField.nullish(),
+  // المندوب (وحدة salesReps): undefined = الافتراضي، null = من غير مندوب
+  salesRepId: idField.nullish(),
   // عميل غير مسجل: اسمه فقط
   customerName: optionalText(255),
   validUntil: dayField,

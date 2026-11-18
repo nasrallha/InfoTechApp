@@ -457,6 +457,17 @@ export default function SaleDetails({
                 : sale.createdBy?.enFullname}
             </span>
           </div>
+          {/* المندوب (وحدة salesReps) */}
+          {sale.salesRep && (
+            <div>
+              <span>{t("SalesRep")}</span>
+              <span>
+                {locale === "ar"
+                  ? sale.salesRep.arFullname
+                  : sale.salesRep.enFullname}
+              </span>
+            </div>
+          )}
           {sale.shift && (
             <div>
               <span>{t("Shift")}</span>
