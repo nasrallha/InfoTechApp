@@ -42,13 +42,27 @@ async function companyTitle(locale) {
   }
 }
 
+// أيقونة التبويب = شعار الشركة المنفذة (InfoTech) المرفوع في إعدادات اللوحة
+async function vendorIcon() {
+  try {
+    const { getVendor } = await import("@/lib/vendor");
+    return (await getVendor())?.logo ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Auth" });
   // اسم الشركة بيتقري وقت الطلب (مش وقت البناء)
   await connection();
-  const name = await companyTitle(locale);
-  return { title: name || t("AppName"), description: t("Tagline") };
+  const [name, icon] = await Promise.all([companyTitle(locale), vendorIcon()]);
+  return {
+    title: name || t("AppName"),
+    description: t("Tagline"),
+    ...(icon ? { icons: { icon, apple: icon } } : {}),
+  };
 }
 
 export function generateStaticParams() {
