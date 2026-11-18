@@ -13,6 +13,7 @@ import { useCurrency } from "@/components/common/CurrencyProvider";
 import { BASE_FONT, PRINT_AREA, SMALL_PAPER_SCALE } from "@/components/printing/invoice/InvoiceView";
 import "@/components/printing/invoice/invoice.css";
 import SerialPrintLines from "@/components/serials/SerialPrintLines";
+import { ID_SCHEME_PRINT } from "@/lib/zatca-tax";
 
 const LOGO_HEIGHT = { small: 12, medium: 18, large: 26 };
 // الكاشير: الشعار أكبر (الطابعة الحرارية بتضيّع التفاصيل الصغيرة)
@@ -358,10 +359,10 @@ export default function SaleDocument({ settings, company, doc, kind }) {
             <bdi>{doc.customerTaxNo}</bdi>
           </div>
         )}
-        {/* السجل التجاري للعميل (معرّفه من نوع سجل تجاري) */}
-        {doc.customer?.idScheme === "CRN" && doc.customer.idNumber && (
+        {/* معرّف العميل (أي نوع: سجل تجاري / رقم موحد / هوية / إقامة ...) باسم نوعه */}
+        {doc.customer?.idNumber && (
           <div>
-            <span>{L("السجل التجاري للعميل", "Customer CR No")}</span>
+            <span>{L(...(ID_SCHEME_PRINT[doc.customer.idScheme] ?? ID_SCHEME_PRINT.OTH))}</span>
             <bdi>{doc.customer.idNumber}</bdi>
           </div>
         )}
