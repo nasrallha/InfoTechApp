@@ -23,11 +23,6 @@ async function Content({ searchParams }) {
         paperSize: printSettings.paperSize === "58mm" ? "58mm" : "80mm",
         language: printSettings.language,
       }}
-      // الفاتورة كاملة (PDF على واتساب)
-      invoiceSettings={{
-        ...printSettings,
-        paperSize: printSettings.paperSize === "58mm" ? "58mm" : "80mm",
-      }}
     />
   );
 }

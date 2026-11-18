@@ -218,13 +218,3 @@
 .lp-return-sum b {
   font-size: 16px;
 }
-
-/* واتساب: زرار الإرسال للعميل بلون واتساب */
-.wa-btn.ant-btn:not(:disabled) {
-  background: var(--c-whatsapp) !important;
-  border-color: var(--c-whatsapp) !important;
-  color: var(--c-on-dark) !important;
-}
-.wa-icon.ant-btn:not(:disabled) {
-  color: var(--c-whatsapp-text) !important;
-}

@@ -479,31 +479,3 @@
 .pos-line__new {
   color: var(--c-magenta);
 }
-
-/* المغسلة: سويتش "واتساب تلقائي" في الشريط العلوي
-   مقفول: رمادي شفاف، شغال: أخضر واتساب (يبان من بعيد) */
-.pos-top__wa {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px dashed rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.75);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.pos-top__wa .ant-switch:not(.ant-switch-checked) {
-  background: rgba(255, 255, 255, 0.35) !important;
-}
-.pos-top__wa.is-on {
-  border: 1px solid var(--c-whatsapp);
-  background: var(--c-whatsapp);
-  color: var(--c-on-dark);
-  font-weight: 700;
-}
-.pos-top__wa.is-on .ant-switch-checked {
-  background: var(--c-whatsapp-text) !important;
-}

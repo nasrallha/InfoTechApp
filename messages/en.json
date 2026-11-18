@@ -4985,22 +4985,7 @@
     "ReturnSave": "Process & print return",
     "ReturnPickQty": "Set the return quantity",
     "ReturnSavedN": "Return {n} saved",
-    "ProductPricesTitle": "Laundry service prices",
-    "WaSend": "Send to customer on WhatsApp",
-    "WaToCustomer": "WhatsApp customer",
-    "WaOpen": "Open WhatsApp with message",
-    "WaPdf": "Send invoice PDF",
-    "WaPdfHint": "On phones and tablets the share menu opens; pick WhatsApp. On a computer the file downloads and WhatsApp opens; drag the file into the chat.",
-    "WaPdfDownloaded": "The invoice was downloaded; drag it into the WhatsApp chat",
-    "WaPdfFailed": "Could not create the invoice file",
-    "WaNoPhone": "The customer has no valid phone number",
-    "WaMsgReceived": "Hello {name}\nYour order No. {no} of {day} ({pieces} pieces) was received, total {total}.\n{shop}",
-    "WaMsgReady": "Hello {name}\nYour order No. {no} is ready for pickup.\n{shop}",
-    "WaMsgInvoice": "Hello {name}\nYour invoice {invoice}, total {total}.\nThank you for choosing {shop}",
-    "WaMsgBalance": "Your remaining subscription balance: {balance}",
-    "WaAuto": "Auto WhatsApp",
-    "WaAutoHint": "After each invoice or order the customer chat opens in WhatsApp with the message ready; just press send. Saved on this device",
-    "WaPopupBlocked": "The browser blocked WhatsApp. Allow pop-ups for this site from the address bar"
+    "ProductPricesTitle": "Laundry service prices"
   },
   "Restaurant": {
     "PriorityCol": "Priority",

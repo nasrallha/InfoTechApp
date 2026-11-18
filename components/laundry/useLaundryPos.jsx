@@ -450,8 +450,7 @@ export function useLaundryPos({
   // المشترك اللي عنده رصيد: مفيش طلب من غير فاتورة، الفاتورة بتتخصم من الرصيد
   const canSaveOrder =
     on && newLines.length > 0 && !ordersLocked && !(walletBalance > 0);
-  // onPrinted(order): بعد ما طباعة إيصال الطلب تخلص (واتساب التلقائي)
-  const saveOrder = async (onSaved, onPrinted) => {
+  const saveOrder = async (onSaved) => {
     if (!canSaveOrder) return;
     const err = customerError();
     if (err) return message.warning(err);
@@ -467,7 +466,7 @@ export function useLaundryPos({
         day: formatDay(res.data.bizDay),
       }),
     );
-    setReceipt({ order: res.data, onPrinted });
+    setReceipt({ order: res.data });
     onSaved?.(res.data);
   };
 
@@ -856,11 +855,7 @@ export function useLaundryPos({
       {receipt && (
         <PrintDocument
           paperSize={printSettings?.paperSize === "58mm" ? "58mm" : "80mm"}
-          onDone={() => {
-            const done = receipt;
-            setReceipt(null);
-            done?.onPrinted?.(done.order);
-          }}
+          onDone={() => setReceipt(null)}
         >
           <LaundryReceipt
             order={receipt.order}

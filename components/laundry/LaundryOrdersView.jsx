@@ -18,7 +18,6 @@ import {
   EditOutlined,
   EyeOutlined,
   FileDoneOutlined,
-  WhatsAppOutlined,
   PlusOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
@@ -43,10 +42,6 @@ import { formatDateTime, formatDay } from "@/lib/dates";
 import { saleDocNo } from "@/lib/doc-number";
 import { C } from "@/lib/theme";
 import LaundryOrderDetails from "./LaundryOrderDetails";
-import WhatsAppSend, { useWaMessages } from "./WhatsAppSend";
-import SaleDocument from "@/components/sales/SaleDocument";
-import { useCompany } from "@/components/common/CompanyProvider";
-import { getSaleAction } from "@/actions/sale.actions";
 import { ORDER_COLORS } from "./orderColors";
 import "@/components/common/table.css";
 
@@ -65,7 +60,6 @@ const EDITABLE = ["received", "processing"];
 export default function LaundryOrdersView({
   initialQ = "",
   printSettings,
-  invoiceSettings,
 }) {
   const t = useTranslations("Laundry");
   const tAlerts = useTranslations("Alerts");
@@ -86,10 +80,6 @@ export default function LaundryOrdersView({
   const [selected, setSelected] = useState([]);
   const [viewing, setViewing] = useState(null);
   const [cancelling, setCancelling] = useState(null);
-  // إرسال للعميل على واتساب: { phone, text, pdf }
-  const [wa, setWa] = useState(null);
-  const waMsg = useWaMessages();
-  const company = useCompany();
   const [reason, setReason] = useState("");
   const [summaryDay, setSummaryDay] = useState(today);
   const [summary, setSummary] = useState(null);
@@ -147,32 +137,6 @@ export default function LaundryOrdersView({
     if (!res.success) return showActionError(res, tAlerts, locale);
     message.success(t("DeliveredN", { n: res.data.updated }));
     refresh();
-  };
-
-  // واتساب: المفوتر ← رسالة الفاتورة + PDF، غير كده ← رسالة الطلب (مستلَم / جاهز)
-  const sendWa = async (r) => {
-    if (!r.saleId) return setWa({ phone: r.phone, text: waMsg.order(r) });
-    const res = await getSaleAction(r.saleId);
-    if (!res.success || !res.data) return setWa({ phone: r.phone, text: waMsg.order(r) });
-    const doc = res.data;
-    setWa({
-      phone: r.phone,
-      text: waMsg.invoice(doc),
-      pdf: invoiceSettings
-        ? {
-            paperSize: invoiceSettings.paperSize,
-            fileName: saleDocNo("sale", doc.number, doc.docCode),
-            doc: (
-              <SaleDocument
-                settings={invoiceSettings}
-                company={company}
-                doc={doc}
-                kind="sale"
-              />
-            ),
-          }
-        : null,
-    });
   };
 
   const cancel = async () => {
@@ -420,16 +384,6 @@ export default function LaundryOrdersView({
                   title={t("View")}
                   onClick={() => setViewing(r.id)}
                 />
-                {r.status !== "cancelled" && (
-                  <Button
-                    type="text"
-                    className="wa-icon"
-                    icon={<WhatsAppOutlined />}
-                    aria-label={t("WaSend")}
-                    title={t("WaSend")}
-                    onClick={() => sendWa(r)}
-                  />
-                )}
                 {can("laundryOrders.update") && editable(r) && (
                   <Button
                     type="text"
@@ -488,8 +442,6 @@ export default function LaundryOrdersView({
           onClose={() => setViewing(null)}
         />
       )}
-
-      {wa && <WhatsAppSend {...wa} onClose={() => setWa(null)} />}
 
       {cancelling && (
         <Modal

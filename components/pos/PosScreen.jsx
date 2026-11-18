@@ -10,7 +10,6 @@ import {
   Select,
   Space,
   Spin,
-  Switch,
   Tag,
   Tooltip,
 } from "antd";
@@ -90,11 +89,6 @@ import {
 } from "@/components/restaurant/useRestaurantPos";
 import { restaurantCheckoutAction } from "@/actions/restaurant-pos.actions";
 import LaundryReturnModal from "@/components/laundry/LaundryReturnModal";
-import { useWaMessages } from "@/components/laundry/WhatsAppSend";
-import { openWhatsApp } from "@/lib/whatsapp";
-
-// واتساب تلقائي (المغسلة): بيتحفظ على الجهاز
-const WA_AUTO_KEY = "laundry-wa-auto";
 import "@/components/purchases/purchases.css";
 import "./pos.css";
 import QuickAddParty from "@/components/parties/QuickAddParty";
@@ -259,39 +253,7 @@ export default function PosScreen({
   const [lastSale, setLastSale] = useState(null);
   // المغسلة: مرتجع فاتورة من نفس الشاشة
   const [returnOpen, setReturnOpen] = useState(false);
-  const waMsg = useWaMessages();
-  // الفاتورة اللي هتتبعت على واتساب بعد ما طباعتها تخلص
-  const waAfterPrint = useRef(null);
-  // واتساب تلقائي: بعد الفاتورة / الطلب محادثة العميل بتفتح لوحدها (بيتحفظ على الجهاز)
-  const [waAuto, setWaAuto] = useState(false);
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setWaAuto(localStorage.getItem(WA_AUTO_KEY) === "1");
-    } catch {
-      /* المتصفح مانع التخزين */
-    }
-  }, []);
-  const toggleWaAuto = (on) => {
-    setWaAuto(on);
-    try {
-      localStorage.setItem(WA_AUTO_KEY, on ? "1" : "0");
-    } catch {
-      /* المتصفح مانع التخزين */
-    }
-  };
-  // بعد الطباعة (لو التلقائي شغال): محادثة العميل بتفتح بالرسالة
-  // (بعد ما نافذة الطباعة تتقفل، مش قبلها)
-  const sendWa = (target) => {
-    if (!waAuto || !target) return;
-    const phone =
-      target.kind === "sale" ? target.doc.customer?.phone : target.order.phone;
-    if (!phone) return;
-    const text =
-      target.kind === "sale" ? waMsg.invoice(target.doc) : waMsg.order(target.order);
-    if (!openWhatsApp(phone, text)) message.warning(tL("WaPopupBlocked"));
-  };
-
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setHeld(readHeld(user.id)), [user.id]);
 
   // وضع المغسلة: الكاشير بيبقى شاشة المغسلة (القطع، الطلبات، الجوال)
@@ -688,7 +650,6 @@ export default function PosScreen({
       const full = await getSaleAction(res.data.id);
       if (full.success && full.data) {
         printSale(full.data, salePaper);
-        if (lp.on) waAfterPrint.current = { kind: "sale", doc: full.data };
       }
     }
   };
@@ -717,7 +678,7 @@ export default function PosScreen({
         rp.saveTable(clearCart);
       } else if (e.key === "F10" && lp.canSaveOrder) {
         e.preventDefault();
-        lp.saveOrder(clearCart, (o) => sendWa({ kind: "order", order: o }));
+        lp.saveOrder(clearCart);
       } else if (e.key === "F9") {
         e.preventDefault();
         openPay();
@@ -801,14 +762,6 @@ export default function PosScreen({
               <span className="pos-top__label">{tL("Setup")}</span>
             </Button>
           </Link>
-        )}
-        {lp.on && (
-          <Tooltip title={tL("WaAutoHint")}>
-            <span className={`pos-top__wa ${waAuto ? "is-on" : ""}`}>
-              <Switch size="small" checked={waAuto} onChange={toggleWaAuto} />
-              <span className="pos-top__label">{tL("WaAuto")}</span>
-            </span>
-          </Tooltip>
         )}
         {/* المطعم: طلبات اليوم (الطاولات المفتوحة + البحث برقم الطلب) والمنيو */}
         {rp.on && (
@@ -1232,11 +1185,7 @@ export default function PosScreen({
                   lp.walletBalance > 0 ? tL("SubscriberMustInvoice") : undefined
                 }
                 loading={lp.savingOrder}
-                onClick={() =>
-                  lp.saveOrder(clearCart, (o) =>
-                    sendWa({ kind: "order", order: o }),
-                  )
-                }
+                onClick={() => lp.saveOrder(clearCart)}
               >
                 {tL(lp.editing ? "SaveOrderChanges" : "SaveAsOrder")} (F10)
               </Button>
@@ -1489,8 +1438,6 @@ export default function PosScreen({
           onDone={() => {
             setReceipt(null);
             focusSearch();
-            sendWa(waAfterPrint.current);
-            waAfterPrint.current = null;
             rp.flushTicket();
           }}
         >
