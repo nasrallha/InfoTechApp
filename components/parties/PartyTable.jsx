@@ -15,6 +15,7 @@ import PartyForm from "./PartyForm";
 import { C } from "@/lib/theme";
 import { listSep } from "@/lib/list-sep";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 const formatMoney = (v) =>
   Number(v ?? 0).toLocaleString("en-US", {
@@ -60,7 +61,7 @@ const PartyTable = ({
     setDeleting(false);
 
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

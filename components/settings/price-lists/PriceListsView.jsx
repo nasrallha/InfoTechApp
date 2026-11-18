@@ -22,6 +22,7 @@ import { deletePriceListsAction } from "@/actions/price-list.actions";
 import PriceListForm from "./PriceListForm";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // شاشة قوائم الأسعار: كل قائمة، الفروع المربوطة بها، وعدد الأسعار فيها
 export default function PriceListsView({ priceLists = [] }) {
@@ -38,7 +39,7 @@ export default function PriceListsView({ priceLists = [] }) {
 
   const remove = async (id) => {
     const res = await deletePriceListsAction([id]);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("PriceListDeleted"));
   };
 

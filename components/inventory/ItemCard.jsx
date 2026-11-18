@@ -9,6 +9,7 @@ import { formatDateTime } from "@/lib/dates";
 import { getItemCardAction } from "@/actions/inventory.actions";
 import UnitBreakdown from "./UnitBreakdown";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // لون كل نوع حركة
 export const MOVEMENT_COLOR = {
@@ -62,7 +63,7 @@ export default function ItemCard({ product, warehouseId, onClose }) {
     getItemCardAction({ productId: product.id, warehouseId }).then((res) => {
       if (!active) return;
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setData(res.data);
     });
     return () => {

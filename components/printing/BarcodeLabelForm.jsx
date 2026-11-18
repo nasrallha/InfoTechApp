@@ -24,6 +24,7 @@ import { applyFieldErrors } from "@/lib/form-errors";
 import LabelPreview from "./LabelPreview";
 import { sampleItem } from "./sample";
 import { useCurrency } from "@/components/common/CurrencyProvider";
+import { actionErrorText } from "@/components/common/actionError";
 
 // القيم الافتراضية لقالب جديد
 const NEW_LABEL = {
@@ -81,7 +82,7 @@ export default function BarcodeLabelForm({
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

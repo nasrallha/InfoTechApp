@@ -33,7 +33,7 @@ import VariantsFields, {
   EMPTY_VARIANTS,
   variantsPayload,
 } from "./VariantsFields";
-import { showActionError } from "@/components/common/actionError";
+import { showActionError, actionErrorText } from "@/components/common/actionError";
 import { generateVariantsAction } from "@/actions/variant.actions";
 import QuickAddLookup from "./QuickAddLookup";
 import LaundryProductFields, { laundryPayload } from "./LaundryProductFields";
@@ -341,7 +341,7 @@ const ProductForm = ({
       applyFieldErrors(form, res.fieldErrors, tAlerts);
       // لو الباركود مكرر نعرض قيمته
       const extra = res.details?.length ? `: ${res.details.join(listSep(locale))}` : "";
-      message.error(`${tAlerts(res.error)}${extra}`);
+      message.error(`${actionErrorText(res, tAlerts)}${extra}`);
       return;
     }
 

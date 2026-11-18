@@ -36,6 +36,7 @@ import {
 import { listSep } from "@/lib/list-sep";
 import { C } from "@/lib/theme";
 import "./public-booking.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // صفحة الحجز للعملاء (من غير تسجيل دخول)
@@ -483,7 +484,7 @@ function FindBooking({ code, t, tAlerts, nm }) {
     setBusy(false);
     if (!res.success) {
       setFound(null);
-      return setError(tAlerts(res.error));
+      return setError(actionErrorText(res, tAlerts));
     }
     setFound(res.data);
   };

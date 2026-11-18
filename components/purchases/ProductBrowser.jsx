@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { browsePurchaseProductsAction } from "@/actions/purchase.actions";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import SearchBox from "@/components/common/SearchBox";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // نافذة تصفح الأصناف: للأصناف التي ليس لها باركود أو لا نعرف كودها
@@ -62,7 +63,7 @@ export default function ProductBrowser({
       });
       if (id !== requestId.current) return;
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setData(res.data);
     }, 250);
     return () => clearTimeout(timer);

@@ -48,6 +48,7 @@ import PrintInvoice from "./PrintInvoice";
 import ScaledBox from "../ScaledBox";
 import { sampleA4Doc, sampleInvoice } from "./sampleInvoice";
 import "../printing.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 const PX_PER_MM = 96 / 25.4;
 
@@ -112,7 +113,7 @@ export default function InvoicePrintSettingsForm({
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(tAlerts("InvoicePrintSaved"));
@@ -142,7 +143,7 @@ export default function InvoicePrintSettingsForm({
     if (file) fd.append("image", file);
     const res = await saveLetterImageAction(fd);
     setUploading(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     setLetterImage(res.data.letterImage);
   };
 

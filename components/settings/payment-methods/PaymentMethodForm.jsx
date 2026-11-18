@@ -10,6 +10,7 @@ import {
 } from "@/actions/payment-method.actions";
 import { PAYMENT_TYPES } from "@/validations/payment-method.schema";
 import { applyFieldErrors } from "@/lib/form-errors";
+import { actionErrorText } from "@/components/common/actionError";
 
 const NEW_METHOD = {
   type: "card",
@@ -45,7 +46,7 @@ export default function PaymentMethodForm({
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(

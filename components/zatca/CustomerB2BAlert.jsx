@@ -9,6 +9,7 @@ import { applyFieldErrors } from "@/lib/form-errors";
 import { BUYER_ID_SCHEMES, buyerMissing, isB2BCustomer } from "@/lib/zatca-tax";
 import { completeCustomerB2BAction } from "@/actions/customer.actions";
 import { listSep } from "@/lib/list-sep";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // العميل اللي له رقم ضريبي = شركة (فاتورته ضريبية)
@@ -59,7 +60,7 @@ export default function CustomerB2BAlert({ customer, compact = false }) {
     setSaving(false);
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(tAlerts("CustomerUpdated"));

@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { roleGroups } from "@/lib/permissions";
 import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import { setRolePermissionsAction } from "@/actions/role.actions";
+import { actionErrorText } from "@/components/common/actionError";
 
 // خانات الهيدر: ثابتة فوق وإنت نازل بالـ scroll
 const TH = "p-2.5 font-bold sticky top-0 z-10 bg-(--c-header)";
@@ -71,7 +72,7 @@ export default function RolePermissionsForm({ role, onSuccess, setLoading }) {
     setLoading?.(false);
 
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

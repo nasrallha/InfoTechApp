@@ -26,7 +26,7 @@ import {
   CheckSquareOutlined,
   SaveOutlined,
 } from "@ant-design/icons";
-import { showActionError } from "@/components/common/actionError";
+import { showActionError, actionErrorText } from "@/components/common/actionError";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { calcReturnLine, round, totalsOf } from "@/lib/invoice-calc";
@@ -132,7 +132,7 @@ export default function SaleReturnForm({
     setFinding(true);
     const res = await getSaleForReturnAction(id);
     setFinding(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     if (!res.data) return message.error(tAlerts("SaleNotFound"));
     reset(res.data);
   };
@@ -143,7 +143,7 @@ export default function SaleReturnForm({
     setFinding(true);
     const res = await findSalesForReturnAction({ value });
     setFinding(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     if (!res.data.length) {
       setCandidates([]);
       return message.warning(tS("SaleNotFoundFor", { q: value }));

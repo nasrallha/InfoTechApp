@@ -9,6 +9,7 @@ import {
   updatePriceListAction,
 } from "@/actions/price-list.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
+import { actionErrorText } from "@/components/common/actionError";
 
 const NEW_LIST = { isActive: true, notes: "" };
 
@@ -39,7 +40,7 @@ export default function PriceListForm({
     setLoading?.(false);
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(tAlerts(isEdit ? "PriceListUpdated" : "PriceListAdded"));

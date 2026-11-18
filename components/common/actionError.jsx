@@ -4,11 +4,41 @@ import { message } from "@/components/common/feedback";
 import { listSep } from "@/lib/list-sep";
 
 // ============================================================
+// نص الخطأ غير المتوقع: الرسالة + السبب + الرقم المرجعي (موجود في الـ log)
+// res.reason = { kind, field, text } من السيرفر (lib/error-reason.js)
+// ============================================================
+function unexpectedText(res, tAlerts) {
+  const r = res.reason ?? {};
+  const why = r.kind
+    ? tAlerts(`ErrorReason_${r.kind}`) + (r.field ? ` (${r.field})` : "")
+    : r.text;
+  return [
+    tAlerts("UnexpectedError"),
+    why && `${tAlerts("ErrorReasonLabel")}: ${why}`,
+    res.ref && tAlerts("ErrorRef", { ref: res.ref }),
+  ]
+    .filter(Boolean)
+    .join(" — ");
+}
+
+// نص رسالة الخطأ (للشاشات اللي بتعرضه بنفسها: message.error / setError)
+export function actionErrorText(res, tAlerts) {
+  if (res?.error === "UnexpectedError" && (res.reason || res.ref))
+    return unexpectedText(res, tAlerts);
+  return tAlerts(res?.error ?? "UnexpectedError");
+}
+
+// ============================================================
 // رسالة خطأ الـ action للمستخدم
+// - خطأ غير متوقع: السبب + الرقم المرجعي (بتفضل ظاهرة وقت أطول)
 // - "الرصيد لا يكفي": نعرض كل صنف والمتاح والمطلوب (بالوحدة الأساسية)
 // - غير ذلك: رسالة الخطأ المترجمة فقط
 // ============================================================
 export function showActionError(res, tAlerts, locale) {
+  if (res?.error === "UnexpectedError" && (res.reason || res.ref)) {
+    message.error({ duration: 12, content: unexpectedText(res, tAlerts) });
+    return;
+  }
   const list = Array.isArray(res?.details) ? res.details : null;
   if (res?.error === "InsufficientStock" && list?.length) {
     message.error({

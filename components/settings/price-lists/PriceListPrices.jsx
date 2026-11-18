@@ -28,6 +28,7 @@ import { useCurrency } from "@/components/common/CurrencyProvider";
 import SearchBox from "@/components/common/SearchBox";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 const keyOf = (productId, unitId) => `${productId}:${unitId}`;
 
@@ -70,7 +71,7 @@ export default function PriceListPrices({
       });
       if (id !== requestId.current) return;
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setData(res.data);
     }, 250);
     return () => clearTimeout(timer);
@@ -112,7 +113,7 @@ export default function PriceListPrices({
       prices,
     });
     setSaving(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(t("PricesSaved", { count: prices.length }));
     setEdits({});
     setReload((x) => x + 1);

@@ -33,6 +33,7 @@ import {
 import PaymentMethodForm from "./PaymentMethodForm";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // لون كل نوع في الجدول
 const TYPE_COLORS = {
@@ -79,7 +80,7 @@ export default function PaymentMethodsView({
       isActive,
     });
     setBusyId(null);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("PaymentMethodUpdated"));
   };
 
@@ -87,7 +88,7 @@ export default function PaymentMethodsView({
     setBusyId(id);
     const res = await deletePaymentMethodsAction([id]);
     setBusyId(null);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("PaymentMethodDeleted"));
   };
 

@@ -14,6 +14,7 @@ import UserForm from "./UserForm";
 import UserPermissionsForm from "./UserPermissionsForm";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // جدول المستخدمين
 // users: من السيرفر (مدير النظام يرى الكل، غيره يرى مستخدمي فرعه فقط)
@@ -65,7 +66,7 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
     setUnlocking(record.id);
     const res = await unlockUserAction(record.id);
     setUnlocking(null);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("UserUnlocked"));
   };
   const canDelete = can("users.delete");
@@ -76,7 +77,7 @@ const UserTable = ({ users = [], roles, branches, onSelectionChange }) => {
     setDeleting(false);
 
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

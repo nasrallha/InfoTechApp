@@ -10,6 +10,7 @@ import { message } from "@/components/common/feedback";
 import { batchCardAction } from "@/actions/inventory.actions";
 import { MOVEMENT_COLOR, refLink } from "@/components/inventory/ItemCard";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // كارت الدفعة: بياناتها وكل حركاتها (وارد / منصرف) والرصيد بعد كل حركة
@@ -28,7 +29,7 @@ export default function BatchCard({ batchId, onClose }) {
     let active = true;
     batchCardAction({ batchId }).then((res) => {
       if (!active) return;
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setData(res.data);
     });
     return () => {

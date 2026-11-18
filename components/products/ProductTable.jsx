@@ -34,6 +34,7 @@ import ProductDetailsModal from "./ProductDetailsModal";
 import VariantsModal from "./VariantsModal";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // تنسيق الأرقام المالية: 1234.5 ← 1,234.50
 const formatMoney = (v) =>
@@ -88,7 +89,7 @@ const ProductTable = ({ products = [], warehouses = [], onSelectionChange }) => 
     setDeleting(false);
 
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

@@ -31,6 +31,7 @@ import ItemCard from "@/components/inventory/ItemCard";
 import { VariantSwatches } from "./VariantsFields";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 const q3 = (v) => Number(Number(v ?? 0).toFixed(3));
 
@@ -66,7 +67,7 @@ export default function ProductDetailsModal({ productId, onClose }) {
       if (!active) return;
       setLoading(false);
       if (!res.success) {
-        message.error(tAlerts(res.error));
+        message.error(actionErrorText(res, tAlerts));
         onClose?.();
         return;
       }

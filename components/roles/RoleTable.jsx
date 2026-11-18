@@ -25,6 +25,7 @@ import RolePermissionsForm from "./RolePermissionsForm";
 import { listSep } from "@/lib/list-sep";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // roles: الأدوار من قاعدة البيانات
 // بعد الحذف أو التعديل، الـ action يحدّث الصفحة فتصل roles الجديدة تلقائياً
@@ -88,7 +89,7 @@ const RoleTable = ({
     if (!res.success) {
       const names = res.details?.map(nameOf).join(listSep(locale));
       message.error(
-        names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error),
+        names ? `${actionErrorText(res, tAlerts)}: ${names}` : actionErrorText(res, tAlerts),
       );
       return;
     }

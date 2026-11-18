@@ -23,6 +23,7 @@ import LabelPreview from "./LabelPreview";
 import { sampleItem } from "./sample";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import "./printing.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // شاشة قوالب ملصقات الباركود: كروت فيها معاينة كل قالب
 // labels: القوالب من السيرفر، companyName: اسم الشركة (يظهر على الملصق لو مفعّل)
@@ -48,7 +49,7 @@ export default function BarcodeLabelsView({ labels = [], companyName }) {
     const res = await action();
     setBusyId(null);
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(tAlerts(successKey));

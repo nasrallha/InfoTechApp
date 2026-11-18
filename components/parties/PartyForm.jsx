@@ -20,6 +20,7 @@ import { BUYER_ID_SCHEMES, COUNTRIES } from "@/lib/zatca-tax";
 import { applyFieldErrors } from "@/lib/form-errors";
 import { listSep } from "@/lib/list-sep";
 import PhoneField from "@/components/common/PhoneField";
+import { actionErrorText } from "@/components/common/actionError";
 
 // فورم العميل أو المورد (نفس الفورم للإضافة والتعديل)
 // party: البيانات الحالية في التعديل (أو null في الإضافة)
@@ -88,11 +89,11 @@ const PartyForm = ({
               .join(listSep(locale)) || "—";
         message.error({
           duration: 8,
-          content: `${tAlerts(res.error)} - ${tAlerts("PartyRegisteredIn", { name, branches: where })}`,
+          content: `${actionErrorText(res, tAlerts)} - ${tAlerts("PartyRegisteredIn", { name, branches: where })}`,
         });
         return;
       }
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

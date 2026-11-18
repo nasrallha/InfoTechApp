@@ -53,7 +53,7 @@ import {
 import NextDocNo from "@/components/common/NextDocNo";
 import { message } from "@/components/common/feedback";
 import { addBatchPick, useExpiryWarning } from "@/components/batches/expiryWarning";
-import { showActionError } from "@/components/common/actionError";
+import { showActionError, actionErrorText } from "@/components/common/actionError";
 import { useSaveKey } from "@/components/common/useSaveKey";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCan } from "@/components/auth/AuthProvider";
@@ -1490,7 +1490,7 @@ function Catalog({ categories, onPick }) {
       });
       if (id !== req.current) return;
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setTotal(res.data.total);
       setPage(p);
       setRows((prev) =>

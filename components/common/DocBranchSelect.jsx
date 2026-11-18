@@ -8,6 +8,7 @@ import { useCurrentUser } from "@/components/auth/AuthProvider";
 import { useBranchList } from "@/components/layout/BranchList";
 import { message } from "@/components/common/feedback";
 import { switchBranchAction } from "@/actions/auth.actions";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // فرع المستند (لمدير النظام بس): يعمل الفاتورة / السند / أي مستند على أي فرع
@@ -32,7 +33,7 @@ export default function DocBranchSelect({ size = "middle" }) {
     setLoading(true);
     const res = await switchBranchAction(branchId);
     setLoading(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(t("DocBranchSwitched"));
   };
 

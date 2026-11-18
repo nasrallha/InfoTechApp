@@ -10,6 +10,7 @@ import SaleDocument from "@/components/sales/SaleDocument";
 import PurchaseDocument from "@/components/purchases/PurchaseDocument";
 import InvoiceA4 from "./invoice/InvoiceA4";
 import DocPreviewModal from "./DocPreviewModal";
+import { actionErrorText } from "@/components/common/actionError";
 
 const SEQ = {
   sale: "sale",
@@ -46,7 +47,7 @@ export default function PreviewBeforeSave({
       setLoading(true);
       const res = await getPreviewContextAction(SEQ[kind]);
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       c = res.data;
       setCtx(c);
     }

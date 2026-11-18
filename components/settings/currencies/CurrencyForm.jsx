@@ -9,6 +9,7 @@ import {
   updateCurrencyAction,
 } from "@/actions/currency.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
+import { actionErrorText } from "@/components/common/actionError";
 
 const NEW_CURRENCY = { decimals: 2, isActive: true };
 
@@ -34,7 +35,7 @@ export default function CurrencyForm({ formId, currency = null, onSuccess, setLo
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(tAlerts(isEdit ? "CurrencyUpdated" : "CurrencyAdded"));

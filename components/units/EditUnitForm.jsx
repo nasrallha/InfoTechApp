@@ -8,6 +8,7 @@ import { updateUnitAction } from "@/actions/unit.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import UnitFormFields from "./UnitFormFields";
 import "./unitForm.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // unit: الوحدة المراد تعديلها (من قاعدة البيانات)
 const EditUnitForm = ({ unit, onSuccess, setLoading }) => {
@@ -40,7 +41,7 @@ const EditUnitForm = ({ unit, onSuccess, setLoading }) => {
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

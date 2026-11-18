@@ -6,6 +6,7 @@ import { ShopOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { useCurrentUser } from "@/components/auth/AuthProvider";
 import { switchBranchAction } from "@/actions/auth.actions";
+import { actionErrorText } from "@/components/common/actionError";
 
 // الفرع الحالي في الهيدر
 // - مدير النظام: قائمة يختار منها أي فرع، فتتحدث كل الصفحات على الفرع الجديد
@@ -35,7 +36,7 @@ export default function BranchSwitcher({ branches = [] }) {
     setLoading(false);
 
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(t("BranchSwitched"));

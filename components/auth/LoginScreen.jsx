@@ -26,6 +26,7 @@ import { noAutofill } from "./noAutofill";
 import PoweredBy from "@/components/support/PoweredBy";
 import ContactButtons from "@/components/support/ContactButtons";
 import "./login.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // شاشة الدخول (تصميم مستقل عن لوحة التحكم)
 // needsSetup: لا يوجد أي مستخدم بعد ← نعرض فورم إنشاء مدير النظام بدل الدخول
@@ -403,7 +404,7 @@ function SetupForm({ currencies }) {
     if (!res.success) {
       setLoading(false);
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      setError(tAlerts(res.error));
+      setError(actionErrorText(res, tAlerts));
       return;
     }
 

@@ -16,6 +16,7 @@ import {
 import CurrencyForm from "./CurrencyForm";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // شاشة العملات: العملة الأساسية مميزة بنجمة، ويمكن تغييرها
 export default function CurrenciesView({ currencies = [] }) {
@@ -39,7 +40,7 @@ export default function CurrenciesView({ currencies = [] }) {
     setBusyId(id);
     const res = await action();
     setBusyId(null);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts(successKey));
   };
 

@@ -9,6 +9,7 @@ import { roleGroups, userPermissions } from "@/lib/permissions";
 import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import { setUserPermissionsAction } from "@/actions/user.actions";
 import { C } from "@/lib/theme";
+import { actionErrorText } from "@/components/common/actionError";
 
 // خانات الهيدر: ثابتة فوق وإنت نازل بالـ scroll
 const TH = "p-2.5 font-bold sticky top-0 z-10 bg-(--c-header)";
@@ -104,7 +105,7 @@ export default function UserPermissionsForm({ user, onSuccess, setLoading }) {
       permissions: [...selected].filter((p) => everything.includes(p)),
     });
     setLoading?.(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("PermissionsSaved"));
     onSuccess?.();
   };

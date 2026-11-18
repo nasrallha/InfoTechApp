@@ -12,6 +12,7 @@ import { formatDay } from "@/lib/dates";
 import UnitBreakdown from "./UnitBreakdown";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 const q3 = (v) => Number(Number(v ?? 0).toFixed(3));
 
@@ -76,7 +77,7 @@ export default function StockMovementTable({
       const res = await getStockMovementReportAction({ ...filters, page });
       if (id !== requestId.current) return;
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setData(res.data);
     }, 250);
     return () => clearTimeout(timer);
@@ -195,7 +196,7 @@ export default function StockMovementTable({
   const loadAll = async () => {
     const res = await getStockMovementReportAction({ ...filters, all: true });
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return null;
     }
     return res.data;

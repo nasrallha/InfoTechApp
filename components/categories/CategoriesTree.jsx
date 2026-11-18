@@ -22,6 +22,7 @@ import { deleteCategoriesAction } from "@/actions/category.actions";
 import { imageUrl } from "@/lib/image";
 import { listSep } from "@/lib/list-sep";
 import { C } from "@/lib/theme";
+import { actionErrorText } from "@/components/common/actionError";
 
 // categories: الأقسام من قاعدة البيانات (رئيسية ومع كل واحد children)
 // بعد الحذف أو التعديل، الـ action يحدّث الصفحة فتصل categories الجديدة تلقائياً
@@ -72,7 +73,7 @@ const treeData = useMemo(() => {
     if (!res.success) {
       // لو الحذف مرفوض نعرض أسماء الأقسام المستخدمة
       const names = res.details?.map(nameOf).join(listSep(locale));
-      message.error(names ? `${tAlerts(res.error)}: ${names}` : tAlerts(res.error));
+      message.error(names ? `${actionErrorText(res, tAlerts)}: ${names}` : actionErrorText(res, tAlerts));
       return;
     }
 

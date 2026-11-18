@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { createRoleAction } from "@/actions/role.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import RoleFormFields from "./RoleFormFields";
+import { actionErrorText } from "@/components/common/actionError";
 
 // onSuccess, setLoading: يرسلها FormModal تلقائياً (لإغلاق النافذة وزر التحميل)
 const AddRoleForm = ({ onSuccess, setLoading }) => {
@@ -26,7 +27,7 @@ const AddRoleForm = ({ onSuccess, setLoading }) => {
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

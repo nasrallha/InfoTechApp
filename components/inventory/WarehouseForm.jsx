@@ -9,6 +9,7 @@ import {
   updateWarehouseAction,
 } from "@/actions/warehouse.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
+import { actionErrorText } from "@/components/common/actionError";
 
 const NEW_WAREHOUSE = { isMain: false, isActive: true, notes: "" };
 
@@ -42,7 +43,7 @@ export default function WarehouseForm({
     setLoading?.(false);
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
     message.success(tAlerts(isEdit ? "WarehouseUpdated" : "WarehouseAdded"));

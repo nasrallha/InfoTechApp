@@ -21,6 +21,7 @@ import { deleteWarehousesAction } from "@/actions/warehouse.actions";
 import WarehouseForm from "./WarehouseForm";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // شاشة المستودعات: الرئيسي بنجمة، وكل مستودع والفروع المربوطة به
 export default function WarehousesView({ warehouses = [] }) {
@@ -37,7 +38,7 @@ export default function WarehousesView({ warehouses = [] }) {
 
   const remove = async (id) => {
     const res = await deleteWarehousesAction([id]);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("WarehouseDeleted"));
   };
 

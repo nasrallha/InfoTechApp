@@ -34,6 +34,7 @@ import { useModuleSettings } from "@/components/auth/AuthProvider";
 import { formatDay } from "@/lib/dates";
 import "./printing.css";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // أقصى عدد ملصقات في طباعة واحدة (حماية للمتصفح)
 const MAX_LABELS = 2000;
@@ -159,7 +160,7 @@ export default function BarcodePrintView({
       setSearching(true);
       const res = await searchLabelProductsAction(value);
       setSearching(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
 
       setOptions(
         res.data.map((p) => ({
@@ -188,7 +189,7 @@ export default function BarcodePrintView({
     setSearching(true);
     const res = await searchLabelProductsAction(code);
     setSearching(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
 
     for (const p of res.data) {
       const unit = p.units.find((u) => u.code === code);

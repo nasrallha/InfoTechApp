@@ -9,6 +9,7 @@ import { updateCategoryAction } from "@/actions/category.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import { imageUrl } from "@/lib/image";
 import "./categoryForm.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // category: القسم المراد تعديله (من قاعدة البيانات)
 // mainCategories: الأقسام الرئيسية (لقائمة القسم الأب)
@@ -86,7 +87,7 @@ const EditCategoryForm = ({
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

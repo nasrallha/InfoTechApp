@@ -47,6 +47,7 @@ import { useCan, useModule, useModuleSettings, useNoBarcode } from "@/components
 import { setFreeLinesAction } from "@/actions/free-line.actions";
 import { saveSystemSettingsAction } from "@/actions/system-settings.actions";
 import { STAFF_TITLES, TAX_MODES } from "@/validations/system-settings.schema";
+import { actionErrorText } from "@/components/common/actionError";
 
 // الإعدادات العامة للنظام: الضريبة، الأصناف، المشتريات (ولاحقاً المبيعات والمخزن ...)
 // canEdit: بدون صلاحية التعديل الفورم للقراءة فقط
@@ -80,7 +81,7 @@ export default function SystemSettingsForm({
   const freeLinesValue = freeLinesSetting == null ? "auto" : freeLinesSetting ? "on" : "off";
   const saveFreeLines = async (v) => {
     const res = await setFreeLinesAction(v === "auto" ? null : v === "on");
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(t("FreeLinesSaved"));
   };
   // الأنشطة اللي من غير باركود: مفيش باركود الميزان
@@ -110,7 +111,7 @@ export default function SystemSettingsForm({
     setSaving(true);
     const res = await saveSystemSettingsAction(values);
     setSaving(false);
-    if (!res.success) return message.error(tAlerts(res.error));
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
     message.success(tAlerts("SettingsSaved"));
     // بداية يوم العمل وغيرها بتوصل للشاشات من بيانات الدخول ← تحديث
     router.refresh();

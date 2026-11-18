@@ -10,6 +10,7 @@ import BranchFormFields, {
   branchFormValues,
   branchPayload,
 } from "./BranchFormFields";
+import { actionErrorText } from "@/components/common/actionError";
 
 // branch: الفرع المراد تعديلها (من قاعدة البيانات)
 const EditBranchForm = ({
@@ -40,7 +41,7 @@ const EditBranchForm = ({
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

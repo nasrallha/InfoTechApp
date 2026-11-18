@@ -11,6 +11,7 @@ import { applyFieldErrors } from "@/lib/form-errors";
 import { imageUrl } from "@/lib/image";
 import ImageUploadItem from "@/components/common/ImageUploadItem";
 import { C } from "@/lib/theme";
+import { actionErrorText } from "@/components/common/actionError";
 
 // فورم المستخدم (نفس الفورم للإضافة والتعديل)
 // user: بيانات المستخدم في التعديل (أو null في الإضافة)
@@ -87,7 +88,7 @@ const UserForm = ({ formId, user = null, roles, branches, onSuccess, setLoading 
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

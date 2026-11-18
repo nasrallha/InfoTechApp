@@ -4,6 +4,7 @@ import { Form, Input } from "antd";
 import { useTranslations } from "next-intl";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { phoneRule } from "@/lib/phone";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // خانة الجوال: الشكل حسب بلد الشغل (العملة الأساسية)
@@ -15,7 +16,7 @@ export function usePhoneRule() {
   const tAlerts = useTranslations("Alerts");
   const r = phoneRule(code);
   return {
-    rule: { pattern: r.re, message: tAlerts(r.error) },
+    rule: { pattern: r.re, message: actionErrorText(r, tAlerts) },
     input: {
       dir: "ltr",
       inputMode: "tel",

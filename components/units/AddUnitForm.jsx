@@ -7,6 +7,7 @@ import { createUnitAction } from "@/actions/unit.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import UnitFormFields from "./UnitFormFields";
 import "./unitForm.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // onSuccess, setLoading: يرسلها FormModal تلقائياً (لإغلاق النافذة وزر التحميل)
 const AddUnitForm = ({ onSuccess, setLoading }) => {
@@ -27,7 +28,7 @@ const AddUnitForm = ({ onSuccess, setLoading }) => {
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

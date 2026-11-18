@@ -31,6 +31,7 @@ import { applyFieldErrors } from "@/lib/form-errors";
 import { IMAGE_TYPES, MAX_IMAGE_SIZE_MB, imageUrl } from "@/lib/image";
 import PhoneField from "@/components/common/PhoneField";
 import "./settings.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // يحوّل حدث الـ Upload إلى قائمة ملفات يحفظها الفورم
 const normFile = (e) => (Array.isArray(e) ? e : e?.fileList);
@@ -125,7 +126,7 @@ export default function CompanyForm({ company, canEdit }) {
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

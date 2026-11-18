@@ -7,6 +7,7 @@ import { BarcodeOutlined, StopOutlined } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { searchPurchaseProductsAction } from "@/actions/purchase.actions";
 import { C } from "@/lib/theme";
+import { actionErrorText } from "@/components/common/actionError";
 
 // ============================================================
 // إضافة صنف للفاتورة: بالكتابة (اسم أو كود) أو بالماسح (باركود + Enter)
@@ -48,7 +49,7 @@ export default function ProductPicker({
     if (id !== requestId.current) return null;
     setLoading(false);
     if (!res.success) {
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return null;
     }
     return res.data;

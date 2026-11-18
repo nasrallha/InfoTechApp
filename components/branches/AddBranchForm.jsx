@@ -9,6 +9,7 @@ import BranchFormFields, {
   branchFormValues,
   branchPayload,
 } from "./BranchFormFields";
+import { actionErrorText } from "@/components/common/actionError";
 
 // onSuccess, setLoading: يرسلها FormModal تلقائياً (لإغلاق النافذة وزر التحميل)
 const AddBranchForm = ({ onSuccess, setLoading, warehouses, priceLists }) => {
@@ -24,7 +25,7 @@ const AddBranchForm = ({ onSuccess, setLoading, warehouses, priceLists }) => {
 
     if (!res.success) {
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

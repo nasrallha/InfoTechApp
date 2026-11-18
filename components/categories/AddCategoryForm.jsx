@@ -7,6 +7,7 @@ import ImageUploadItem from "@/components/common/ImageUploadItem";
 import { createCategoryAction } from "@/actions/category.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import "./categoryForm.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 // mainCategories: الأقسام الرئيسية (لقائمة القسم الأب)
 // onSuccess, setLoading: يرسلها FormModal تلقائياً (لإغلاق النافذة وزر التحميل)
@@ -41,7 +42,7 @@ const AddCategoryForm = ({ mainCategories = [], onSuccess, setLoading }) => {
     if (!res.success) {
       // أخطاء الحقول تظهر تحت كل حقل، وباقي الأخطاء كرسالة
       applyFieldErrors(form, res.fieldErrors, tAlerts);
-      message.error(tAlerts(res.error));
+      message.error(actionErrorText(res, tAlerts));
       return;
     }
 

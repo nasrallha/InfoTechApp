@@ -15,6 +15,7 @@ import UnitBreakdown from "./UnitBreakdown";
 import { listSep } from "@/lib/list-sep";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
+import { actionErrorText } from "@/components/common/actionError";
 
 const qty = (v) => Number(Number(v ?? 0).toFixed(3));
 
@@ -71,7 +72,7 @@ export default function StockView({ warehouses = [], categories = [] }) {
       });
       if (id !== requestId.current) return;
       setLoading(false);
-      if (!res.success) return message.error(tAlerts(res.error));
+      if (!res.success) return message.error(actionErrorText(res, tAlerts));
       setData(res.data);
     }, 250);
     return () => clearTimeout(timer);
