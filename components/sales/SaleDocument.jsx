@@ -154,6 +154,10 @@ export default function SaleDocument({ settings, company, doc, kind }) {
       : doc.createdBy.arFullname
     : null;
   const customerName = lang === "en" ? doc.customerEnName : doc.customerArName;
+  const customerAddress = [doc.customer?.street, doc.customer?.district, doc.customer?.city]
+    .map((x) => x?.trim())
+    .filter(Boolean)
+    .join(lang === "en" ? ", " : "، ");
   // فاتورة المغسلة (وحدة laundry): كود العميل وجواله + إجمالي السطر = الكمية × السعر
   // (الخصم والضريبة في الإجماليات تحت) + المخصوم من الاشتراك والرصيد الباقي
   const laundry = doc.laundry ?? null;
@@ -352,6 +356,20 @@ export default function SaleDocument({ settings, company, doc, kind }) {
           <div>
             <span>{L("الرقم الضريبي للعميل", "Customer VAT")}</span>
             <bdi>{doc.customerTaxNo}</bdi>
+          </div>
+        )}
+        {/* السجل التجاري للعميل (معرّفه من نوع سجل تجاري) */}
+        {doc.customer?.idScheme === "CRN" && doc.customer.idNumber && (
+          <div>
+            <span>{L("السجل التجاري للعميل", "Customer CR No")}</span>
+            <bdi>{doc.customer.idNumber}</bdi>
+          </div>
+        )}
+        {/* عنوان العميل المختصر: الشارع، الحي، المدينة */}
+        {customerAddress && (
+          <div>
+            <span>{L("عنوان العميل", "Customer address")}</span>
+            <span>{customerAddress}</span>
           </div>
         )}
         {/* السيارة (الورش): اللوحة والنوع والعداد */}
