@@ -6,7 +6,7 @@ import { AppError } from "@/lib/errors";
 import { assertUnitQty } from "./unit.service";
 import { can } from "@/lib/permissions";
 import { calcInvoice, round } from "@/lib/invoice-calc";
-import { dayOf, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
+import { dayOf, dayToDbDate, dbDateToDay, today, dayStart, dayEnd } from "@/lib/dates";
 import {
   getBranchSaleContext,
   saleProductSelect,
@@ -260,16 +260,28 @@ export async function deleteQuotation(id, user) {
   return { deleted: 1 };
 }
 
+// فلتر الفترة (from / to: YYYY-MM-DD، أي واحد فيهم ممكن يكون فاضي)
+const dateRangeWhere = (from, to) =>
+  from || to
+    ? { date: { ...(from ? { gte: dayStart(from) } : {}), ...(to ? { lte: dayEnd(to) } : {}) } }
+    : {};
+
 export async function listQuotations({
   q = "",
   page = 1,
   pageSize = 20,
   user,
+  branchId = null,
+  from = null,
+  to = null,
 }) {
   const query = q.trim();
-  const asNumber = await docNumberWhere(query, user);
+  const asNumber = await docNumberWhere(query, user, branchId);
+  const scope = branchScope(user);
   const where = {
-    ...branchScope(user),
+    ...scope,
+    ...(branchId && !scope.branchId ? { branchId } : {}),
+    ...dateRangeWhere(from, to),
     ...(query
       ? {
           OR: [

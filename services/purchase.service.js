@@ -26,13 +26,7 @@ import {
   round,
   totalsOf,
 } from "@/lib/invoice-calc";
-import {
-  dayOf,
-  dayToDateTime,
-  dayToDbDate,
-  dbDateToDay,
-  today,
-} from "@/lib/dates";
+import { dayOf, dayToDateTime, dayToDbDate, dbDateToDay, today, dayStart, dayEnd } from "@/lib/dates";
 import { formatDocNo } from "@/lib/doc-number";
 import {
   applyMovements,
@@ -1066,12 +1060,20 @@ function toPurchaseDTO(p) {
 
 // قائمة الفواتير أو المرتجعات مع البحث والصفحات
 // q: رقمنا أو رقم فاتورة المورد أو اسم المورد
+// فلتر الفترة (from / to: YYYY-MM-DD، أي واحد فيهم ممكن يكون فاضي)
+const dateRangeWhere = (from, to) =>
+  from || to
+    ? { date: { ...(from ? { gte: dayStart(from) } : {}), ...(to ? { lte: dayEnd(to) } : {}) } }
+    : {};
+
 export async function listPurchases({
   type,
   q = "",
   page = 1,
   pageSize = 20,
   user,
+  from = null,
+  to = null,
   branchId,
 }) {
   const query = q.trim();
@@ -1084,6 +1086,7 @@ export async function listPurchases({
     type,
     ...scope,
     ...(branchId && !scope.branchId ? { branchId } : {}),
+    ...dateRangeWhere(from, to),
     ...(query
       ? {
           OR: [

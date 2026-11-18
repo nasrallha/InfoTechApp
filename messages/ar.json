@@ -1938,6 +1938,8 @@
     }
   },
   "Purchases": {
+    "RangeFrom": "من تاريخ",
+    "RangeTo": "إلى تاريخ",
     "FreeLineName": "وصف البند",
     "AvailableShort": "المتاح",
     "LineNoteAdd": "إضافة ملاحظة",

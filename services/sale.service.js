@@ -20,7 +20,7 @@ import {
   round,
   totalsOf,
 } from "@/lib/invoice-calc";
-import { dayOf, dayToDateTime, dayToDbDate, dbDateToDay, today } from "@/lib/dates";
+import { dayOf, dayToDateTime, dayToDbDate, dbDateToDay, today, dayStart, dayEnd } from "@/lib/dates";
 import { formatDocNo, saleDocNo } from "@/lib/doc-number";
 import { contractingPrintInfo, CONTRACT_PRINT_SELECT, CERT_PRINT_SELECT } from "@/lib/contracting";
 import {
@@ -1278,12 +1278,20 @@ async function returnedSums(db, itemIds) {
 // ============================================================
 const unitSelect = { select: { id: true, arName: true, enName: true } };
 
+// فلتر الفترة (from / to: YYYY-MM-DD، أي واحد فيهم ممكن يكون فاضي)
+const dateRangeWhere = (from, to) =>
+  from || to
+    ? { date: { ...(from ? { gte: dayStart(from) } : {}), ...(to ? { lte: dayEnd(to) } : {}) } }
+    : {};
+
 export async function listSales({
   type,
   q = "",
   page = 1,
   pageSize = 20,
   user,
+  from = null,
+  to = null,
   branchId,
 }) {
   const query = q.trim();
@@ -1294,6 +1302,7 @@ export async function listSales({
     type,
     ...scope,
     ...(branchId && !scope.branchId ? { branchId } : {}),
+    ...dateRangeWhere(from, to),
     ...(query
       ? {
           OR: [

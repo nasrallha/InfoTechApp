@@ -1938,6 +1938,8 @@
     }
   },
   "Purchases": {
+    "RangeFrom": "From date",
+    "RangeTo": "To date",
     "FreeLineName": "Line description",
     "AvailableShort": "Available",
     "LineNoteAdd": "Add note",

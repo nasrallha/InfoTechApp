@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
-import { parseId, parsePage } from "@/lib/purchase-pages";
+import { parseId, parseListRange, parsePage } from "@/lib/purchase-pages";
 import { getBranches } from "@/services/branch.service";
 import { listSales, SALE } from "@/services/sale.service";
 import SalesList from "@/components/sales/SalesList";
@@ -15,16 +15,20 @@ async function Content({ searchParams }) {
   if (!allowed) return <NoAccess />;
 
   await connection();
-  const { q = "", page, branch } = await searchParams;
+  const { q = "", page, branch, from, to } = await searchParams;
   const viewAll = can(user, "allBranches.view");
   const branchId = viewAll ? parseId(branch) : null;
   const query = String(q).slice(0, 100);
+  // الفترة: النهارده لو مفيش بحث ولا فترة (مش كل الفواتير)
+  const range = parseListRange({ from, to, q: query });
   const data = await listSales({
     type: SALE,
     q: query,
     page: parsePage(page),
     user,
     branchId,
+    from: range.from,
+    to: range.to,
   });
   const branches =
     viewAll && "sale" !== "quotation" ? await getBranches() : null;
@@ -36,6 +40,7 @@ async function Content({ searchParams }) {
       q={query}
       branches={branches}
       branchId={branchId}
+      range={range}
       canCreate={can(user, "sales.create")}
       canPos={can(user, "sales.pos")}
     />

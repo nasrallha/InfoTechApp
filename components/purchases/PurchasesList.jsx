@@ -9,6 +9,7 @@ import { formatDateTime, formatDay } from "@/lib/dates";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import "@/components/common/table.css";
 import SearchBox from "@/components/common/SearchBox";
+import DayPicker from "@/components/common/DayPicker";
 import "./purchases.css";
 import {
   formatDocNo,
@@ -28,6 +29,7 @@ export default function PurchasesList({
   canCreate,
   branches,
   branchId,
+  range,
 }) {
   const [search, setSearch] = useState(q ?? "");
   const router = useRouter();
@@ -43,12 +45,21 @@ export default function PurchasesList({
     ? "/invoices/purchase-returns"
     : "/invoices/purchases";
 
+  // الفترة المحددة في الرابط (من غيرها الصفحة بتعرض النهارده)
+  const explicitFrom = range?.explicit ? range.from : null;
+  const explicitTo = range?.explicit ? range.to : null;
+
   const go = (params) => {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
     if (params.page > 1) query.set("page", String(params.page));
     const branch = params.branch === undefined ? branchId : params.branch;
     if (branch) query.set("branch", String(branch));
+    // الفترة: اللي المستخدم حددها بس (من غيرها ← النهارده، أو كل التواريخ مع البحث)
+    const from = params.from === undefined ? explicitFrom : params.from;
+    const to = params.to === undefined ? explicitTo : params.to;
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
     const qs = query.toString();
     router.push(`${pathname}${qs ? `?${qs}` : ""}`);
   };
@@ -212,6 +223,23 @@ export default function PurchasesList({
             if (!v && q) go({ q: "", page: 1 });
           }}
           onSearch={(v) => go({ q: v.trim(), page: 1 })}
+        />
+        {/* الفترة: من / إلى (الافتراضي فواتير النهارده) */}
+        <DayPicker
+          allowClear
+          style={{ width: 160 }}
+          placeholder={t("RangeFrom")}
+          value={range?.from ?? undefined}
+          max={range?.to ?? undefined}
+          onChange={(v) => go({ q, page: 1, from: v ?? null, to: range?.to ?? null })}
+        />
+        <DayPicker
+          allowClear
+          style={{ width: 160 }}
+          placeholder={t("RangeTo")}
+          value={range?.to ?? undefined}
+          min={range?.from ?? undefined}
+          onChange={(v) => go({ q, page: 1, from: range?.from ?? null, to: v ?? null })}
         />
         {/* المدير: فلتر بالفرع (فاضي = كل الفروع) */}
         {branches && (
