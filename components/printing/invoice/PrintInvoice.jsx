@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import InvoiceView, { PRINT_AREA } from "./InvoiceView";
+import { imagesReady } from "../PrintDocument";
 
 const PX_PER_MM = 96 / 25.4;
 
@@ -49,6 +50,8 @@ export default function PrintInvoice({
     const raf = requestAnimationFrame(() => {
       timer = setTimeout(async () => {
         await document.fonts?.ready;
+        // الشعار بيتحمّل من السيرفر: نستنى الصور قبل الطباعة
+        await imagesReady(root);
         if (cancelled) return;
         if (settings.paperSize === "A4") {
           setPageCss("@page { size: A4; margin: 0; }");

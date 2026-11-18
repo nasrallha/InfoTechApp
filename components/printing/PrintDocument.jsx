@@ -8,6 +8,22 @@ import "./printing.css";
 
 const PX_PER_MM = 96 / 25.4;
 
+// كل الصور جوه المستند اتحمّلت (أو فشلت) - بحد أقصى 4 ثواني عشان الطباعة ماتقفش
+export function imagesReady(node, maxMs = 4000) {
+  const imgs = [...(node?.querySelectorAll("img") ?? [])].filter((img) => !img.complete);
+  if (!imgs.length) return Promise.resolve();
+  const all = Promise.all(
+    imgs.map(
+      (img) =>
+        new Promise((resolve) => {
+          img.addEventListener("load", resolve, { once: true });
+          img.addEventListener("error", resolve, { once: true });
+        }),
+    ),
+  );
+  return Promise.race([all, new Promise((resolve) => setTimeout(resolve, maxMs))]);
+}
+
 // ============================================================
 // طباعة أي مستند (فاتورة شراء، مرتجع ...)
 // نرسمه في عنصر مستقل داخل body ونخفي باقي الصفحة وقت الطباعة
@@ -50,10 +66,12 @@ export default function PrintDocument({
     let timer;
     let printTimer;
     let cancelled = false;
-    // ننتظر رسم المستند (الشعار و QR) وتحميل الخط، ثم نقيس طوله ونطبع
+    // ننتظر رسم المستند وتحميل الخط والصور (الشعار بيتحمّل من السيرفر:
+    // على جهاز الكاشير ممكن يتأخر، ومن غير الانتظار بيتطبع من غير شعار)، ثم نقيس طوله ونطبع
     const raf = requestAnimationFrame(() => {
       timer = setTimeout(async () => {
         await document.fonts?.ready;
+        await imagesReady(page.current);
         if (cancelled) return;
         if (androidPrintable(paperSize) && page.current) {
           // العنصر مخفي (visibility) ← يبان بره الشاشة وقت الرسم بس
