@@ -37,6 +37,7 @@ function readUserForm(formData) {
     roleId: num("roleId"),
     branchId: num("branchId"),
     isActive: formData.get("isActive") === "true",
+    commissionRate: num("commissionRate"),
     // ملف فاضي (بدون اختيار صورة) = لا توجد صورة
     image: image instanceof File && image.size > 0 ? image : null,
     removeImage: formData.get("removeImage") === "true",
