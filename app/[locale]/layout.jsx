@@ -46,7 +46,9 @@ async function companyTitle(locale) {
 async function vendorIcon() {
   try {
     const { getVendor } = await import("@/lib/vendor");
-    return (await getVendor())?.logo ?? null;
+    // دايرة (نفس شكل اللوجو اللي تحت في القايمة الجانبية)
+    const logo = (await getVendor())?.logo;
+    return logo ? `${logo}&shape=circle` : null;
   } catch {
     return null;
   }
@@ -61,7 +63,7 @@ export async function generateMetadata({ params }) {
   return {
     title: name || t("AppName"),
     description: t("Tagline"),
-    ...(icon ? { icons: { icon, apple: icon } } : {}),
+    ...(icon ? { icons: { icon } } : {}),
   };
 }
 
