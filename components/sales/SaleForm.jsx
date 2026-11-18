@@ -983,7 +983,7 @@ export default function SaleForm({
             </span>
           )
         }
-        extra={!isQuotation && <InvoiceSearchButton kind="sale" />}
+        extra={<InvoiceSearchButton kind={isQuotation ? "quotation" : "sale"} />}
       />
 
       {exportMode && (

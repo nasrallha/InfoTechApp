@@ -87,6 +87,9 @@ export const INVOICE_TYPES = [
   {
     key: "Quotation",
     href: "/invoices/quotations",
+    // بتفتح على الإنشاء على طول (البحث عن عرض سعر زرار جوه الشاشة)
+    newHref: "/invoices/quotations/new",
+    createPermission: "quotations.create",
     Icon: FileSearchOutlined,
     color: C.purple,
     permission: "quotations.view",

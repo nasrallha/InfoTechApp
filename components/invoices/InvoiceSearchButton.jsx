@@ -12,7 +12,7 @@ import { searchInvoicesAction } from "@/actions/invoice-search.actions";
 
 // ============================================================
 // زر «بحث عن فاتورة» جوه شاشة الإنشاء
-// kind: sale | saleReturn | purchase | purchaseReturn
+// kind: sale | saleReturn | purchase | purchaseReturn | quotation
 // النتايج بتظهر بس بعد البحث (برقم الفاتورة أو اسم العميل/المورد)، والبحث بـ Enter أو الزرار
 // ============================================================
 export default function InvoiceSearchButton({ kind }) {

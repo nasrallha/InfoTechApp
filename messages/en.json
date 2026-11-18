@@ -6028,6 +6028,7 @@
     "Title_saleReturn": "Find sales return",
     "Title_purchase": "Find purchase invoice",
     "Title_purchaseReturn": "Find purchase return",
+    "Title_quotation": "Find a quotation",
     "PlaceholderSale": "Invoice number or customer name",
     "PlaceholderPurchase": "Invoice number, supplier invoice number or supplier name",
     "DocNo": "Invoice No",

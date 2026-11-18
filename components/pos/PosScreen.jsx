@@ -829,7 +829,7 @@ export default function PosScreen({
         <Tooltip title={t("Fullscreen")}>
           <Button aria-label={t("Fullscreen")} title={t("Fullscreen")} ghost icon={<FullscreenOutlined />} onClick={fullscreen} />
         </Tooltip>
-        <Link href="/invoices/sales">
+        <Link href="/">
           <Button ghost icon={<ArrowRightOutlined />}>
             <span className="pos-top__label">{t("Exit")}</span>
           </Button>

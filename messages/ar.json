@@ -6028,6 +6028,7 @@
     "Title_saleReturn": "البحث عن مرتجع مبيعات",
     "Title_purchase": "البحث عن فاتورة شراء",
     "Title_purchaseReturn": "البحث عن مرتجع مشتريات",
+    "Title_quotation": "البحث عن عرض سعر",
     "PlaceholderSale": "رقم الفاتورة أو اسم العميل",
     "PlaceholderPurchase": "رقم الفاتورة أو رقم فاتورة المورد أو اسم المورد",
     "DocNo": "رقم الفاتورة",
