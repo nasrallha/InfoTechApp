@@ -954,7 +954,7 @@ model SystemSettings {
   // البند الحر في فواتير البيع والشراء (إعداد المالك): null = حسب النشاط
   freeLines Boolean?
   // إعدادات الورديات (المالك): { multiDrawer, autoClose, periods: [{ arName, enName, start, end }] }
-  // (فاضي = الافتراضي: أكتر من درج في وردية الفرع + القفل مع آخر درج + من غير أوقات)
+  // (فاضي = الافتراضي: درج واحد في وردية الفرع + القفل مع آخر درج + من غير أوقات)
   shiftSettings Json?
   purchaseTaxMode String @default("exclusive") @db.VarChar(10)
 
