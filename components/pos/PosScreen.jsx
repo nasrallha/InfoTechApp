@@ -22,6 +22,7 @@ import {
   FullscreenOutlined,
   HistoryOutlined,
   LockOutlined,
+  LogoutOutlined,
   SwapOutlined,
   MinusOutlined,
   PauseCircleOutlined,
@@ -88,6 +89,7 @@ import {
   useRestaurantPos,
 } from "@/components/restaurant/useRestaurantPos";
 import { restaurantCheckoutAction } from "@/actions/restaurant-pos.actions";
+import { leaveDrawerAction } from "@/actions/shift.actions";
 import LaundryReturnModal from "@/components/laundry/LaundryReturnModal";
 import "@/components/purchases/purchases.css";
 import "./pos.css";
@@ -191,6 +193,12 @@ export default function PosScreen({
 
   const [shift, setShift] = useState(initialShift);
   const [closingShift, setClosingShift] = useState(false);
+  // الخروج من الدرج المنضم له ← نافذة الدرج تظهر تاني
+  const leaveDrawer = async () => {
+    const res = await leaveDrawerAction();
+    if (!res.success) return showActionError(res, tAlerts, locale);
+    setShift(null);
+  };
   const [drawerOpen, setDrawerOpen] = useState(false);
   const can = useCan();
   const canDrawer = can("shifts.cashMovement");
@@ -717,8 +725,10 @@ export default function PosScreen({
         {shift ? (
           <Tag color="green">
             {t("ShiftNo")} {formatDocNo("shift", shift.number, shift.docCode)}
-            {/* ترتيب الوردية في يوم العمل */}
+            {/* ترتيب وردية الفرع في يوم العمل */}
             {shift.dayNo ? ` (${shift.dayNo})` : ""}
+            {/* منضم لدرج كاشير تاني: اسم صاحب الدرج */}
+            {shift.joined && ` — ${t("JoinedTo", { cashier: locale === "ar" ? shift.user?.arFullname : shift.user?.enFullname })}`}
           </Tag>
         ) : (
           <Tag color="red">{t("NoShift")}</Tag>
@@ -817,7 +827,12 @@ export default function PosScreen({
             <span className="pos-top__label">{t("DrawerCash")}</span>
           </Button>
         )}
-        {shift && (
+        {/* المنضم: بيخرج من الدرج (صاحبه هو اللي بيقفله) */}
+        {shift?.joined ? (
+          <Button ghost icon={<LogoutOutlined />} onClick={leaveDrawer}>
+            <span className="pos-top__label">{t("LeaveDrawer")}</span>
+          </Button>
+        ) : shift ? (
           <Button
             ghost
             icon={<LockOutlined />}
@@ -825,7 +840,7 @@ export default function PosScreen({
           >
             <span className="pos-top__label">{t("CloseShift")}</span>
           </Button>
-        )}
+        ) : null}
         <Tooltip title={t("Fullscreen")}>
           <Button aria-label={t("Fullscreen")} title={t("Fullscreen")} ghost icon={<FullscreenOutlined />} onClick={fullscreen} />
         </Tooltip>

@@ -11,6 +11,7 @@ import { round } from "@/lib/invoice-calc";
 import { dayOf, dayToDateTime, today } from "@/lib/dates";
 import { allocateFifo, partyBalance } from "./account.service";
 import { getBaseCurrency } from "./currency.service";
+import { activeDrawerId } from "./shift.service";
 
 // ============================================================
 // السندات
@@ -156,11 +157,8 @@ async function prepareVoucher(data, user, existing = null) {
   if (method?.type === "cash") {
     if (existing?.shiftId) shiftId = existing.shiftId;
     else {
-      const shift = await prisma.shift.findFirst({
-        where: { userId: user.id, status: "open", branchId: user.branch.id },
-        select: { id: true },
-      });
-      shiftId = shift?.id ?? null;
+      // درج الكاشير (درجه أو المنضم له) على نفس الفرع
+      shiftId = await activeDrawerId(user);
     }
   }
 

@@ -90,6 +90,7 @@ model Branch {
   sales      Sale[]
   quotations Quotation[]
   shifts     Shift[]
+  branchShifts BranchShift[]
   // طلبات الضمان والصيانة المستلمة في الفرع
   warrantyClaims WarrantyClaim[]
   maintenanceContracts MaintenanceContract[]
@@ -185,6 +186,9 @@ model User {
   followUpLogs         FollowUpLog[] @relation("FollowUpLogUser")
   shifts            Shift[]          @relation("ShiftCashier")
   shiftsClosed      Shift[]          @relation("ShiftClosedBy")
+  branchShiftsOpened BranchShift[]   @relation("BranchShiftOpenedBy")
+  branchShiftsClosed BranchShift[]   @relation("BranchShiftClosedBy")
+  drawerJoins       DrawerJoin[]
   vouchers          Voucher[]
   cashMovements     CashMovement[]
 
@@ -949,6 +953,9 @@ model SystemSettings {
   fiscalStartMonth Int @default(1)
   // البند الحر في فواتير البيع والشراء (إعداد المالك): null = حسب النشاط
   freeLines Boolean?
+  // إعدادات الورديات (المالك): { multiDrawer, autoClose, periods: [{ arName, enName, start, end }] }
+  // (فاضي = الافتراضي: أكتر من درج في وردية الفرع + القفل مع آخر درج + من غير أوقات)
+  shiftSettings Json?
   purchaseTaxMode String @default("exclusive") @db.VarChar(10)
 
   // الضريبة: نسبة الضريبة في البرنامج (0 لو الشركة غير مسجلة في الضريبة)
@@ -1990,6 +1997,58 @@ model QuotationItem {
 // المتوقع في الدرج = أول المدة + المقبوض نقداً - المردود نقداً
 // status: open / closed
 // ============================================================
+// ============================================================
+// وردية الفرع: الفترة (الصباحية / المسائية) - واحدة مفتوحة في الفرع
+// - جواها درج لكل كاشير (shifts)، وتقريرها بيجمع الأدراج كلها
+// - بتتفتح مع أول درج، وبتتقفل مع آخر درج (أو يدوي حسب الإعدادات)
+// ============================================================
+model BranchShift {
+  id       Int    @id @default(autoincrement())
+  status   String @default("open") @db.VarChar(10)
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  // ترتيبها في يوم العمل (الوردية 1 / 2 / 3)
+  businessDay DateTime @db.Date
+  dayNo       Int
+  // اسم الفترة من أوقات الورديات في الإعدادات (لو متحددة) وقت الفتح
+  periodArName String? @db.VarChar(50)
+  periodEnName String? @db.VarChar(50)
+
+  openedAt   DateTime
+  openedById Int
+  openedBy   User      @relation("BranchShiftOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  closedAt   DateTime?
+  closedById Int?
+  closedBy   User?     @relation("BranchShiftClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+
+  drawers Shift[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, businessDay, dayNo])
+  @@index([status])
+  @@index([openedById])
+  @@index([closedById])
+  @@map("branch_shifts")
+}
+
+// الانضمام لدرج كاشير تاني (مدير / مشرف / المالك): فواتيره بتتحسب على الدرج ده وباسمه
+model DrawerJoin {
+  id       Int       @id @default(autoincrement())
+  shiftId  Int
+  shift    Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  userId   Int
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@index([shiftId])
+  @@index([userId, leftAt])
+  @@map("drawer_joins")
+}
+
 model Shift {
   id     Int    @id @default(autoincrement())
   number Int // مسلسل لكل فرع (رمز الفرع قبله: DM-..)
@@ -2000,9 +2059,13 @@ model Shift {
   branchId Int
   branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
 
-  // الكاشير صاحب الوردية
+  // الكاشير صاحب الدرج
   userId Int
   user   User @relation("ShiftCashier", fields: [userId], references: [id], onDelete: Restrict)
+
+  // وردية الفرع اللي الدرج ده جواها (كذا درج في نفس الوردية)
+  branchShiftId Int?
+  branchShift   BranchShift? @relation(fields: [branchShiftId], references: [id], onDelete: Restrict)
 
   openedAt    DateTime
   openingCash Decimal  @default(0) @db.Decimal(18, 4)
@@ -2036,6 +2099,7 @@ model Shift {
   sales         Sale[]
   vouchers      Voucher[]
   cashMovements CashMovement[]
+  joins         DrawerJoin[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2044,8 +2108,9 @@ model Shift {
   @@index([userId])
   @@index([status])
   @@index([closedById])
-  @@unique([branchId, businessDay, dayNo])
+  @@index([branchId, businessDay, dayNo])
   @@index([businessDay])
+  @@index([branchShiftId])
   @@map("shifts")
 
   @@unique([branchId, docCode, number])

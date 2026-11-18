@@ -9,8 +9,10 @@ import "@/components/printing/invoice/invoice.css";
 
 const DENOMS = [500, 200, 100, 50, 20, 10, 5, 1];
 
-// تقرير تسليم/استلام الوردية المطبوع (الكاشير 80mm أو A4) مع التوقيعات
+// تقرير تسليم الدرج المطبوع (الكاشير 80mm أو A4) مع التوقيعات
+// وردية الفرع: نفس التقرير مجمّع (shift.drawers = الأدراج، shift.branchName = اسم الفترة)
 export default function ShiftPrint({ shift, company, settings }) {
+  const isBranch = Array.isArray(shift.drawers);
   const { amount: money, symbol } = useCurrency();
   const isA4 = settings.paperSize === "A4";
   const lang = settings.language;
@@ -54,8 +56,17 @@ export default function ShiftPrint({ shift, company, settings }) {
         <div>{nm(shift.branch)}</div>
       </header>
       <div className="inv__title">
-        {L("تقرير تسليم وردية", "Shift handover report")}{" "}
-        <bdi>{formatDocNo("shift", shift.number, shift.docCode)}</bdi>
+        {isBranch ? (
+          <>
+            {L("تقرير وردية الفرع", "Branch shift report")}
+            {shift.branchName ? ` - ${shift.branchName}` : ""}
+          </>
+        ) : (
+          <>
+            {L("تقرير تسليم درج", "Drawer handover report")}{" "}
+            <bdi>{formatDocNo("shift", shift.number, shift.docCode)}</bdi>
+          </>
+        )}
       </div>
       {/* ترتيب الوردية في يوم العمل: الوردية 2 — 30/10/2026 */}
       {shiftDayTexts(shift) && (
@@ -64,7 +75,9 @@ export default function ShiftPrint({ shift, company, settings }) {
         </div>
       )}
       <div className="inv__meta">
-        {row(L("الكاشير", "Cashier"), un(shift.user))}
+        {isBranch
+          ? row(L("فتحها", "Opened by"), un(shift.openedBy))
+          : row(L("الكاشير", "Cashier"), un(shift.user))}
         {row(L("الفتح", "Opened"), formatDateTime(shift.openedAt))}
         {shift.closedAt &&
           row(L("القفل", "Closed"), formatDateTime(shift.closedAt))}
@@ -188,28 +201,50 @@ export default function ShiftPrint({ shift, company, settings }) {
         </div>
       )}
 
+      {/* وردية الفرع: كل درج وفرقه */}
+      {isBranch && (
+        <div className="inv__totals">
+          {section(L("الأدراج", "Drawers"))}
+          {shift.drawers.map((x) => (
+            <div key={x.id}>
+              <span>
+                {un(x.user)} -{" "}
+                <bdi>{formatDocNo("shift", x.number, x.docCode)}</bdi>
+              </span>
+              <bdi>
+                {x.status === "closed"
+                  ? signed(x.difference)
+                  : L("مفتوح", "Open")}
+              </bdi>
+            </div>
+          ))}
+        </div>
+      )}
+
       {shift.notes && <p className="inv__note">{shift.notes}</p>}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "6mm",
-          marginTop: "10mm",
-          textAlign: "center",
-        }}
-      >
-        <div>
-          {L("المُسلِّم", "Handed over")}
-          <div style={{ marginTop: "2mm" }}>{un(shift.user)}</div>
-          <div style={{ borderTop: "1px solid #000", marginTop: "8mm" }} />
+      {!isBranch && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "6mm",
+            marginTop: "10mm",
+            textAlign: "center",
+          }}
+        >
+          <div>
+            {L("المُسلِّم", "Handed over")}
+            <div style={{ marginTop: "2mm" }}>{un(shift.user)}</div>
+            <div style={{ borderTop: "1px solid #000", marginTop: "8mm" }} />
+          </div>
+          <div>
+            {L("المستلِم", "Received by")}
+            <div style={{ marginTop: "2mm" }}>&nbsp;</div>
+            <div style={{ borderTop: "1px solid #000", marginTop: "8mm" }} />
+          </div>
         </div>
-        <div>
-          {L("المستلِم", "Received by")}
-          <div style={{ marginTop: "2mm" }}>&nbsp;</div>
-          <div style={{ borderTop: "1px solid #000", marginTop: "8mm" }} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

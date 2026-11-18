@@ -1,12 +1,14 @@
-// Server Component: ورديات الكاشير (?status=open&page=2&day=2026-10-30&no=2)
+// Server Component: ورديات الفرع (الافتراضي) أو أدراج الكاشير ?view=drawers
+// (?status=open&page=2&day=2026-10-30&no=2)
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
 import { parseId, parsePage } from "@/lib/purchase-pages";
 import { isDay } from "@/lib/dates";
-import { listShifts } from "@/services/shift.service";
+import { listBranchShifts, listShifts } from "@/services/shift.service";
 import { ShiftsList } from "@/components/sales/ShiftsView";
+import { BranchShiftsList } from "@/components/sales/BranchShiftsView";
 import NoAccess from "@/components/common/NoAccess";
 import TableSkeleton from "@/components/common/TableSkeleton";
 
@@ -16,18 +18,24 @@ async function Content({ searchParams }) {
     return <NoAccess />;
   }
   await connection();
-  const { status, page, day, no } = await searchParams;
+  const { status, page, day, no, view } = await searchParams;
   const st = ["open", "closed"].includes(status) ? status : undefined;
   // البحث: يوم العمل + ترتيب الوردية فيه (?day=2026-10-30&no=2)
   const d = isDay(day) ? day : undefined;
   const dayNo = d ? parseId(no) : undefined;
-  const data = await listShifts({
-    user,
-    status: st,
-    day: d,
-    dayNo,
-    page: parsePage(page),
-  });
+  const filters = { user, status: st, day: d, dayNo, page: parsePage(page) };
+  if (view !== "drawers") {
+    return (
+      <BranchShiftsList
+        data={await listBranchShifts(filters)}
+        status={st}
+        day={d}
+        dayNo={dayNo}
+        canPos={can(user, "sales.pos")}
+      />
+    );
+  }
+  const data = await listShifts(filters);
   return (
     <ShiftsList
       data={data}

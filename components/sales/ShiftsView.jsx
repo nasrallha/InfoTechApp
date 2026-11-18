@@ -30,6 +30,8 @@ import { useCan, useCurrentUser } from "@/components/auth/AuthProvider";
 import ShiftReport from "./ShiftReport";
 import ShiftPrint from "./ShiftPrint";
 import { CashMovementModal, CloseShiftModal } from "./ShiftModals";
+import { ShiftsTabs } from "./BranchShiftsView";
+import { branchShiftName } from "@/lib/shift-label";
 import { C } from "@/lib/theme";
 import "@/components/common/table.css";
 
@@ -54,7 +56,7 @@ export function ShiftsList({ data, status, day, dayNo, canPos }) {
 
   const go = (params) => {
     const next = { status, day, no: dayNo, page: 1, ...params };
-    const query = new URLSearchParams();
+    const query = new URLSearchParams({ view: "drawers" });
     if (next.status) query.set("status", next.status);
     if (next.day) query.set("day", next.day);
     if (next.day && next.no) query.set("no", String(next.no));
@@ -153,7 +155,8 @@ export function ShiftsList({ data, status, day, dayNo, canPos }) {
           </Link>
         )}
       </div>
-      <Space className="mb-3" wrap>
+      <ShiftsTabs view="drawers" />
+      <Space className="mb-3 cp-filters" wrap>
         <Segmented
           value={status ?? "all"}
           onChange={(v) => go({ status: v === "all" ? undefined : v })}
@@ -227,10 +230,16 @@ export function ShiftDetails({ shift, company, printSettings, autoPrint }) {
           {t("Shift")} <bdi>{formatDocNo("shift", shift.number, shift.docCode)}</bdi>{" "}
           {shift.dayNo && (
             <Tag color="blue">
-              {t("DayShift", {
-                n: shift.dayNo,
-                date: formatDay(shiftDay(shift)),
-              })}
+              {shift.branchShift ? (
+                <Link href={`/sales/shifts/branch/${shift.branchShift.id}`}>
+                  {branchShiftName(shift.branchShift, locale)
+                    ? `${branchShiftName(shift.branchShift, locale)} — `
+                    : ""}
+                  {t("DayShift", { n: shift.dayNo, date: formatDay(shiftDay(shift)) })}
+                </Link>
+              ) : (
+                t("DayShift", { n: shift.dayNo, date: formatDay(shiftDay(shift)) })
+              )}
             </Tag>
           )}
           {shift.status === "open" ? (
@@ -278,7 +287,7 @@ export function ShiftDetails({ shift, company, printSettings, autoPrint }) {
       <Card size="small" className="mb-3">
         <div className="pur-info">
           <div>
-            <span>{t("Cashier")}</span>
+            <span>{t("DrawerOwner")}</span>
             <span>{userName(shift.user, locale)}</span>
           </div>
           <div>

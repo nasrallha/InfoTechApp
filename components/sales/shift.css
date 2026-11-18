@@ -44,3 +44,15 @@
   background: var(--c-success-soft);
   border-color: var(--c-success-border);
 }
+
+/* نافذة الدرج: الأدراج المفتوحة للانضمام (اسم الكاشير + زرار) */
+.shift-join-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+}

@@ -35,6 +35,7 @@ import {
   assertNotProductionLive,
   assertNotSigned,
 } from "./zatca-invoice.service";
+import { activeDrawerId } from "./shift.service";
 
 // ============================================================
 // الإشعارات الدائنة والمدينة
@@ -149,11 +150,8 @@ async function preparePayments(db, payments, total, decimals) {
 
 // وردية الكاشير المفتوحة (فلوس الإشعار النقدية بتتحسب في درجه)
 async function openShiftId(user) {
-  const shift = await prisma.shift.findFirst({
-    where: { userId: user.id, status: "open", branchId: user.branch.id },
-    select: { id: true },
-  });
-  return shift?.id ?? null;
+  // درجه أو الدرج اللي منضم له على نفس الفرع
+  return activeDrawerId(user);
 }
 
 // ------------------------------------------------------------

@@ -290,7 +290,9 @@ export async function resetData({ keys, resetNumbers }, user) {
           where: { shiftId: { not: null } },
           data: { shiftId: null },
         });
+        await tx.drawerJoin.deleteMany({});
         await tx.shift.deleteMany({});
+        await tx.branchShift.deleteMany({});
       }
 
       // ---------- مستندات الأنشطة (قبل الفواتير والعملاء والموردين) ----------

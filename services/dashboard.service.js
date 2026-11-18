@@ -8,7 +8,7 @@ import { bizDayOf, bizRange, bizToday } from "@/lib/business-day";
 import { getDayStartHour } from "@/lib/business-day-server";
 import { docSign, saleDocNo, formatDocNo } from "@/lib/doc-number";
 import { dailyReport, reportBranch, topProducts } from "./report.service";
-import { shiftSummary } from "./shift.service";
+import { activeDrawer, shiftSummary } from "./shift.service";
 import { getZatcaAlerts } from "./zatca-invoice.service";
 
 // ============================================================
@@ -113,9 +113,11 @@ async function getCounts() {
 
 // ورديتي المفتوحة (المفروض في الدرج يظهر بصلاحية فقط: العدّ الأعمى)
 async function myShift(user) {
-  const shift = await prisma.shift.findFirst({
-    where: { userId: user.id, status: "open" },
-    orderBy: { id: "desc" },
+  // درجه أو الدرج اللي منضم له
+  const drawer = await activeDrawer(user);
+  if (!drawer) return { open: false };
+  const shift = await prisma.shift.findUnique({
+    where: { id: drawer.id },
     select: {
       id: true,
       number: true, docCode: true,

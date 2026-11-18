@@ -45,6 +45,7 @@ import { MAX_DAY_START_HOUR, hourText } from "@/lib/business-day";
 import PageHeader from "@/components/common/PageHeader";
 import { useCan, useModule, useModuleSettings, useNoBarcode } from "@/components/auth/AuthProvider";
 import { setFreeLinesAction } from "@/actions/free-line.actions";
+import ShiftSettingsCard from "./ShiftSettingsCard";
 import { saveSystemSettingsAction } from "@/actions/system-settings.actions";
 import { STAFF_TITLES, TAX_MODES } from "@/validations/system-settings.schema";
 import { actionErrorText } from "@/components/common/actionError";
@@ -53,6 +54,7 @@ import { actionErrorText } from "@/components/common/actionError";
 // canEdit: بدون صلاحية التعديل الفورم للقراءة فقط
 export default function SystemSettingsForm({
   settings,
+  shiftSettings = null,
   canEdit,
   bookingCode = "main",
 }) {
@@ -343,6 +345,14 @@ export default function SystemSettingsForm({
               <Select style={{ maxWidth: 320 }} options={dayStartOptions} />
             </Form.Item>
           </Card>
+
+          {/* ============ الورديات (المالك): الأدراج والقفل وأوقات الورديات ============ */}
+          {shiftSettings && (
+            <ShiftSettingsCard
+              initial={shiftSettings}
+              title={section(<FieldTimeOutlined />, t("ShiftSettings"))}
+            />
+          )}
 
           {/* ============ مقدم الخدمة (وحدة technicians) ============ */}
           {techOn && (

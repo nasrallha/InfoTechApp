@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
 import { getSystemSettings } from "@/services/system-settings.service";
+import { getShiftSettings } from "@/services/shift.service";
 import SystemSettingsForm from "@/components/settings/system/SystemSettingsForm";
 import NoAccess from "@/components/common/NoAccess";
 import TableSkeleton from "@/components/common/TableSkeleton";
@@ -13,7 +14,7 @@ async function SystemSettingsContent() {
   if (!allowed) return <NoAccess />;
 
   await connection();
-  const settings = await getSystemSettings();
+  const [settings, shiftSettings] = await Promise.all([getSystemSettings(), getShiftSettings()]);
   // لينك الحجز للعملاء: بكود الشركة (وضع الشركات)
   const { multiTenant, currentCompanyCode } = await import("@/lib/tenant");
   const bookingCode = multiTenant() ? await currentCompanyCode() : "main";
@@ -21,6 +22,7 @@ async function SystemSettingsContent() {
   return (
     <SystemSettingsForm
       settings={settings}
+      shiftSettings={can(user, "systemSettings.shifts") ? shiftSettings : null}
       bookingCode={bookingCode}
       canEdit={can(user, "systemSettings.update")}
     />

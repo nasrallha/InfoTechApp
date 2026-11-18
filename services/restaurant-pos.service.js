@@ -22,6 +22,7 @@ import { ensureFeeProducts, getRestaurantSettings } from "./restaurant.service";
 import { nextDailyNo, orderFields } from "./restaurant-link.service";
 import { branchPrinters } from "./restaurant-printer.service";
 import { branchTables } from "./restaurant-table.service";
+import { activeDrawer } from "./shift.service";
 
 // ============================================================
 // كاشير المطعم
@@ -366,10 +367,8 @@ export async function buildRestaurantSale(d, user) {
 // ------------------------------------------------------------
 // الكاشير شغال على الورديات: الطاولة زي الفاتورة لازم وردية مفتوحة على نفس الفرع
 async function assertOpenShift(user) {
-  const shift = await prisma.shift.findFirst({
-    where: { userId: user.id, status: "open" },
-    select: { branchId: true },
-  });
+  // درجه أو الدرج اللي منضم له
+  const shift = await activeDrawer(user);
   if (!shift) throw new AppError("ShiftRequired");
   if (shift.branchId !== user.branch.id) throw new AppError("ShiftOtherBranch");
 }

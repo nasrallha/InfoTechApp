@@ -76,6 +76,7 @@ import {
   assertNotProductionLive,
   assertNotSigned,
 } from "./zatca-invoice.service";
+import { activeDrawer } from "./shift.service";
 
 // ============================================================
 // المبيعات: فاتورة البيع ومرتجع البيع
@@ -185,15 +186,12 @@ async function preparePayments(db, payments, total, decimals) {
 }
 
 // ------------------------------------------------------------
-// وردية الكاشير
-// - من شاشة الكاشير: لازم وردية مفتوحة على نفس الفرع
-// - من الفاتورة العادية: لو عنده وردية مفتوحة تُسجل عليها (فلوسها في الدرج)
+// درج الكاشير (درجه أو الدرج اللي منضم له)
+// - من شاشة الكاشير: لازم درج مفتوح على نفس الفرع
+// - من الفاتورة العادية: لو عنده درج مفتوح تُسجل عليه (فلوسها في الدرج)
 // ------------------------------------------------------------
 async function resolveShift(user, required) {
-  const shift = await prisma.shift.findFirst({
-    where: { userId: user.id, status: "open" },
-    select: { id: true, branchId: true },
-  });
+  const shift = await activeDrawer(user);
   if (shift && shift.branchId !== user.branch.id) {
     if (required) throw new AppError("ShiftOtherBranch");
     return null;

@@ -15,20 +15,27 @@ import {
   Tag,
 } from "antd";
 import {
+  HomeOutlined,
   LockOutlined,
+  LoginOutlined,
   MinusCircleOutlined,
   PlusCircleOutlined,
   UnlockOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { round } from "@/lib/invoice-calc";
-import { formatDateTime } from "@/lib/dates";
+import { formatDateTime, formatDay } from "@/lib/dates";
 import { formatDocNo } from "@/lib/doc-number";
+import { branchShiftName, shiftDay } from "@/lib/shift-label";
+import { Link } from "@/i18n/routing";
 import {
   addCashMovementAction,
   closeShiftAction,
+  getDrawerChoicesAction,
+  getMyOpenShiftAction,
   getOpeningSuggestionAction,
   getShiftAction,
+  joinDrawerAction,
   openShiftAction,
 } from "@/actions/shift.actions";
 import { message } from "@/components/common/feedback";
@@ -51,15 +58,19 @@ const diffAlert = (diff, t, money, symbol) => ({
 });
 
 // ============================================================
-// فتح وردية (الاستلام):
-// - البرنامج يقترح المتروك في الدرج من الوردية السابقة على نفس الفرع
+// فتح درج (الاستلام) أو الانضمام لدرج مفتوح:
+// - وردية الفرع المفتوحة بتظهر فوق (ولو مفيش: بتتفتح مع الدرج)
+// - البرنامج يقترح المتروك في الدرج من الدرج السابق على نفس الفرع
 // - الكاشير يعدّ الموجود فعلاً، والفرق يتسجل
+// - المدير / المشرف / المالك: يقدر ينضم لدرج كاشير مفتوح ويبيع عليه
 // ============================================================
 export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
   const [cash, setCash] = useState(null);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [suggestion, setSuggestion] = useState(undefined);
+  const [choices, setChoices] = useState(null);
+  const [joining, setJoining] = useState(null);
   const locale = useLocale();
   const t = useTranslations("Shifts");
   const tAlerts = useTranslations("Alerts");
@@ -70,9 +81,10 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    getOpeningSuggestionAction().then((res) => {
+    Promise.all([getOpeningSuggestionAction(), getDrawerChoicesAction()]).then(([res, ch]) => {
       if (!alive) return;
       const s = res.success ? res.data : null;
+      setChoices(ch.success ? ch.data : null);
       setSuggestion(s);
       setCash(s ? s.leftCash : 0);
     });
@@ -103,6 +115,25 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
     onOpened?.(res.data);
   };
 
+  // الانضمام لدرج مفتوح ← الدرج بيرجع زي الفتح بالظبط (joined)
+  const join = async (drawer) => {
+    setJoining(drawer.id);
+    const res = await joinDrawerAction(drawer.id);
+    if (!res.success) {
+      setJoining(null);
+      return showActionError(res, tAlerts, locale);
+    }
+    const mine = await getMyOpenShiftAction();
+    setJoining(null);
+    if (!mine.success || !mine.data) return showActionError(mine, tAlerts, locale);
+    message.success(t("JoinedDrawer", { cashier: userName(drawer.user, locale) }));
+    onOpened?.(mine.data);
+  };
+
+  const bs = choices?.branchShift ?? null;
+  const canOpen = choices?.canOpen !== false;
+  const joinable = choices?.canJoin ? (choices?.drawers ?? []) : [];
+
   if (!active) return null;
 
   return (
@@ -118,9 +149,21 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
         </span>
       }
       footer={
-        <Button type="primary" size="large" loading={saving} onClick={submit}>
-          {t("ReceiveAndOpen")}
-        </Button>
+        <>
+          {/* الكاشير مايقدرش يقفل النافذة: يرجع للرئيسية بدل ما يفضل محبوس */}
+          {!closable && (
+            <Link href="/">
+              <Button size="large" icon={<HomeOutlined />}>
+                {t("BackHome")}
+              </Button>
+            </Link>
+          )}
+          {canOpen && (
+            <Button type="primary" size="large" loading={saving} onClick={submit}>
+              {t("ReceiveAndOpen")}
+            </Button>
+          )}
+        </>
       }
       destroyOnHidden
     >
@@ -128,7 +171,50 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
         <Skeleton active />
       ) : (
         <>
-          {suggestion ? (
+          {/* وردية الفرع: المفتوحة، أو هتتفتح مع الدرج */}
+          <Alert
+            type={bs ? "success" : "warning"}
+            showIcon
+            className="mb-3"
+            title={
+              bs
+                ? t("BranchShiftOpen", {
+                    name:
+                      branchShiftName(bs, locale) ??
+                      t("DayShift", { n: bs.dayNo, date: formatDay(shiftDay(bs)) }),
+                  })
+                : t("BranchShiftWillOpen")
+            }
+            description={bs ? `${t("OpenedAt")}: ${formatDateTime(bs.openedAt)}` : undefined}
+          />
+          {/* الانضمام لدرج مفتوح (المدير / المشرف / المالك) */}
+          {joinable.length > 0 && (
+            <div className="mb-3">
+              <div className="mb-1">
+                <b>{t("JoinOpenDrawer")}</b>
+              </div>
+              {joinable.map((x) => (
+                <div key={x.id} className="shift-join-row">
+                  <span>
+                    {userName(x.user, locale)} — <bdi>{formatDocNo("shift", x.number, x.docCode)}</bdi>
+                  </span>
+                  <Button
+                    color="primary"
+                    variant="outlined"
+                    icon={<LoginOutlined />}
+                    loading={joining === x.id}
+                    onClick={() => join(x)}
+                  >
+                    {t("Join")}
+                  </Button>
+                </div>
+              ))}
+              {canOpen && <Divider plain>{t("OrOpenNewDrawer")}</Divider>}
+            </div>
+          )}
+          {!canOpen ? (
+            <Alert type="info" showIcon title={t(joinable.length ? "SingleDrawerJoin" : "SingleDrawerAsk")} />
+          ) : suggestion ? (
             <Alert
               type="info"
               showIcon
@@ -156,34 +242,38 @@ export function OpenShiftModal({ open, onClose, onOpened, closable = true }) {
               title={t("OpenShiftHint")}
             />
           )}
-          <div className="mb-1">
-            <b>{t("OpeningCashCounted")}</b>
-          </div>
-          <InputNumber
-            autoFocus
-            size="large"
-            style={{ width: "100%" }}
-            min={0}
-            precision={decimals}
-            suffix={symbol}
-            value={cash}
-            onFocus={(e) => e.target.select()}
-            onChange={(v) => setCash(v ?? 0)}
-            onPressEnter={submit}
-          />
-          {diff != null && (
-            <Alert
-              className="mt-3"
-              showIcon
-              {...diffAlert(diff, t, money, symbol)}
-            />
+          {canOpen && (
+            <>
+              <div className="mb-1">
+                <b>{t("OpeningCashCounted")}</b>
+              </div>
+              <InputNumber
+                autoFocus
+                size="large"
+                style={{ width: "100%" }}
+                min={0}
+                precision={decimals}
+                suffix={symbol}
+                value={cash}
+                onFocus={(e) => e.target.select()}
+                onChange={(v) => setCash(v ?? 0)}
+                onPressEnter={submit}
+              />
+              {diff != null && (
+                <Alert
+                  className="mt-3"
+                  showIcon
+                  {...diffAlert(diff, t, money, symbol)}
+                />
+              )}
+              <div className="mb-1 mt-3">{t("Notes")}</div>
+              <Input
+                maxLength={500}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </>
           )}
-          <div className="mb-1 mt-3">{t("Notes")}</div>
-          <Input
-            maxLength={500}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
         </>
       )}
     </Modal>
