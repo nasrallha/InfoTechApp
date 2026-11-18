@@ -461,31 +461,36 @@
 /* الـ QR بحجمه الكامل (كود الزكاة كثيف: الأصغر مابيتقراش) */
 
 /* ============================================================
-   58mm: عرض الطباعة 48mm بس
-   - الإجماليات (قبل الضريبة / الضريبة / شامل الضريبة) خطها أصغر عشان التسمية والرقم
-     مايلزقوش في بعض
-   - عنوان الفاتورة (فاتورة ضريبية مبسطة) أصغر عشان ييجي كامل
-   - QR أكبر (على قد عرض الورقة) عشان يتقري
+   58mm: عرض الطباعة 48mm بس (الخط الأساسي أصغر من الـ 80mm: SMALL_PAPER_SCALE)
+   - العنوان ونوع الفاتورة والإجمالي شامل الضريبة: من غير تكبير زيادة
+   - QR على عرض الورقة كله عشان يتقري
    ============================================================ */
+.inv--58 .inv__company-name {
+  font-size: 1.05em;
+}
 .inv--58 .inv__title {
+  font-size: 0.95em;
+}
+.inv--58 .inv__title-note {
   font-size: 0.9em;
+  padding: 1px 3px;
 }
 .inv--58 .inv__totals > div {
-  font-size: 0.85em;
   gap: 1mm;
 }
 .inv--58 .inv__grand {
-  font-size: 0.95em;
+  font-size: 1em;
   gap: 1mm;
 }
 .inv--58 .inv__grand > span:first-child {
-  font-size: 0.85em;
+  font-size: 0.9em;
 }
 .inv--58 .inv__grand > bdi {
   font-size: 1.05em;
 }
 .inv--58 .inv__qr img,
 .inv--58 .inv__qr-empty {
-  width: 44mm;
-  height: 44mm;
+  width: min(46mm, 100%);
+  height: auto;
+  aspect-ratio: 1;
 }

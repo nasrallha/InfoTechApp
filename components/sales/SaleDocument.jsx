@@ -10,7 +10,7 @@ import { formatDocNo, saleDocNo } from "@/lib/doc-number";
 import { addressLine, documentInfo } from "@/lib/branch-info";
 import { amountInWords, wordsCurrency } from "@/lib/tafqeet";
 import { useCurrency } from "@/components/common/CurrencyProvider";
-import { BASE_FONT, PRINT_AREA } from "@/components/printing/invoice/InvoiceView";
+import { BASE_FONT, PRINT_AREA, SMALL_PAPER_SCALE } from "@/components/printing/invoice/InvoiceView";
 import "@/components/printing/invoice/invoice.css";
 import SerialPrintLines from "@/components/serials/SerialPrintLines";
 
@@ -41,7 +41,10 @@ export default function SaleDocument({ settings, company, doc, kind }) {
   const lang = settings.language;
   const dir = lang === "en" ? "ltr" : "rtl";
   const width = PRINT_AREA[settings.paperSize] ?? 72;
-  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
+  // 58mm: الورقة أضيق (48mm) فالخط كله أصغر عشان الفاتورة ماتطولش
+  const fontPt =
+    (BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5) *
+    (settings.paperSize === "58mm" ? SMALL_PAPER_SCALE : 1);
   const isQuotation = kind === "quotation";
   const isNote = kind === "credit" || kind === "debit";
   // المرتجع والإشعار الدائن: المبلغ "لحساب العميل"

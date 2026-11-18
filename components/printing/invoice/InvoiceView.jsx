@@ -22,6 +22,9 @@ export const BASE_FONT = {
   A4: { small: 9, normal: 10, large: 11.5 },
 };
 
+// 58mm: نسبة تصغير الخط الأساسي (العادي 9pt ← 7.4pt)
+export const SMALL_PAPER_SCALE = 0.82;
+
 // ارتفاع الشعار بالمللي
 const LOGO_HEIGHT = { small: 12, medium: 18, large: 26 };
 // الكاشير: الشعار أكبر (الطابعة الحرارية بتضيّع التفاصيل الصغيرة)
@@ -41,7 +44,10 @@ export default function InvoiceView({ settings, company, branch, invoice }) {
   const lang = settings.language; // ar / en / both
   const dir = lang === "en" ? "ltr" : "rtl";
   const width = PRINT_AREA[settings.paperSize] ?? 72;
-  const fontPt = BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5;
+  // 58mm: الورقة أضيق (48mm) فالخط كله أصغر عشان الفاتورة ماتطولش
+  const fontPt =
+    (BASE_FONT[isA4 ? "A4" : "thermal"][settings.fontSize] ?? 9.5) *
+    (settings.paperSize === "58mm" ? SMALL_PAPER_SCALE : 1);
 
   // نص حسب اللغة: عربي / إنجليزي / الاثنين
   const L = (ar, en) =>
