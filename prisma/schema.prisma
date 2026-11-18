@@ -1086,7 +1086,7 @@ model SystemSettings {
 // ============================================================
 
 model DocumentSequence {
-  key  String @id @db.VarChar(30)
+  key  String @id @db.VarChar(60)
   last Int    @default(0)
 
   @@map("document_sequences")

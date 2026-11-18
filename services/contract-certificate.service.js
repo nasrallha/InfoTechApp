@@ -553,7 +553,7 @@ export async function createCertificate(data, user) {
 
     certificateId = await prisma.$transaction(async (tx) => {
       // رقم المستخلص: مسلسل واحد لكل المستخلصات في الفرع (عقود + سريعة)
-      const no = await nextBranchNumber(tx, "constructionCertificate", c.branchId);
+      const no = await nextBranchNumber(tx, "constructionCertificate", c.branchId, data.date);
       certDocNo = formatDocNo("constructionCertificate", no.number, no.docCode);
       const created = await tx.constructionCertificate.create({
         data: {
