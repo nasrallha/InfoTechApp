@@ -1896,7 +1896,11 @@
     "DevicePaper": "Paper size on this device",
     "DevicePaperHint": "Applies to this device only, on every print screen (e.g. a POS device with a 58mm printer); other devices keep the company paper size",
     "DevicePaperCompany": "Company setting",
-    "DevicePaperSaved": "Paper size saved for this device"
+    "DevicePaperSaved": "Paper size saved for this device",
+    "CompanyPaperSize": "Default paper size for all devices",
+    "CompanyPaperSizeHint": "Applies to every device, except a device given its own size under «Printing on this device» above",
+    "DevicePaperOn": "This device always prints on {paper}, whatever the default size",
+    "DevicePaperOff": "This device prints on the default size for all devices"
   },
   "Invoices": {
     "FreeLine": "Free line",

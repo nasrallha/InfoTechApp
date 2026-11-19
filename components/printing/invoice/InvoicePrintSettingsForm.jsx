@@ -254,6 +254,9 @@ export default function InvoicePrintSettingsForm({
             requiredMark={false}
           >
             <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+              {/* الطباعة على الجهاز ده (مقاسه + أندرويد): أول حاجة عشان ماتتلخبطش مع إعداد الشركة */}
+              <AndroidPrintCard />
+
               {/* الورق والهوامش */}
               <Card
                 size="small"
@@ -264,7 +267,11 @@ export default function InvoicePrintSettingsForm({
                 }
               >
                 {/* نوع الطباعة: A4 أو كاشير 80mm أو كاشير 58mm */}
-                <Form.Item name="paperSize" label={t("paperSize")}>
+                <Form.Item
+                  name="paperSize"
+                  label={t("CompanyPaperSize")}
+                  tooltip={t("CompanyPaperSizeHint")}
+                >
                   <PaperPicker t={t} disabled={!canEdit} />
                 </Form.Item>
                 <Row gutter={[12, 0]}>
@@ -276,8 +283,6 @@ export default function InvoicePrintSettingsForm({
                 <p className="text-xs text-slate-400 m-0">{t("MarginsHint")}</p>
               </Card>
 
-              {/* طباعة أندرويد (RawBT): إعداد الجهاز ده بس */}
-              <AndroidPrintCard />
 
               {/* نموذج A4: الحالي / ثنائي اللغة / ورق مطبوع جاهز (كل المستندات A4) */}
               <Card

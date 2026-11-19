@@ -64,7 +64,9 @@ export default function AndroidPrintCard() {
             <QuestionCircleOutlined />
           </Tooltip>
         </div>
+        {/* إعداد الجهاز: شغال حتى لو المستخدم مايقدرش يعدّل إعدادات الشركة */}
         <Segmented
+          disabled={false}
           value={devicePaper}
           onChange={pickPaper}
           options={[
@@ -74,6 +76,14 @@ export default function AndroidPrintCard() {
             { value: "A4", label: "A4" },
           ]}
         />
+        {/* حالة الجهاز ده بوضوح */}
+        <div className="mt-2">
+          {devicePaper ? (
+            <Alert type="success" showIcon title={t("DevicePaperOn", { paper: devicePaper })} />
+          ) : (
+            <Alert type="info" showIcon title={t("DevicePaperOff")} />
+          )}
+        </div>
       </div>
       <div className="flex items-center justify-between gap-2 mb-3">
         <span>{t("AndroidPrintOnDevice")}</span>
