@@ -506,6 +506,7 @@ export default function PurchaseForm({
       render: (_, l) => (
         <ScanSafeNumber
           field="qty"
+          positive
           size="small"
           style={{ width: "100%" }}
           min={0}

@@ -744,6 +744,7 @@ function ClaimItems({ claim: c, editable }) {
               editable ? (
                 <ScanSafeNumber
                   field="qty"
+                  positive
                   size="small"
                   min={0}
                   precision={3}

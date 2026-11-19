@@ -1034,6 +1034,7 @@ export default function PosScreen({
                         />
                         <ScanSafeNumber
                           field="qty"
+                          positive
                           min={0}
                           precision={3}
                           controls={false}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InputNumber } from "antd";
 import { useTranslations } from "next-intl";
 import { message } from "@/components/common/feedback";
@@ -16,6 +16,12 @@ import { message } from "@/components/common/feedback";
 //   - المؤشر يخرج من الخانة (عشان المسح الجاي يروح لمكانه الصح)
 // + أي رقم من 7 أرقام أو أكتر (مليون فأكتر) بيترفض برضه، لأن ده غالباً باركود
 // field: "qty" | "price" | "discount" (لنص الرسالة)
+// الكمية (field="qty"):
+// - المسح بيسيب الخانة فاضية لحد ما يكتب (مش 0): على الموبايل الصفر كان بيفضل
+//   والمؤشر قبله، فكتابة 3 تبقى 30
+// - الضغط على الخانة بيحدد الرقم كله (الكتابة تحل محله)
+// - positive: الكمية لازم أكبر من صفر ← فاضية / صفر عند الخروج = آخر كمية صحيحة
+//   (من غيرها: فاضية عند الخروج = 0، زي المرتجع)
 // باقي الخصائص زي InputNumber بالظبط
 // ============================================================
 const FAST_MS = 40; // متوسط الوقت بين الحروف في المسح
@@ -29,8 +35,15 @@ export default function ScanSafeNumber({
   onChange,
   field = "qty",
   onKeyDown,
+  onFocus,
+  onBlur,
+  positive = false,
   ...rest
 }) {
+  const isQty = field === "qty";
+  // null = الخانة فاضية وهو بيكتب (القيمة الحقيقية لسه زي ما هي)
+  const [empty, setEmpty] = useState(false);
+  const lastGood = useRef(Number(value) > 0 ? value : null);
   const t = useTranslations("Alerts");
   const inputRef = useRef(null);
   const burst = useRef(null); // { times: [], before }
@@ -41,6 +54,7 @@ export default function ScanSafeNumber({
   useEffect(() => {
     valueRef.current = value;
     changeRef.current = onChange;
+    if (Number(value) > 0) lastGood.current = value;
   });
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -63,6 +77,12 @@ export default function ScanSafeNumber({
 
   // رقم كبير جداً (7 أرقام أو أكتر): نرفضه ونرجّع آخر قيمة سليمة
   const handleChange = (v) => {
+    // الكمية اتمسحت: تفضل فاضية لحد ما يكتب
+    if (isQty && (v == null || v === "")) {
+      setEmpty(true);
+      return;
+    }
+    setEmpty(false);
     if (v != null && Math.abs(Number(v)) >= MAX_NUMBER) {
       clearTimeout(timer.current);
       burst.current = null;
@@ -95,13 +115,33 @@ export default function ScanSafeNumber({
     onKeyDown?.(e);
   };
 
+  const handleFocus = (e) => {
+    if (isQty) e.target.select?.();
+    onFocus?.(e);
+  };
+
+  const handleBlur = (e) => {
+    if (isQty) {
+      const wasEmpty = empty;
+      setEmpty(false);
+      if (positive) {
+        // فاضية / صفر ← آخر كمية صحيحة (أو 1)
+        if (wasEmpty || !(Number(valueRef.current) > 0))
+          changeRef.current?.(lastGood.current ?? 1);
+      } else if (wasEmpty) changeRef.current?.(0);
+    }
+    onBlur?.(e);
+  };
+
   return (
     <InputNumber
       {...rest}
       ref={inputRef}
-      value={value}
+      value={empty ? null : value}
       onChange={handleChange}
       onKeyDown={handleKeyDown}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
     />
   );
 }
