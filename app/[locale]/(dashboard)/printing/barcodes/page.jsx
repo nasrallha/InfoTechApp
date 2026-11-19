@@ -6,6 +6,7 @@ import { connection } from "next/server";
 import { getLocale } from "next-intl/server";
 import { getPageAccess } from "@/lib/auth";
 import { getActiveBarcodeLabels } from "@/services/barcode-label.service";
+import { getDeviceBarcodeLabelId } from "@/services/invoice-print.service";
 import {
   getLabelBatchesByIds,
   getLabelProductsByIds,
@@ -33,7 +34,7 @@ async function BarcodePrintContent({ searchParams }) {
   const { ids, batches } = await searchParams;
   const batchIds = parseIds(batches);
 
-  const [labels, products, batchProducts, company, locale] = await Promise.all([
+  const [labels, products, batchProducts, company, locale, deviceLabelId] = await Promise.all([
     getActiveBarcodeLabels(),
     getLabelProductsByIds(parseIds(ids)),
     batchIds.length
@@ -46,6 +47,8 @@ async function BarcodePrintContent({ searchParams }) {
       : [],
     getCompany(),
     getLocale(),
+    // قالب الملصق المحفوظ للجهاز ده
+    getDeviceBarcodeLabelId(),
   ]);
 
   const companyName = company ? (locale === "ar" ? company.arName : company.enName) : null;
@@ -53,6 +56,7 @@ async function BarcodePrintContent({ searchParams }) {
   return (
     <BarcodePrintView
       labels={labels}
+      deviceLabelId={deviceLabelId}
       initialProducts={[...products, ...batchProducts]}
       companyName={companyName}
     />

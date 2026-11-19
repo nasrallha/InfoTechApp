@@ -27,6 +27,7 @@ import {
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
 import { searchLabelProductsAction } from "@/actions/barcode-print.actions";
+import { setDeviceBarcodeLabelAction } from "@/actions/invoice-print.actions";
 import BarcodeLabelView from "./BarcodeLabelView";
 import PrintLabels from "./PrintLabels";
 import { useCurrency } from "@/components/common/CurrencyProvider";
@@ -69,6 +70,7 @@ export default function BarcodePrintView({
   labels = [],
   initialProducts = [],
   companyName,
+  deviceLabelId = null, // قالب الجهاز ده (لو اتحفظ له قالب)
 }) {
   const locale = useLocale();
   const t = useTranslations("BarcodePrint");
@@ -80,10 +82,19 @@ export default function BarcodePrintView({
   const nameOf = (x) => (locale === "ar" ? x.arName : x.enName);
   const { symbol: currency } = useCurrency(); // رمز العملة الأساسية
 
-  // القالب: الافتراضي مختار تلقائياً
+  // القالب: قالب الجهاز ده، وإلا الافتراضي
   const [labelId, setLabelId] = useState(
-    () => (labels.find((l) => l.isDefault) ?? labels[0])?.id ?? null,
+    () =>
+      (labels.find((l) => l.id === deviceLabelId) ?? labels.find((l) => l.isDefault) ?? labels[0])
+        ?.id ?? null,
   );
+  // اختيار قالب ← يتحفظ للجهاز ده (المرة الجاية يفتح عليه)
+  const pickLabel = (id) => {
+    setLabelId(id);
+    setDeviceBarcodeLabelAction(id).then((res) => {
+      if (res.success) message.success(t("DeviceLabelSaved"));
+    });
+  };
   const label = labels.find((l) => l.id === labelId) ?? null;
 
   // المنتجات الجاية من جدول المنتجات: مفاتيح ثابتة حسب ترتيبها (i0, i1, ...)
@@ -394,7 +405,7 @@ export default function BarcodePrintView({
           <span className="text-slate-600 font-bold">{t("Template")}:</span>
           <Select
             value={labelId}
-            onChange={setLabelId}
+            onChange={pickLabel}
             style={{ minWidth: 220 }}
             options={labels.map((l) => ({
               value: l.id,

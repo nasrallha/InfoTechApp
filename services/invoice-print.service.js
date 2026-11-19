@@ -1,8 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { saveImage, deleteImage } from "@/lib/upload";
 import { cookies } from "next/headers";
 import { DEVICE_PAPER_COOKIE, isDevicePaper } from "@/lib/device-paper";
+import { ensureDeviceKey, getDeviceKey } from "@/lib/device-key";
 
 // إعدادات طباعة الفواتير: صف واحد فقط (id = 1)
 const SETTINGS_ID = 1;
@@ -45,27 +47,92 @@ const select = Object.fromEntries(
 
 // الإعدادات المحفوظة، أو الافتراضية لو لم تُحفظ بعد
 // نستخدمها لاحقاً عند طباعة فواتير المبيعات
-// device: مقاس الورق المحفوظ على الجهاز ده (كوكي) بيغلب مقاس الشركة
-// (شاشة إعدادات الطباعة نفسها: device = false ← إعداد الشركة زي ما هو)
-export async function getInvoicePrintSettings({ device = true } = {}) {
+// إعدادات الجهاز: كل الحقول ما عدا صورة الورق الجاهز (واحدة للشركة)
+const DEVICE_KEYS = Object.keys(DEFAULT_INVOICE_PRINT).filter((k) => k !== "letterImage");
+const pickDevice = (obj) =>
+  Object.fromEntries(DEVICE_KEYS.filter((k) => obj?.[k] !== undefined).map((k) => [k, obj[k]]));
+
+async function companySettings() {
   const saved = await prisma.invoicePrintSettings.findUnique({
     where: { id: SETTINGS_ID },
     select: { ...select, updatedAt: true },
   });
-  const settings = saved ?? { ...DEFAULT_INVOICE_PRINT, updatedAt: null };
+  return saved ?? { ...DEFAULT_INVOICE_PRINT, updatedAt: null };
+}
+
+// إعدادات الجهاز ده المحفوظة (null = مالوش إعدادات خاصة)
+async function deviceRow() {
+  const key = await getDeviceKey();
+  if (!key) return null;
+  return prisma.devicePrintSettings
+    .findUnique({ where: { deviceKey: key } })
+    .catch(() => null); // القاعدة لسه متحدّثتش (الجدول مش موجود)
+}
+
+// الإعدادات اللي بتتطبع بيها: إعدادات الجهاز ده (لو ليه) فوق إعدادات الشركة
+// device = false ← إعدادات الشركة زي ما هي (شاشة الإعدادات: «الافتراضية لكل الأجهزة»)
+export async function getInvoicePrintSettings({ device = true } = {}) {
+  const settings = await companySettings();
   if (!device) return settings;
-  const paper = await devicePaper();
+  const row = await deviceRow();
+  if (row?.invoice) return { ...settings, ...pickDevice(row.invoice) };
+  // مقاس الورق القديم على الجهاز (كوكي) - قبل إعدادات الجهاز الكاملة
+  const paper = await legacyDevicePaper();
   return paper ? { ...settings, paperSize: paper } : settings;
 }
 
-async function devicePaper() {
+async function legacyDevicePaper() {
   try {
     const v = (await cookies()).get(DEVICE_PAPER_COOKIE)?.value;
     return isDevicePaper(v) ? v : null;
   } catch {
-    // برّه طلب (مفيش كوكيز)
     return null;
   }
+}
+
+// شاشة الإعدادات: إعدادات الجهاز ده (null = مالوش، بيستخدم الافتراضية)
+export async function getDeviceInvoiceSettings() {
+  const row = await deviceRow();
+  if (!row?.invoice) return null;
+  return { ...(await companySettings()), ...pickDevice(row.invoice), updatedAt: row.updatedAt };
+}
+
+// حفظ إعدادات الجهاز ده (بيعمل رقم للجهاز لو مالوش)
+export async function saveDeviceInvoiceSettings(data) {
+  const deviceKey = await ensureDeviceKey();
+  const invoice = pickDevice(data);
+  await prisma.devicePrintSettings.upsert({
+    where: { deviceKey },
+    create: { deviceKey, invoice },
+    update: { invoice },
+  });
+  return { ...(await companySettings()), ...invoice };
+}
+
+// الجهاز ده يرجع للإعدادات الافتراضية
+export async function resetDeviceInvoiceSettings() {
+  const deviceKey = await getDeviceKey();
+  if (deviceKey)
+    await prisma.devicePrintSettings.updateMany({
+      where: { deviceKey },
+      data: { invoice: Prisma.DbNull },
+    });
+  return { reset: true };
+}
+
+// ---------- قالب ملصق الباركود للجهاز ده ----------
+export async function getDeviceBarcodeLabelId() {
+  return (await deviceRow())?.barcodeLabelId ?? null;
+}
+
+export async function setDeviceBarcodeLabel(labelId) {
+  const deviceKey = await ensureDeviceKey();
+  await prisma.devicePrintSettings.upsert({
+    where: { deviceKey },
+    create: { deviceKey, barcodeLabelId: labelId },
+    update: { barcodeLabelId: labelId },
+  });
+  return { labelId };
 }
 
 // حفظ الإعدادات: أول مرة تُنشأ، وبعدها تُعدّل

@@ -768,6 +768,22 @@ model Company {
 // - قالب واحد فقط يكون افتراضياً (isDefault)
 // ============================================================
 
+// ============================================================
+// إعدادات الطباعة لكل جهاز (الجهاز بيتعرّف بكوكي print-device)
+// invoice: إعدادات طباعة الفواتير كاملة للجهاز ده (null = الإعدادات الافتراضية للشركة)
+// barcodeLabelId: قالب ملصق الباركود الافتراضي للجهاز ده (null / محذوف = افتراضي الشركة)
+// ============================================================
+model DevicePrintSettings {
+  deviceKey      String   @id @db.VarChar(40)
+  invoice        Json?
+  barcodeLabelId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("device_print_settings")
+}
+
 model BarcodeLabel {
   id     Int    @id @default(autoincrement())
   arName String @unique @db.VarChar(100)

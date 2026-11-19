@@ -4,7 +4,10 @@ import { connection } from "next/server";
 import { getLocale } from "next-intl/server";
 import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
-import { getInvoicePrintSettings } from "@/services/invoice-print.service";
+import {
+  getDeviceInvoiceSettings,
+  getInvoicePrintSettings,
+} from "@/services/invoice-print.service";
 import { getCompany } from "@/services/company.service";
 import InvoicePrintSettingsForm from "@/components/printing/invoice/InvoicePrintSettingsForm";
 import NoAccess from "@/components/common/NoAccess";
@@ -16,9 +19,10 @@ async function InvoicePrintContent() {
   if (!allowed) return <NoAccess />;
 
   await connection();
-  const [settings, company, locale] = await Promise.all([
-    // إعداد الشركة زي ما هو (مقاس الجهاز ده في كارت «الطباعة على هذا الجهاز»)
+  const [settings, deviceSettings, company, locale] = await Promise.all([
+    // الإعدادات الافتراضية (الشركة) + إعدادات الجهاز ده (لو ليه)
     getInvoicePrintSettings({ device: false }),
+    getDeviceInvoiceSettings(),
     getCompany(),
     getLocale(),
   ]);
@@ -26,6 +30,7 @@ async function InvoicePrintContent() {
   return (
     <InvoicePrintSettingsForm
       settings={settings}
+      deviceSettings={deviceSettings}
       company={company}
       branch={user.branch}
       cashierName={locale === "ar" ? user.arFullname : user.enFullname}

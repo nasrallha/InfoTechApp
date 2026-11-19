@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   Button,
@@ -32,7 +32,12 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { useLocale, useTranslations } from "next-intl";
-import { saveInvoicePrintAction, saveLetterImageAction } from "@/actions/invoice-print.actions";
+import {
+  resetDevicePrintAction,
+  saveDevicePrintAction,
+  saveInvoicePrintAction,
+  saveLetterImageAction,
+} from "@/actions/invoice-print.actions";
 import { applyFieldErrors } from "@/lib/form-errors";
 import {
   PAPER_SIZES,
@@ -47,7 +52,6 @@ import InvoiceView, { PRINT_AREA } from "./InvoiceView";
 import PrintInvoice from "./PrintInvoice";
 import ScaledBox from "../ScaledBox";
 import AndroidPrintCard from "../AndroidPrintCard";
-import { readDevicePaper, saveDevicePaper } from "@/lib/device-paper";
 import { sampleA4Doc, sampleInvoice } from "./sampleInvoice";
 import "../printing.css";
 import { actionErrorText } from "@/components/common/actionError";
@@ -84,8 +88,11 @@ function PaperPicker({ value, onChange, disabled, t }) {
 // إعدادات طباعة الفواتير: الإعدادات على جنب ومعاينة حية للفاتورة على الجنب الآخر
 // settings: المحفوظة (أو الافتراضية)، company: بيانات الشركة، branch: الفرع الحالي
 // cashierName: اسم المستخدم الحالي (للمعاينة)، canEdit: يملك صلاحية التعديل؟
+// deviceSettings: إعدادات الجهاز ده (null = بيطبع بالإعدادات الافتراضية)
+// الشاشة بتعدّل واحد من الاتنين: «هذا الجهاز» أو «الافتراضية لكل الأجهزة»
 export default function InvoicePrintSettingsForm({
   settings,
+  deviceSettings = null,
   company,
   branch,
   cashierName,
@@ -98,20 +105,11 @@ export default function InvoicePrintSettingsForm({
   const [letterImage, setLetterImage] = useState(settings.letterImage ?? null);
   const [uploading, setUploading] = useState(false);
   const [previewMode, setPreviewMode] = useState(null);
-  // نوع الطباعة على الجهاز ده (كوكي) - "" = الافتراضي (إعداد الشركة)
-  const [devicePaper, setDevicePaper] = useState("");
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDevicePaper(readDevicePaper());
-  }, []);
-  // اختيار نوع الطباعة = للجهاز ده بس (بيتحفظ على طول من غير زرار الحفظ)
-  // "" = يرجع للنوع الافتراضي
-  const pickDevicePaper = (v) => {
-    if (!saveDevicePaper(v)) return message.error(t("AndroidPrintStorageBlocked"));
-    setDevicePaper(v);
-    setPreviewMode(null);
-    message.success(t(v ? "DevicePaperSaved" : "DevicePaperReset"));
-  };
+  // الإعدادات اللي بتتعدّل: device (هذا الجهاز) | company (الافتراضية لكل الأجهزة)
+  const [companyValues, setCompanyValues] = useState(settings);
+  const [deviceValues, setDeviceValues] = useState(deviceSettings);
+  const [scope, setScope] = useState(deviceSettings ? "device" : "company");
+  const [resetting, setResetting] = useState(false);
   const locale = useLocale();
   const t = useTranslations("InvoicePrint");
   const tSidebar = useTranslations("Sidebar");
@@ -120,13 +118,22 @@ export default function InvoicePrintSettingsForm({
 
   // كل تغيير في الفورم يظهر في المعاينة فوراً
   const values = Form.useWatch([], form);
-  const companyPaper = values?.paperSize ?? settings.paperSize;
-  // المعاينة بنوع الطباعة على الجهاز ده
-  const preview = { ...settings, ...(values ?? {}), paperSize: devicePaper || companyPaper };
+  const base = scope === "device" ? (deviceValues ?? companyValues) : companyValues;
+  const preview = { ...base, ...(values ?? {}) };
+
+  // تبديل: الفورم بياخد إعدادات الجهاز (أو الافتراضية لو مالوش) / الافتراضية
+  const switchScope = (next) => {
+    setScope(next);
+    setPreviewMode(null);
+    form.setFieldsValue(next === "device" ? (deviceValues ?? companyValues) : companyValues);
+  };
 
   const onFinish = async (formValues) => {
     setSaving(true);
-    const res = await saveInvoicePrintAction(formValues);
+    const res =
+      scope === "device"
+        ? await saveDevicePrintAction(formValues)
+        : await saveInvoicePrintAction(formValues);
     setSaving(false);
 
     if (!res.success) {
@@ -134,7 +141,24 @@ export default function InvoicePrintSettingsForm({
       message.error(actionErrorText(res, tAlerts));
       return;
     }
-    message.success(tAlerts("InvoicePrintSaved"));
+    if (scope === "device") {
+      setDeviceValues({ ...companyValues, ...formValues });
+      message.success(t("DeviceSettingsSaved"));
+    } else {
+      setCompanyValues((prev) => ({ ...prev, ...formValues }));
+      message.success(tAlerts("InvoicePrintSaved"));
+    }
+  };
+
+  // الجهاز ده يرجع للإعدادات الافتراضية
+  const resetDevice = async () => {
+    setResetting(true);
+    const res = await resetDevicePrintAction();
+    setResetting(false);
+    if (!res.success) return message.error(actionErrorText(res, tAlerts));
+    setDeviceValues(null);
+    form.setFieldsValue(companyValues);
+    message.success(t("DeviceSettingsReset"));
   };
 
   const onPrintDone = useCallback(() => setPrinting(false), []);
@@ -258,6 +282,32 @@ export default function InvoicePrintSettingsForm({
         <Alert type="info" showIcon title={t("NoCompany")} className="mb-4" />
       )}
 
+      {/* الإعدادات اللي بتتعدّل: الجهاز ده بس، أو الافتراضية لكل الأجهزة */}
+      <Card size="small" className="mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Segmented
+            value={scope}
+            onChange={switchScope}
+            options={[
+              { value: "device", label: t("ScopeDevice") },
+              { value: "company", label: t("ScopeCompany") },
+            ]}
+          />
+          <span className="text-slate-500 text-sm">
+            {scope === "company"
+              ? t("ScopeCompanyHint")
+              : deviceValues
+                ? t("ScopeDeviceOn")
+                : t("ScopeDeviceOff")}
+          </span>
+          {scope === "device" && deviceValues && canEdit && (
+            <Button size="small" loading={resetting} onClick={resetDevice}>
+              {t("DeviceSettingsUseDefault")}
+            </Button>
+          )}
+        </div>
+      </Card>
+
       <Row gutter={[20, 16]}>
         {/* ============ الإعدادات ============ */}
         <Col xs={24} xl={13}>
@@ -267,7 +317,7 @@ export default function InvoicePrintSettingsForm({
             autoComplete="off"
             onFinish={onFinish}
             disabled={!canEdit}
-            initialValues={settings}
+            initialValues={base}
             requiredMark={false}
           >
             <Space orientation="vertical" size={16} style={{ width: "100%" }}>
@@ -280,45 +330,9 @@ export default function InvoicePrintSettingsForm({
                   </span>
                 }
               >
-                {/* نوع الطباعة على الجهاز ده: A4 أو كاشير 80mm أو كاشير 58mm
-                    (بيتحفظ على الجهاز على طول، شغال حتى من غير صلاحية التعديل) */}
-                <Form.Item label={t("DevicePaper")} tooltip={t("DevicePaperHint")}>
-                  <PaperPicker
-                    t={t}
-                    value={devicePaper || companyPaper}
-                    onChange={pickDevicePaper}
-                    disabled={false}
-                  />
-                </Form.Item>
-                <Alert
-                  className="mb-3"
-                  type={devicePaper ? "success" : "info"}
-                  showIcon
-                  title={
-                    devicePaper
-                      ? t("DevicePaperOn", { paper: t(`papers.${devicePaper}`) })
-                      : t("DevicePaperOff")
-                  }
-                  action={
-                    devicePaper ? (
-                      <Button size="small" disabled={false} onClick={() => pickDevicePaper("")}>
-                        {t("DevicePaperUseDefault")}
-                      </Button>
-                    ) : null
-                  }
-                />
-                {/* النوع الافتراضي (الشركة): للأجهزة اللي مااتحددلهاش نوع - بيتحفظ بزرار الحفظ */}
-                <Form.Item
-                  name="paperSize"
-                  label={t("CompanyPaperSize")}
-                  tooltip={t("CompanyPaperSizeHint")}
-                >
-                  <Segmented
-                    options={["80mm", "58mm", "A4"].map((p) => ({
-                      value: p,
-                      label: t(`papers.${p}`),
-                    }))}
-                  />
+                {/* نوع الطباعة: A4 أو كاشير 80mm أو كاشير 58mm */}
+                <Form.Item name="paperSize" label={t("paperSize")}>
+                  <PaperPicker t={t} disabled={!canEdit} />
                 </Form.Item>
                 <Row gutter={[12, 0]}>
                   {marginField("marginTop")}
@@ -331,7 +345,6 @@ export default function InvoicePrintSettingsForm({
 
               {/* طباعة أندرويد (RawBT): إعداد الجهاز ده بس */}
               <AndroidPrintCard paper={preview.paperSize} />
-
 
               {/* نموذج A4: الحالي / ثنائي اللغة / ورق مطبوع جاهز (كل المستندات A4) */}
               <Card

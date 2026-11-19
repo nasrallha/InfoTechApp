@@ -6,8 +6,11 @@ import { runAction } from "@/lib/action";
 import { invoicePrintSchema } from "@/validations/invoice-print.schema";
 import {
   getInvoicePrintSettings,
+  resetDeviceInvoiceSettings,
+  saveDeviceInvoiceSettings,
   saveInvoicePrintSettings,
   saveLetterImage,
+  setDeviceBarcodeLabel,
 } from "@/services/invoice-print.service";
 import { imageField } from "@/validations/common.schema";
 import { z } from "zod";
@@ -30,6 +33,32 @@ export async function saveInvoicePrintAction(input) {
       permission: "printing.update",
       refresh: true,
     },
+  );
+}
+
+// إعدادات الطباعة للجهاز ده بس (نفس حقول إعدادات الشركة)
+export async function saveDevicePrintAction(input) {
+  return runAction(invoicePrintSchema, input, (data) => saveDeviceInvoiceSettings(data), {
+    permission: "printing.update",
+    refresh: true,
+  });
+}
+
+// الجهاز ده يرجع للإعدادات الافتراضية
+export async function resetDevicePrintAction() {
+  return runAction(z.any(), null, () => resetDeviceInvoiceSettings(), {
+    permission: "printing.update",
+    refresh: true,
+  });
+}
+
+// قالب ملصق الباركود للجهاز ده (بيتحفظ لما يختار قالب في شاشة طباعة الباركود)
+export async function setDeviceBarcodeLabelAction(labelId) {
+  return runAction(
+    z.number().int().positive().nullable(),
+    labelId,
+    (id) => setDeviceBarcodeLabel(id),
+    { permission: "barcodes.print" },
   );
 }
 

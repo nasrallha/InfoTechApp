@@ -1799,7 +1799,8 @@
     "NoTemplate": "Choose a label template",
     "NoTemplates": "No active label templates. Add one in barcode label settings",
     "NothingToPrint": "Nothing to print",
-    "TooMany": "Maximum {max} labels per print"
+    "TooMany": "Maximum {max} labels per print",
+    "DeviceLabelSaved": "Template saved for this device"
   },
   "InvoicePrint": {
     "AndroidPrint": "Android printing (no print dialog)",
@@ -1902,7 +1903,15 @@
     "DevicePaperOn": "This device always prints on {paper}",
     "DevicePaperOff": "This device uses the default type below; pick a type above to save one for it",
     "DevicePaperReset": "This device now uses the default print type",
-    "DevicePaperUseDefault": "Use the default"
+    "DevicePaperUseDefault": "Use the default",
+    "ScopeDevice": "This device's settings",
+    "ScopeCompany": "Default settings for all devices",
+    "ScopeCompanyHint": "Used by every device that has no settings of its own",
+    "ScopeDeviceOn": "This device prints with its own settings; other devices are not affected",
+    "ScopeDeviceOff": "This device uses the default settings; edit and save to give it its own",
+    "DeviceSettingsSaved": "Print settings saved for this device",
+    "DeviceSettingsReset": "This device now uses the default settings",
+    "DeviceSettingsUseDefault": "Use the default settings"
   },
   "Invoices": {
     "FreeLine": "Free line",
