@@ -1893,14 +1893,16 @@
     "showPhone": "Show phone number",
     "showEmail": "Show email",
     "DevicePrint": "Printing on this device",
-    "DevicePaper": "Paper size on this device",
-    "DevicePaperHint": "Applies to this device only, on every print screen (e.g. a POS device with a 58mm printer); other devices keep the company paper size",
+    "DevicePaper": "Print type on this device",
+    "DevicePaperHint": "Saved on this device right away and used on every print screen here; other devices are not changed",
     "DevicePaperCompany": "Company setting",
-    "DevicePaperSaved": "Paper size saved for this device",
-    "CompanyPaperSize": "Default paper size for all devices",
-    "CompanyPaperSizeHint": "Applies to every device, except a device given its own size under «Printing on this device» above",
-    "DevicePaperOn": "This device always prints on {paper}, whatever the default size",
-    "DevicePaperOff": "This device prints on the default size for all devices"
+    "DevicePaperSaved": "Print type saved for this device",
+    "CompanyPaperSize": "Default type (devices without their own type)",
+    "CompanyPaperSizeHint": "Saved with the Save button; used by every device that has no print type of its own",
+    "DevicePaperOn": "This device always prints on {paper}",
+    "DevicePaperOff": "This device uses the default type below; pick a type above to save one for it",
+    "DevicePaperReset": "This device now uses the default print type",
+    "DevicePaperUseDefault": "Use the default"
   },
   "Invoices": {
     "FreeLine": "Free line",

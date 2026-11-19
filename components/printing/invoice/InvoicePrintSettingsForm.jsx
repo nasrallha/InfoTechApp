@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -47,6 +47,7 @@ import InvoiceView, { PRINT_AREA } from "./InvoiceView";
 import PrintInvoice from "./PrintInvoice";
 import ScaledBox from "../ScaledBox";
 import AndroidPrintCard from "../AndroidPrintCard";
+import { readDevicePaper, saveDevicePaper } from "@/lib/device-paper";
 import { sampleA4Doc, sampleInvoice } from "./sampleInvoice";
 import "../printing.css";
 import { actionErrorText } from "@/components/common/actionError";
@@ -97,6 +98,20 @@ export default function InvoicePrintSettingsForm({
   const [letterImage, setLetterImage] = useState(settings.letterImage ?? null);
   const [uploading, setUploading] = useState(false);
   const [previewMode, setPreviewMode] = useState(null);
+  // نوع الطباعة على الجهاز ده (كوكي) - "" = الافتراضي (إعداد الشركة)
+  const [devicePaper, setDevicePaper] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDevicePaper(readDevicePaper());
+  }, []);
+  // اختيار نوع الطباعة = للجهاز ده بس (بيتحفظ على طول من غير زرار الحفظ)
+  // "" = يرجع للنوع الافتراضي
+  const pickDevicePaper = (v) => {
+    if (!saveDevicePaper(v)) return message.error(t("AndroidPrintStorageBlocked"));
+    setDevicePaper(v);
+    setPreviewMode(null);
+    message.success(t(v ? "DevicePaperSaved" : "DevicePaperReset"));
+  };
   const locale = useLocale();
   const t = useTranslations("InvoicePrint");
   const tSidebar = useTranslations("Sidebar");
@@ -105,7 +120,9 @@ export default function InvoicePrintSettingsForm({
 
   // كل تغيير في الفورم يظهر في المعاينة فوراً
   const values = Form.useWatch([], form);
-  const preview = { ...settings, ...(values ?? {}) };
+  const companyPaper = values?.paperSize ?? settings.paperSize;
+  // المعاينة بنوع الطباعة على الجهاز ده
+  const preview = { ...settings, ...(values ?? {}), paperSize: devicePaper || companyPaper };
 
   const onFinish = async (formValues) => {
     setSaving(true);
@@ -254,9 +271,6 @@ export default function InvoicePrintSettingsForm({
             requiredMark={false}
           >
             <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-              {/* الطباعة على الجهاز ده (مقاسه + أندرويد): أول حاجة عشان ماتتلخبطش مع إعداد الشركة */}
-              <AndroidPrintCard />
-
               {/* الورق والهوامش */}
               <Card
                 size="small"
@@ -266,13 +280,45 @@ export default function InvoicePrintSettingsForm({
                   </span>
                 }
               >
-                {/* نوع الطباعة: A4 أو كاشير 80mm أو كاشير 58mm */}
+                {/* نوع الطباعة على الجهاز ده: A4 أو كاشير 80mm أو كاشير 58mm
+                    (بيتحفظ على الجهاز على طول، شغال حتى من غير صلاحية التعديل) */}
+                <Form.Item label={t("DevicePaper")} tooltip={t("DevicePaperHint")}>
+                  <PaperPicker
+                    t={t}
+                    value={devicePaper || companyPaper}
+                    onChange={pickDevicePaper}
+                    disabled={false}
+                  />
+                </Form.Item>
+                <Alert
+                  className="mb-3"
+                  type={devicePaper ? "success" : "info"}
+                  showIcon
+                  title={
+                    devicePaper
+                      ? t("DevicePaperOn", { paper: t(`papers.${devicePaper}`) })
+                      : t("DevicePaperOff")
+                  }
+                  action={
+                    devicePaper ? (
+                      <Button size="small" disabled={false} onClick={() => pickDevicePaper("")}>
+                        {t("DevicePaperUseDefault")}
+                      </Button>
+                    ) : null
+                  }
+                />
+                {/* النوع الافتراضي (الشركة): للأجهزة اللي مااتحددلهاش نوع - بيتحفظ بزرار الحفظ */}
                 <Form.Item
                   name="paperSize"
                   label={t("CompanyPaperSize")}
                   tooltip={t("CompanyPaperSizeHint")}
                 >
-                  <PaperPicker t={t} disabled={!canEdit} />
+                  <Segmented
+                    options={["80mm", "58mm", "A4"].map((p) => ({
+                      value: p,
+                      label: t(`papers.${p}`),
+                    }))}
+                  />
                 </Form.Item>
                 <Row gutter={[12, 0]}>
                   {marginField("marginTop")}
@@ -282,6 +328,9 @@ export default function InvoicePrintSettingsForm({
                 </Row>
                 <p className="text-xs text-slate-400 m-0">{t("MarginsHint")}</p>
               </Card>
+
+              {/* طباعة أندرويد (RawBT): إعداد الجهاز ده بس */}
+              <AndroidPrintCard paper={preview.paperSize} />
 
 
               {/* نموذج A4: الحالي / ثنائي اللغة / ورق مطبوع جاهز (كل المستندات A4) */}
