@@ -1,4 +1,5 @@
 import "server-only";
+import { ownDocs } from "@/lib/doc-scope";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { assertDocYear } from "./fiscal-year.service";
 import { isFreeLine } from "@/lib/free-line";
@@ -1085,6 +1086,8 @@ export async function listPurchases({
   const where = {
     type,
     ...scope,
+    // من غير «عرض مستندات الآخرين»: مستنداته بس
+    ...ownDocs(user),
     ...(branchId && !scope.branchId ? { branchId } : {}),
     ...dateRangeWhere(from, to),
     ...(query
@@ -1140,9 +1143,15 @@ export async function listPurchases({
 }
 
 // فاتورة كاملة للعرض والطباعة
-export async function getPurchase(id, type, user) {
+// all: من غير قيد «مستنداته بس» (المرتجع على فاتورة أي حد)
+export async function getPurchase(id, type, user, { all = false } = {}) {
   const p = await prisma.purchase.findFirst({
-    where: { id, ...(type ? { type } : {}), ...branchScope(user) },
+    where: {
+      id,
+      ...(type ? { type } : {}),
+      ...branchScope(user),
+      ...(all ? {} : ownDocs(user)),
+    },
     select: {
       id: true,
       type: true,
@@ -1292,7 +1301,8 @@ export async function findPurchasesForReturn({ by, value }, user) {
 
 // فاتورة الشراء لشاشة المرتجع: كل سطر ومعه المتاح وما رُجّع منه (كمية ومبالغ)
 export async function getPurchaseForReturn(id, user) {
-  const purchase = await getPurchase(id, PURCHASE, user);
+  // المرتجع: على فاتورة أي حد في الفرع
+  const purchase = await getPurchase(id, PURCHASE, user, { all: true });
   if (!purchase) return null;
 
   const ids = purchase.items.map((i) => i.id);

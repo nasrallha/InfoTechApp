@@ -1,4 +1,5 @@
 import "server-only";
+import { ownDocs } from "@/lib/doc-scope";
 import { partyInBranch } from "@/lib/party-scope";
 import { prisma } from "@/lib/prisma";
 import { runTx } from "@/lib/transaction";
@@ -982,6 +983,8 @@ export async function listNotes(
   const where = {
     type: type ?? { in: ["credit", "debit"] },
     ...scope,
+    // من غير «عرض مستندات الآخرين»: إشعاراته بس
+    ...ownDocs(user),
     ...(branchId && !scope.branchId ? { branchId } : {}),
     ...(query
       ? {
@@ -1092,7 +1095,7 @@ export async function getNote(side, id, user) {
   const S = SIDE[side];
   const isSale = side === "sale";
   const doc = await prisma[S.model].findFirst({
-    where: { id, type: { in: ["credit", "debit"] }, ...branchScope(user) },
+    where: { id, type: { in: ["credit", "debit"] }, ...branchScope(user), ...ownDocs(user) },
     select: {
       id: true,
       type: true,
@@ -1209,7 +1212,7 @@ export async function getNoteForEdit(side, id, user) {
   const S = SIDE[side];
   const isSale = side === "sale";
   const doc = await prisma[S.model].findFirst({
-    where: { id, type: { in: ["credit", "debit"] }, ...branchScope(user) },
+    where: { id, type: { in: ["credit", "debit"] }, ...branchScope(user), ...ownDocs(user) },
     select: {
       id: true,
       type: true,

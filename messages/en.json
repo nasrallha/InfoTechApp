@@ -1665,7 +1665,8 @@
       "laundryOrders": "Laundry orders",
       "laundrySubscriptions": "Laundry subscriptions",
       "restaurant": "Restaurant (menu & delivery)",
-      "salesReps": "Sales reps & commissions"
+      "salesReps": "Sales reps & commissions",
+      "documents": "Documents"
     },
     "actions": {
       "changeOrders": "Change orders",
@@ -1729,7 +1730,8 @@
       "commissions": "Commissions report",
       "visits": "Perform and postpone visits",
       "rep": "Sales rep (earns commission)",
-      "assign": "Choose the invoice sales rep"
+      "assign": "Choose the invoice sales rep",
+      "viewAll": "View other users' documents (sales, returns, quotations, notes and purchases)"
     }
   },
   "Printing": {

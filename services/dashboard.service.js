@@ -1,4 +1,5 @@
 import "server-only";
+import { ownDocs } from "@/lib/doc-scope";
 import { claimCounters } from "./warranty-claim.service";
 import { visitCounters } from "./maintenance-contract.service";
 import { prisma } from "@/lib/prisma";
@@ -67,7 +68,10 @@ export async function dashboardData(user) {
   ] = await Promise.all([
     getCounts(),
     can(user, "sales.pos") ? myShift(user) : null,
-    can(user, "sales.view") ? lastSales(branch) : null,
+    // من غير «عرض مستندات الآخرين»: فواتيره بس
+    can(user, "sales.view")
+      ? lastSales({ ...branch, ...ownDocs(user, { rep: true }) })
+      : null,
     can(user, "shifts.view") ? currentShifts(user, branch) : null,
     can(user, "stock.view") ? lowStockItems(branch) : null,
     finance ? todayMoney(user, now) : null,
@@ -94,7 +98,11 @@ export async function dashboardData(user) {
     visits,
   };
   if (!finance) return base;
-  return { ...base, money, ...(await salesFigures(branch, now, h)) };
+  return {
+    ...base,
+    money,
+    ...(await salesFigures({ ...branch, ...ownDocs(user, { rep: true }) }, now, h)),
+  };
 }
 
 // الأعداد (شريط صغير في آخر الصفحة)

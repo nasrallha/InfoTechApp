@@ -1,4 +1,5 @@
 import "server-only";
+import { seesAllDocs } from "@/lib/doc-scope";
 import { docNumberWhere } from "./sequence.service";
 import { partyBranchWhere } from "@/lib/party-scope";
 import { SUBSCRIPTION_METHOD_TYPE } from "./payment-method.service";
@@ -81,9 +82,11 @@ export async function getReportOptions(user, { parties = [] } = {}) {
         })
       : null,
     prisma.user.findMany({
-      where: allBranches
-        ? { isOwner: false }
-        : { isOwner: false, branchId: user.branch.id },
+      where: !seesAllDocs(user)
+        ? { id: user.id }
+        : allBranches
+          ? { isOwner: false }
+          : { isOwner: false, branchId: user.branch.id },
       orderBy: { id: "asc" },
       select: { id: true, arFullname: true, enFullname: true },
     }),
@@ -121,6 +124,8 @@ export async function getReportOptions(user, { parties = [] } = {}) {
 // تقرير المبيعات (الفواتير والمرتجعات)
 // ------------------------------------------------------------
 export async function salesReport(f, user) {
+  // من غير «عرض مستندات الآخرين»: مبيعاته بس (هو البائع)
+  if (!seesAllDocs(user)) f = { ...f, userId: user.id };
   const h = await getDayStartHour();
   const num = f.q ? await docNumberWhere(f.q, user, f.branchId) : null;
   // المجموعة الرئيسية: الفواتير اللي فيها أصنافها، والمبالغ بتاعة سطورها بس
@@ -421,6 +426,7 @@ export async function topProducts(saleWhere, limit, withProfit = true) {
 // تقرير المشتريات (الفواتير والمرتجعات)
 // ------------------------------------------------------------
 export async function purchasesReport(f, user) {
+  if (!seesAllDocs(user)) f = { ...f, userId: user.id };
   const h = await getDayStartHour();
   const num = f.q ? await docNumberWhere(f.q, user, f.branchId) : null;
   const where = {

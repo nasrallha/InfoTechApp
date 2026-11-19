@@ -1,4 +1,5 @@
 import "server-only";
+import { ownDocs } from "@/lib/doc-scope";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { assertDocYear } from "./fiscal-year.service";
 import { isFreeLine } from "@/lib/free-line";
@@ -1312,6 +1313,8 @@ export async function listSales({
   const where = {
     type,
     ...scope,
+    // من غير «عرض مستندات الآخرين»: مستنداته بس
+    ...ownDocs(user, { rep: true }),
     ...(branchId && !scope.branchId ? { branchId } : {}),
     ...dateRangeWhere(from, to),
     ...(query
@@ -1607,9 +1610,15 @@ const saleDetailSelect = {
   },
 };
 
-export async function getSale(id, type, user) {
+// all: من غير قيد «مستنداته بس» (المرتجع على فاتورة أي حد)
+export async function getSale(id, type, user, { all = false } = {}) {
   const sale = await prisma.sale.findFirst({
-    where: { id, ...(type ? { type } : {}), ...branchScope(user) },
+    where: {
+      id,
+      ...(type ? { type } : {}),
+      ...branchScope(user),
+      ...(all ? {} : ownDocs(user, { rep: true })),
+    },
     select: saleDetailSelect,
   });
   if (!sale) return null;
@@ -1693,7 +1702,12 @@ export async function posRecentSales({ q = "" }, user) {
   const ref = await docNumberWhere(q, user);
   if (!ref) return [];
   const rows = await prisma.sale.findMany({
-    where: { type: SALE, number: ref.number, branchId: user.branch.id },
+    where: {
+      type: SALE,
+      number: ref.number,
+      branchId: user.branch.id,
+      ...ownDocs(user, { rep: true }),
+    },
     orderBy: { id: "desc" },
     take: 5,
     select: {
@@ -1713,7 +1727,7 @@ export async function posRecentSales({ q = "" }, user) {
 // الكاشير: الفاتورة كاملة للعرض والطباعة (فرع الكاشير بس)
 export async function posSaleForPrint(id, user) {
   const sale = await prisma.sale.findFirst({
-    where: { id, type: SALE, branchId: user.branch.id },
+    where: { id, type: SALE, branchId: user.branch.id, ...ownDocs(user, { rep: true }) },
     select: saleDetailSelect,
   });
   if (!sale) throw new AppError("SaleNotFound");
@@ -1742,7 +1756,8 @@ export async function findSalesForReturn({ value }, user) {
 
 // فاتورة البيع لشاشة المرتجع: كل سطر ومعه المتاح وما رُجّع منه
 export async function getSaleForReturn(id, user) {
-  const sale = await getSale(id, SALE, user);
+  // المرتجع: على فاتورة أي حد في الفرع (حتى من غير «عرض مستندات الآخرين»)
+  const sale = await getSale(id, SALE, user, { all: true });
   if (!sale) return null;
   const ids = sale.items.map((i) => i.id);
   const [previous, soldSerials] = await Promise.all([

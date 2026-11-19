@@ -1,4 +1,5 @@
 import "server-only";
+import { ownDocs } from "@/lib/doc-scope";
 import { resolveSalesRep } from "./sales-rep.service";
 import { docNumberWhere, nextBranchNumber } from "./sequence.service";
 import { partyInBranch } from "@/lib/party-scope";
@@ -285,6 +286,8 @@ export async function listQuotations({
   const scope = branchScope(user);
   const where = {
     ...scope,
+    // من غير «عرض مستندات الآخرين»: عروضه بس (أو اللي باسمه كمندوب)
+    ...ownDocs(user, { rep: true }),
     ...(branchId && !scope.branchId ? { branchId } : {}),
     ...dateRangeWhere(from, to),
     ...(query
@@ -327,7 +330,7 @@ export async function listQuotations({
 
 export async function getQuotation(id, user) {
   const q = await prisma.quotation.findFirst({
-    where: { id, ...branchScope(user) },
+    where: { id, ...branchScope(user), ...ownDocs(user, { rep: true }) },
     select: {
       id: true,
       number: true, docCode: true,
