@@ -438,7 +438,7 @@ export async function getLaundryOrder(id, user) {
   await assertModule("laundry");
   const o = await findOrder(id, user, {
     ...orderSel,
-    branch: { select: { id: true, arName: true, enName: true } },
+    branch: { select: { id: true, arName: true, enName: true, logo: true } },
     customer: { select: customerSel },
     items: { orderBy: { id: "asc" }, select: itemSel },
   });

@@ -1123,6 +1123,7 @@ export async function getNote(side, id, user) {
           phone: true,
           idScheme: true,
           registrationNo: true,
+          logo: true, // شعار الفرع (فاضي = شعار الشركة)
           city: true,
           district: true,
           street: true,

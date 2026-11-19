@@ -3,6 +3,7 @@ import { assertPlanLimit } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { suggestBranchCode } from "./sequence.service";
+import { deleteImage, saveImage } from "@/lib/upload";
 
 // الحقول التي نرجعها للواجهة
 const branchSelect = {
@@ -23,6 +24,8 @@ const branchSelect = {
   buildingNo: true,
   additionalNo: true,
   postalCode: true,
+  // شعار الفرع (فاضي = شعار الشركة)
+  logo: true,
   warehouseId: true,
   priceListId: true,
   warehouse: { select: { id: true, arName: true, enName: true } },
@@ -152,6 +155,21 @@ export async function updateBranch({ id, ...input }) {
 // ------------------------------------------------------------
 // الحذف
 // ------------------------------------------------------------
+
+// شعار الفرع: صورة جديدة، أو null = حذف (يرجع لشعار الشركة)
+export async function setBranchLogo({ id, image }) {
+  const current = await prisma.branch.findUnique({ where: { id }, select: { logo: true } });
+  if (!current) throw new AppError("BranchNotFound");
+  const path = image ? await saveImage(image, "branches") : null;
+  try {
+    await prisma.branch.update({ where: { id }, data: { logo: path } });
+  } catch (e) {
+    await deleteImage(path);
+    throw e;
+  }
+  if (current.logo) await deleteImage(current.logo);
+  return { id, logo: path };
+}
 
 export async function deleteBranches(ids) {
   // لا نحذف فرعاً عليه مستخدمون

@@ -197,7 +197,7 @@ export async function customerWallets(customerId) {
         notes: true,
         createdAt: true,
         voucher: { select: { id: true, number: true, docCode: true } },
-        branch: { select: { arName: true, enName: true } },
+        branch: { select: { arName: true, enName: true, logo: true } },
         uses: {
           orderBy: { id: "desc" },
           select: {

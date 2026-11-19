@@ -41,10 +41,10 @@ export default function LaundryReceipt({ order: o, paperSize, lang = "both" }) {
       style={{ width: isA4 ? "210mm" : paperSize === "58mm" ? "48mm" : "72mm" }}
     >
       <header className="lrc__header">
-        {company?.logo && (
+        {info.logo && (
           // مستند مطبوع: <img> عادية (next/image مش بتشتغل في الطباعة)
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="lrc__logo" src={imageUrl(company.logo)} alt="" />
+          <img className="lrc__logo" src={imageUrl(info.logo)} alt="" />
         )}
         <div className="lrc__company">
           <div className="lrc__company-name">{companyName}</div>

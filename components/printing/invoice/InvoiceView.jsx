@@ -165,10 +165,10 @@ export default function InvoiceView({ settings, company, branch, invoice }) {
     >
       {/* ============ رأس الفاتورة ============ */}
       <header className="inv__header">
-        {settings.showLogo && company?.logo && (
+        {settings.showLogo && (branch?.logo || company?.logo) && (
           <img
             className="inv__logo"
-            src={imageUrl(company.logo)}
+            src={imageUrl(branch?.logo || company.logo)}
             alt=""
             style={{
               height: `${isA4 ? LOGO_HEIGHT[settings.logoSize] * 1.3 : LOGO_THERMAL[settings.logoSize]}mm`,

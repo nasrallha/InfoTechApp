@@ -74,6 +74,8 @@ model Branch {
   buildingNo     String? @db.VarChar(4)
   additionalNo   String? @db.VarChar(4)
   postalCode     String? @db.VarChar(5)
+  // شعار الفرع في المستندات المطبوعة (فاضي = شعار الشركة)
+  logo           String? @db.VarChar(255)
 
   // مستودع الفرع: مشترياته تدخله ومبيعاته تخرج منه
   // (أكثر من فرع على نفس المستودع = مخزون مشترك)

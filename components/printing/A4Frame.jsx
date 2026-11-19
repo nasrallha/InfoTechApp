@@ -95,7 +95,7 @@ export function BilingualHeader({ company, branch }) {
         )}
       </div>
       <div className="bi-head__logo">
-        {company.logo && <img src={imageUrl(company.logo)} alt="" />}
+        {info.logo && <img src={imageUrl(info.logo)} alt="" />}
       </div>
       <div className="bi-head__side" dir="ltr">
         <div className="bi-head__name">{company.enName || company.arName}</div>

@@ -1184,6 +1184,7 @@ export async function getPurchase(id, type, user, { all = false } = {}) {
           enName: true,
           phone: true,
           registrationNo: true,
+          logo: true, // شعار الفرع (فاضي = شعار الشركة)
           city: true,
           district: true,
           street: true,

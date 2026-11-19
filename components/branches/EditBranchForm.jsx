@@ -11,6 +11,7 @@ import BranchFormFields, {
   branchPayload,
 } from "./BranchFormFields";
 import { actionErrorText } from "@/components/common/actionError";
+import BranchLogoField from "./BranchLogoField";
 
 // branch: الفرع المراد تعديلها (من قاعدة البيانات)
 const EditBranchForm = ({
@@ -65,6 +66,8 @@ const EditBranchForm = ({
         priceLists={priceLists}
         codeLocked={Boolean(branch?.codeLocked)}
       />
+      {/* شعار الفرع: بيترفع على طول (فاضي = شعار الشركة) */}
+      {branch && <BranchLogoField key={branch.id} branch={branch} />}
     </Form>
   );
 };

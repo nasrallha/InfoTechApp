@@ -353,8 +353,8 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
       {classic && (
       <header className="a4__head">
         <div className="a4__company">
-          {settings.showLogo !== false && company?.logo && (
-            <img className="a4__logo" src={imageUrl(company.logo)} alt="" />
+          {settings.showLogo !== false && info.logo && (
+            <img className="a4__logo" src={imageUrl(info.logo)} alt="" />
           )}
           <div>
             <div className="a4__company-name">

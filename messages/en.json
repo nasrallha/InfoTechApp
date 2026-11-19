@@ -957,7 +957,13 @@
     "AllowDecimals": "Allows fractions",
     "AllowDecimalsHint": "Like kilogram and gram (0.250). Turn it off for units sold whole, like piece and pack, so fractional quantities are rejected.",
     "CommissionRate": "Sales rep commission",
-    "CommissionRateHint": "Calculated on the rep's net sales before VAT after returns; can also be changed from the sales rep commissions report"
+    "CommissionRateHint": "Calculated on the rep's net sales before VAT after returns; can also be changed from the sales rep commissions report",
+    "BranchLogo": "Branch logo",
+    "BranchLogoHint": "Shown on this branch's printed invoices and documents; without it the company logo is used",
+    "UploadBranchLogo": "Upload branch logo",
+    "ChangeBranchLogo": "Change logo",
+    "BranchLogoSaved": "Branch logo saved",
+    "BranchLogoRemoved": "Branch logo removed; the company logo will be used"
   },
   "Alerts": {
     "BranchShiftHasOpenDrawers": "Close all the shift's drawers first",

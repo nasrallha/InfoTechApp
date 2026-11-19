@@ -103,10 +103,10 @@ export default function PurchaseDocument({ settings, company, purchase }) {
     >
       {/* ============ الرأس ============ */}
       <header className="inv__header">
-        {settings.showLogo && company?.logo && (
+        {settings.showLogo && info.logo && (
           <img
             className="inv__logo"
-            src={imageUrl(company.logo)}
+            src={imageUrl(info.logo)}
             alt=""
             style={{
               height: `${LOGO_HEIGHT[settings.logoSize] * (isA4 ? 1.3 : 1)}mm`,

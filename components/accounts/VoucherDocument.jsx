@@ -91,8 +91,8 @@ export default function VoucherDocument({
       {tpl === "bilingual" && <BilingualHeader company={company} branch={v.branch} />}
       {tpl === "classic" && (
       <header className="vch__header">
-        {company?.logo && (
-          <img className="vch__logo" src={imageUrl(company.logo)} alt="" />
+        {info.logo && (
+          <img className="vch__logo" src={imageUrl(info.logo)} alt="" />
         )}
         <div className="vch__company">
           <div className="vch__company-name">{companyName}</div>
