@@ -12,6 +12,7 @@ import { withDb } from "@/lib/db-guard";
 import { companyBranding, currentCompany, multiTenant } from "@/lib/tenant";
 import { getSubscription, isBlocked } from "@/lib/subscription";
 import { getVendor } from "@/lib/vendor";
+import { getCompanyNames } from "@/services/company.service";
 
 export async function generateMetadata({ params }) {
   const { locale } = await params;
@@ -45,11 +46,17 @@ async function TenantLogin() {
   const { data, dbError } = await withDb(async () => {
     const user = await getCurrentUser();
     if (user) return { loggedIn: true };
-    const sub = await getSubscription();
+    const [sub, names] = await Promise.all([
+      getSubscription(),
+      // الاسم من قاعدة الشركة (اللوحة بتكتبه فيها أول ما يتعدّل)،
+      // مش من بيانات الشركة المحفوظة على السيرفر من أول مرة
+      getCompanyNames().catch(() => null),
+    ]);
     return {
       blocked: isBlocked(sub) ? sub.state : null,
       reason: sub?.suspendReason ?? null,
       vendor: await getVendor(),
+      names,
     };
   });
   if (dbError) return <DbErrorScreen {...dbError} />;
@@ -58,7 +65,11 @@ async function TenantLogin() {
   return (
     <LoginScreen
       multi
-      company={companyBranding(company)}
+      company={{
+        ...companyBranding(company),
+        ...(data.names?.arName ? { arName: data.names.arName } : {}),
+        ...(data.names?.enName ? { enName: data.names.enName } : {}),
+      }}
       blocked={data.blocked}
       blockedReason={data.reason}
       vendor={data.vendor}

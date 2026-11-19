@@ -34,6 +34,14 @@ const companySelect = {
 
 // بيانات الشركة (أو null لو لم تُدخل بعد)
 // نستخدمها لاحقاً في الفواتير والتقارير
+// اسم الشركة من قاعدتها (اللوحة بتكتبه هنا أول ما يتعدّل) - شاشة الدخول
+export async function getCompanyNames() {
+  return prisma.company.findUnique({
+    where: { id: COMPANY_ID },
+    select: { arName: true, enName: true },
+  });
+}
+
 export async function getCompany() {
   // + نموذج طباعة A4 (كل المستندات A4 بتقراه من بيانات الشركة)
   const [company, print] = await Promise.all([
