@@ -17,7 +17,8 @@ async function InvoicePrintContent() {
 
   await connection();
   const [settings, company, locale] = await Promise.all([
-    getInvoicePrintSettings(),
+    // إعداد الشركة زي ما هو (مقاس الجهاز ده في كارت «الطباعة على هذا الجهاز»)
+    getInvoicePrintSettings({ device: false }),
     getCompany(),
     getLocale(),
   ]);

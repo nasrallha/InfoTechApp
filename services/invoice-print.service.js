@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { saveImage, deleteImage } from "@/lib/upload";
+import { cookies } from "next/headers";
+import { DEVICE_PAPER_COOKIE, isDevicePaper } from "@/lib/device-paper";
 
 // إعدادات طباعة الفواتير: صف واحد فقط (id = 1)
 const SETTINGS_ID = 1;
@@ -43,12 +45,27 @@ const select = Object.fromEntries(
 
 // الإعدادات المحفوظة، أو الافتراضية لو لم تُحفظ بعد
 // نستخدمها لاحقاً عند طباعة فواتير المبيعات
-export async function getInvoicePrintSettings() {
+// device: مقاس الورق المحفوظ على الجهاز ده (كوكي) بيغلب مقاس الشركة
+// (شاشة إعدادات الطباعة نفسها: device = false ← إعداد الشركة زي ما هو)
+export async function getInvoicePrintSettings({ device = true } = {}) {
   const saved = await prisma.invoicePrintSettings.findUnique({
     where: { id: SETTINGS_ID },
     select: { ...select, updatedAt: true },
   });
-  return saved ?? { ...DEFAULT_INVOICE_PRINT, updatedAt: null };
+  const settings = saved ?? { ...DEFAULT_INVOICE_PRINT, updatedAt: null };
+  if (!device) return settings;
+  const paper = await devicePaper();
+  return paper ? { ...settings, paperSize: paper } : settings;
+}
+
+async function devicePaper() {
+  try {
+    const v = (await cookies()).get(DEVICE_PAPER_COOKIE)?.value;
+    return isDevicePaper(v) ? v : null;
+  } catch {
+    // برّه طلب (مفيش كوكيز)
+    return null;
+  }
 }
 
 // حفظ الإعدادات: أول مرة تُنشأ، وبعدها تُعدّل

@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Segmented, Switch } from "antd";
-import { AndroidOutlined, PrinterOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Segmented, Switch, Tooltip } from "antd";
+import { MobileOutlined, PrinterOutlined, QuestionCircleOutlined } from "@ant-design/icons";
 import { useTranslations } from "next-intl";
 import { message } from "@/components/common/feedback";
 import { formatDateTime } from "@/lib/dates";
 import { androidPrintOn, setAndroidPrint } from "@/lib/android-print";
+import { readDevicePaper, saveDevicePaper } from "@/lib/device-paper";
 import PrintDocument from "./PrintDocument";
 import { PRINT_AREA } from "./invoice/InvoiceView";
 
 // ============================================================
-// طباعة أندرويد على الجهاز ده (مش إعداد للشركة): تطبيق RawBT
+// الطباعة على الجهاز ده (مش إعداد للشركة):
+// - مقاس الورق على الجهاز (جهاز نقطة البيع 58mm والباقي 80mm مثلاً) ← كل شاشات الطباعة
+// طباعة أندرويد: تطبيق RawBT
 // - بيطبع الإيصالات الحرارية على طول من غير نافذة الطباعة
 // - الطابعة (المدمجة InnerPrinter / بلوتوث / شبكة) بتتختار من جوه RawBT
 // - طباعة تجربة بالمقاس المختار
@@ -19,14 +22,24 @@ import { PRINT_AREA } from "./invoice/InvoiceView";
 export default function AndroidPrintCard() {
   const t = useTranslations("InvoicePrint");
   const [on, setOn] = useState(false);
-  const [paper, setPaper] = useState("80mm");
+  // "" = حسب إعدادات الشركة
+  const [devicePaper, setDevicePaper] = useState("");
   const [testing, setTesting] = useState(false);
 
   // من التخزين بعد التحميل (السيرفر مايعرفش إعداد الجهاز)
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOn(androidPrintOn());
+    setDevicePaper(readDevicePaper());
   }, []);
+  // طباعة التجربة: مقاس الجهاز (الحراري) أو 80mm
+  const paper = devicePaper === "58mm" ? "58mm" : "80mm";
+
+  const pickPaper = (v) => {
+    if (!saveDevicePaper(v)) return message.error(t("AndroidPrintStorageBlocked"));
+    setDevicePaper(v);
+    message.success(t("DevicePaperSaved"));
+  };
 
   const toggle = (v) => {
     if (!setAndroidPrint(v)) return message.error(t("AndroidPrintStorageBlocked"));
@@ -39,10 +52,29 @@ export default function AndroidPrintCard() {
       size="small"
       title={
         <span>
-          <AndroidOutlined /> {t("AndroidPrint")}
+          <MobileOutlined /> {t("DevicePrint")}
         </span>
       }
     >
+      {/* مقاس الورق على الجهاز ده (بيغلب مقاس الشركة في كل الشاشات) */}
+      <div className="mb-3">
+        <div className="mb-1">
+          {t("DevicePaper")}{" "}
+          <Tooltip title={t("DevicePaperHint")}>
+            <QuestionCircleOutlined />
+          </Tooltip>
+        </div>
+        <Segmented
+          value={devicePaper}
+          onChange={pickPaper}
+          options={[
+            { value: "", label: t("DevicePaperCompany") },
+            { value: "80mm", label: "80mm" },
+            { value: "58mm", label: "58mm" },
+            { value: "A4", label: "A4" },
+          ]}
+        />
+      </div>
       <div className="flex items-center justify-between gap-2 mb-3">
         <span>{t("AndroidPrintOnDevice")}</span>
         {/* إعداد الجهاز: شغال حتى لو المستخدم مايقدرش يعدّل إعدادات الشركة */}
@@ -50,15 +82,6 @@ export default function AndroidPrintCard() {
       </div>
       <Alert type="info" showIcon className="mb-3" title={t("AndroidPrintHint")} description={t("AndroidPrintSteps")} />
       <div className="flex flex-wrap items-center gap-2">
-        <Segmented
-          disabled={false}
-          value={paper}
-          onChange={setPaper}
-          options={[
-            { value: "80mm", label: "80mm" },
-            { value: "58mm", label: "58mm" },
-          ]}
-        />
         <Button icon={<PrinterOutlined />} disabled={false} onClick={() => setTesting(true)}>
           {t("TestPrint")}
         </Button>

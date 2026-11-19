@@ -1889,7 +1889,12 @@
     "BankHint": "Shown under the totals, taken from the company details",
     "NoBankData": "No bank account entered in the company details yet",
     "showPhone": "Show phone number",
-    "showEmail": "Show email"
+    "showEmail": "Show email",
+    "DevicePrint": "Printing on this device",
+    "DevicePaper": "Paper size on this device",
+    "DevicePaperHint": "Applies to this device only, on every print screen (e.g. a POS device with a 58mm printer); other devices keep the company paper size",
+    "DevicePaperCompany": "Company setting",
+    "DevicePaperSaved": "Paper size saved for this device"
   },
   "Invoices": {
     "FreeLine": "Free line",
