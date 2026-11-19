@@ -422,9 +422,25 @@ canvas {
   flex-wrap: wrap;
   row-gap: 8px;
 }
-.saved-doc-print .ant-alert-section {
-  min-width: 180px;
+/* (القاعدة أقوى من قاعدة antd اللي بتخلي النص min-width: 0 فيتزنق للآخر) */
+.saved-doc-print.ant-alert .ant-alert-section {
+  flex: 1 1 220px;
+  min-width: 200px;
 }
-.saved-doc-print .ant-alert-actions {
+.saved-doc-print.ant-alert .ant-alert-actions {
+  flex: 0 1 auto;
+  max-width: 100%;
   flex-wrap: wrap;
+}
+/* الموبايل وأجهزة الكاشير: الأزرار سطر لوحدها تحت النص */
+@media (max-width: 767px) {
+  .saved-doc-print.ant-alert .ant-alert-actions {
+    flex-basis: 100%;
+    margin-inline-start: 0;
+    order: 2;
+  }
+  /* زرار القفل يفضل في السطر الأول جنب النص */
+  .saved-doc-print.ant-alert .ant-alert-close-icon {
+    order: 1;
+  }
 }
