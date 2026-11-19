@@ -9,7 +9,12 @@ import LoginScreen from "@/components/auth/LoginScreen";
 import FullPageLoader from "@/components/common/FullPageLoader";
 import DbErrorScreen from "@/components/common/DbErrorScreen";
 import { withDb } from "@/lib/db-guard";
-import { companyBranding, currentCompany, multiTenant } from "@/lib/tenant";
+import {
+  companyBranding,
+  currentCompany,
+  multiTenant,
+  panelImageUrl,
+} from "@/lib/tenant";
 import { getSubscription, isBlocked } from "@/lib/subscription";
 import { getVendor } from "@/lib/vendor";
 import { getCompanyNames } from "@/services/company.service";
@@ -48,7 +53,7 @@ async function TenantLogin() {
     if (user) return { loggedIn: true };
     const [sub, names] = await Promise.all([
       getSubscription(),
-      // الاسم من قاعدة الشركة (اللوحة بتكتبه فيها أول ما يتعدّل)،
+      // الاسم والصورة من قاعدة الشركة (اللوحة بتكتبهم فيها أول ما يتعدّلوا)،
       // مش من بيانات الشركة المحفوظة على السيرفر من أول مرة
       getCompanyNames().catch(() => null),
     ]);
@@ -57,6 +62,10 @@ async function TenantLogin() {
       reason: sub?.suspendReason ?? null,
       vendor: await getVendor(),
       names,
+      // صورة شاشة الدخول: اللوحة بتكتبها في الاشتراك مع كل مزامنة
+      // (القاعدة لسه متحدّثتش: مفيش العمود ← الصورة المحفوظة على السيرفر)
+      image:
+        sub && "loginImage" in sub ? { url: panelImageUrl(sub.loginImage) } : null,
     };
   });
   if (dbError) return <DbErrorScreen {...dbError} />;
@@ -69,6 +78,7 @@ async function TenantLogin() {
         ...companyBranding(company),
         ...(data.names?.arName ? { arName: data.names.arName } : {}),
         ...(data.names?.enName ? { enName: data.names.enName } : {}),
+        ...(data.image ? { image: data.image.url } : {}),
       }}
       blocked={data.blocked}
       blockedReason={data.reason}
