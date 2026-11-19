@@ -11,14 +11,28 @@ const g = globalThis;
 const TYPES = /^image\/(png|jpe?g|webp|gif|svg\+xml)$/i;
 const notFound = () => new Response("Not found", { status: 404 });
 
+// رابط اللوحة العام ممكن مايفتحش من جوه السيرفر نفسه ← اللوحة على نفس السيرفر (3100)
+const LOCAL_PANEL = "http://127.0.0.1:3100";
+
+async function fetchImage(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+    if (!TYPES.test(type)) return null;
+    return { type, bytes: new Uint8Array(await res.arrayBuffer()) };
+  } catch {
+    return null;
+  }
+}
+
 async function loadLogo(src) {
   const c = g.__vendorLogoFile;
   if (c?.src === src) return c;
-  const res = await fetch(src, { signal: AbortSignal.timeout(5000) });
-  if (!res.ok) return null;
-  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
-  if (!TYPES.test(type)) return null;
-  const file = { src, type, bytes: new Uint8Array(await res.arrayBuffer()) };
+  const local = src.replace(/^https?:\/\/[^/]+/i, LOCAL_PANEL);
+  const img = (await fetchImage(src)) ?? (local !== src ? await fetchImage(local) : null);
+  if (!img) return null;
+  const file = { src, ...img };
   g.__vendorLogoFile = file;
   return file;
 }
