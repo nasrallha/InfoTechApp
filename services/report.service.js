@@ -1570,3 +1570,159 @@ export async function tobaccoReport(f, user) {
     },
   };
 }
+
+// ------------------------------------------------------------
+// تقرير مبيعات الأصناف: كل صنف اتباع / اترجع في الفترة بكمياته (بالوحدة الأساسية)
+// + حركته (كل فاتورة / مرتجع بتاريخه وكميته زي ما اتباع)
+// الفلاتر: الفترة، الفرع، المجموعة الرئيسية (وكل اللي تحتها)، الصنف (كود / باركود / اسم)
+// من غير «عرض مستندات الآخرين»: مبيعاته هو بس
+// ------------------------------------------------------------
+const MAX_ITEM_LINES = 20000;
+
+export async function itemSalesReport(f, user) {
+  const h = await getDayStartHour();
+  const catIds = await categoryWithChildren(f.categoryId);
+  const item = f.item ? String(f.item).trim() : "";
+  const product = {
+    AND: [
+      ...(catIds ? [{ categoryId: { in: catIds } }] : []),
+      ...(item
+        ? [
+            {
+              OR: [
+                { code: item },
+                { productUnits: { some: { barcode: item } } },
+                { arName: { contains: item } },
+                { enName: { contains: item } },
+              ],
+            },
+          ]
+        : []),
+    ],
+  };
+  const lines = await prisma.saleItem.findMany({
+    where: {
+      product,
+      sale: {
+        type: { in: ["sale", "return"] },
+        ...dateRange(f, h),
+        ...reportBranch(user, f.branchId),
+        ...(seesAllDocs(user) ? (f.userId ? { createdById: f.userId } : {}) : { createdById: user.id }),
+      },
+    },
+    orderBy: [{ sale: { date: "asc" } }, { id: "asc" }],
+    take: MAX_ITEM_LINES,
+    select: {
+      id: true,
+      productId: true,
+      code: true,
+      arName: true,
+      enName: true,
+      qty: true,
+      baseQty: true,
+      price: true,
+      netAmount: true,
+      totalAmount: true,
+      unit: { select: { arName: true, enName: true } },
+      product: {
+        select: {
+          code: true,
+          arName: true,
+          enName: true,
+          baseUnit: { select: { arName: true, enName: true } },
+        },
+      },
+      sale: {
+        select: {
+          id: true,
+          type: true,
+          number: true,
+          docCode: true,
+          date: true,
+          customerArName: true,
+          customerEnName: true,
+        },
+      },
+    },
+  });
+
+  const byProduct = new Map();
+  const t = { soldQty: 0, returnedQty: 0, net: 0, invoices: new Set(), returns: new Set() };
+  for (const l of lines) {
+    const isReturn = l.sale.type === "return";
+    const sign = isReturn ? -1 : 1;
+    const base = n(l.baseQty);
+    const r =
+      byProduct.get(l.productId) ??
+      {
+        productId: l.productId,
+        code: l.product?.code ?? l.code,
+        arName: l.product?.arName ?? l.arName,
+        enName: l.product?.enName ?? l.enName,
+        unit: l.product?.baseUnit ?? null,
+        soldQty: 0,
+        returnedQty: 0,
+        qty: 0,
+        net: 0,
+        invoices: new Set(),
+        moves: [],
+      };
+    if (isReturn) r.returnedQty += base;
+    else {
+      r.soldQty += base;
+      r.invoices.add(l.sale.id);
+    }
+    r.qty += sign * base;
+    r.net += sign * n(l.netAmount);
+    // الحركة زي ما اتباعت (الكمية والوحدة والسعر)
+    r.moves.push({
+      id: l.id,
+      saleId: l.sale.id,
+      type: l.sale.type,
+      docNo: saleDocNo(l.sale.type, l.sale.number, l.sale.docCode),
+      date: l.sale.date,
+      customerArName: l.sale.customerArName,
+      customerEnName: l.sale.customerEnName,
+      qty: sign * n(l.qty),
+      baseQty: sign * base,
+      unit: l.unit,
+      price: n(l.price),
+      net: sign * n(l.netAmount),
+      total: sign * n(l.totalAmount),
+    });
+    byProduct.set(l.productId, r);
+    if (isReturn) {
+      t.returnedQty += base;
+      t.returns.add(l.sale.id);
+    } else {
+      t.soldQty += base;
+      t.invoices.add(l.sale.id);
+    }
+    t.net += sign * n(l.netAmount);
+  }
+
+  const rows = [...byProduct.values()]
+    .map(({ invoices, ...r }) => ({
+      ...r,
+      soldQty: round(r.soldQty, 3),
+      returnedQty: round(r.returnedQty, 3),
+      qty: round(r.qty, 3),
+      net: r2(r.net),
+      invoices: invoices.size,
+    }))
+    // الأكتر مبيعاً الأول
+    .sort((a, b) => b.qty - a.qty || b.net - a.net);
+  return {
+    rows,
+    totals: {
+      items: rows.length,
+      soldQty: round(t.soldQty, 3),
+      returnedQty: round(t.returnedQty, 3),
+      qty: round(t.soldQty - t.returnedQty, 3),
+      net: r2(t.net),
+      invoices: t.invoices.size,
+      returns: t.returns.size,
+    },
+    truncated: lines.length >= MAX_ITEM_LINES,
+  };
+}

@@ -4,6 +4,7 @@ import { Modal } from "antd";
 import {
   FireOutlined,
   AppstoreOutlined,
+  BarcodeOutlined,
   CalendarOutlined,
   LineChartOutlined,
   PieChartOutlined,
@@ -91,6 +92,14 @@ export const REPORTS = [
     Icon: TeamOutlined,
     color: C.purple,
     permission: "technicians.commissions",
+  },
+  // مبيعات الأصناف: الكميات المباعة والمرتجعة لكل صنف
+  {
+    key: "items",
+    href: "/reports/items",
+    Icon: BarcodeOutlined,
+    color: C.accent,
+    permission: "reports.itemSales",
   },
   // عمولات المناديب (وحدة salesReps - الصلاحية بتتقفل مع الوحدة)
   {

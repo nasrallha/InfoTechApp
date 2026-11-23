@@ -1737,7 +1737,8 @@
       "visits": "Perform and postpone visits",
       "rep": "Sales rep (earns commission)",
       "assign": "Choose the invoice sales rep",
-      "viewAll": "View other users' documents (sales, returns, quotations, notes and purchases)"
+      "viewAll": "View other users' documents (sales, returns, quotations, notes and purchases)",
+      "itemSales": "Item sales report"
     }
   },
   "Printing": {
@@ -3117,6 +3118,20 @@
       "SalesSubHint": "These invoices are part of total sales (services delivered), but they were paid from the subscription balance; the money came in when the subscription was charged with a receipt voucher, so they are not listed under payment methods"
     },
     "ChooseReport": "Choose a report",
+    "items": {
+      "Items": "Items",
+      "Item": "Item",
+      "Unit": "Unit",
+      "Sold": "Sold",
+      "Returned": "Returned",
+      "NetQty": "Net quantity",
+      "NetSales": "Net sales (before VAT)",
+      "InvoicesCount": "Invoices",
+      "Qty": "Quantity",
+      "Price": "Price",
+      "ByItem": "Items (open an item to see its movements)",
+      "Empty": "No item sales in the period"
+    },
     "names": {
       "tobacco": "Tobacco report",
       "sales": "Sales report",
@@ -3127,7 +3142,8 @@
       "warranties": "Warranty report",
       "commissions": "Commissions",
       "models": "Models report",
-      "salesReps": "Sales rep commissions"
+      "salesReps": "Sales rep commissions",
+      "items": "Item sales"
     },
     "hints": {
       "tobacco": "Tobacco items sold and the tobacco fee per invoice",
@@ -3139,7 +3155,8 @@
       "warranties": "Sold devices and their warranty status",
       "commissions": "Earnings of {each} from services and sales",
       "models": "Sales and stock per model and its sizes",
-      "salesReps": "Each rep's sales in the period, rate and commission"
+      "salesReps": "Each rep's sales in the period, rate and commission",
+      "items": "Quantities sold and returned per item in the period, with its movements"
     },
     "presets": {
       "today": "Today",
