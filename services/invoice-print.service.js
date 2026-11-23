@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { AppError } from "@/lib/errors";
 import { Prisma } from "@/generated/prisma/client";
 import { saveImage, deleteImage } from "@/lib/upload";
 import { cookies } from "next/headers";
@@ -160,4 +161,43 @@ export async function saveLetterImage(image) {
   });
   if (current?.letterImage) await deleteImage(current.letterImage);
   return { letterImage: path };
+}
+
+// ---------- طابعة الإيصالات وفتح الدرج على الجهاز ده ----------
+// drawerMode: cash الكاش فقط (الافتراضي) | cashCard الكاش والشبكة | always كل فاتورة | never
+export const DRAWER_MODES = ["cash", "cashCard", "always", "never"];
+
+// إعداد الجهاز للواجهة: { drawerMode, printer } (printer = طابعة الفرع الحالي، أو null = المتصفح)
+export async function getDevicePrintConfig(user) {
+  const row = await deviceRow();
+  const drawerMode = DRAWER_MODES.includes(row?.drawerMode) ? row.drawerMode : "cash";
+  let printer = null;
+  if (row?.receiptPrinterId && user?.branch?.id) {
+    printer = await prisma.restaurantPrinter
+      .findFirst({
+        where: { id: row.receiptPrinterId, branchId: user.branch.id, isActive: true },
+        select: { id: true, name: true, connection: true, paperSize: true, copies: true },
+      })
+      .catch(() => null);
+  }
+  return { drawerMode, printer, receiptPrinterId: row?.receiptPrinterId ?? null };
+}
+
+// حفظ طابعة الجهاز وإعداد الدرج (بيعمل رقم للجهاز لو مالوش)
+export async function saveDevicePrinter({ receiptPrinterId, drawerMode }, user) {
+  if (receiptPrinterId) {
+    const p = await prisma.restaurantPrinter.findFirst({
+      where: { id: receiptPrinterId, branchId: user.branch.id, isActive: true },
+      select: { id: true },
+    });
+    if (!p) throw new AppError("PrinterNotFound");
+  }
+  const deviceKey = await ensureDeviceKey();
+  const data = { receiptPrinterId: receiptPrinterId ?? null, drawerMode };
+  await prisma.devicePrintSettings.upsert({
+    where: { deviceKey },
+    create: { deviceKey, ...data },
+    update: data,
+  });
+  return data;
 }

@@ -46,19 +46,22 @@ import { agentCommandAction } from "@/actions/print-agent.actions";
 // - التوصيل: شبكة (IP) / ويندوز (بالاسم) / المتصفح
 //   (الشبكة والويندوز بيشتغلوا مع وسيط الطباعة، ولحد ما يشتغل كله من المتصفح)
 // ============================================================
+// kitchen: طابعات التحضير (المطعم بس) - غير كده: طابعات الكاشير (الإيصالات) بس
 export default function RestaurantPrintersTab({
   printers,
   agents = [],
   branches,
-  categories,
-  items,
+  categories = [],
+  items = [],
+  kitchen = true,
 }) {
   const t = useTranslations("Restaurant");
   const tAlerts = useTranslations("Alerts");
   const tButtons = useTranslations("Buttons");
   const locale = useLocale();
   const can = useCan();
-  const canManage = can("restaurant.manage");
+  // إعدادات الطباعة (كل الأنشطة) أو إعدادات المطعم
+  const canManage = can("printing.update") || can("restaurant.manage");
   const nm = (x) => (x ? (locale === "ar" ? x.arName : x.enName) : "");
   const [branchId, setBranchId] = useState(branches[0]?.id ?? null);
   const [editing, setEditing] = useState(null);
@@ -274,7 +277,7 @@ export default function RestaurantPrintersTab({
           initialValues={{
             branchId: editing.branchId,
             name: editing.name ?? "",
-            kind: editing.kind ?? "kitchen",
+            kind: editing.kind ?? (kitchen ? "kitchen" : "cashier"),
             connection: editing.connection ?? "network",
             host: editing.host ?? "",
             port: editing.port ?? 9100,
@@ -315,6 +318,7 @@ export default function RestaurantPrintersTab({
             items={items}
             nm={nm}
             agents={agents}
+            kitchen={kitchen}
           />
         </EntityModal>
       )}
@@ -322,7 +326,7 @@ export default function RestaurantPrintersTab({
   );
 }
 
-function PrinterFields({ branches, categories, items, nm, agents }) {
+function PrinterFields({ branches, categories, items, nm, agents, kitchen = true }) {
   const t = useTranslations("Restaurant");
   const tA = useTranslations("PrintAgent");
   const tAlerts = useTranslations("Alerts");
@@ -383,7 +387,7 @@ function PrinterFields({ branches, categories, items, nm, agents }) {
       <Col xs={12} md={4}>
         <Form.Item name="kind" label={t("PrinterKind")}>
           <Select
-            options={["kitchen", "cashier"].map((v) => ({
+            options={(kitchen ? ["kitchen", "cashier"] : ["cashier"]).map((v) => ({
               value: v,
               label: t(`printerKind.${v}`),
             }))}

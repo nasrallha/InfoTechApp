@@ -775,10 +775,27 @@ model Company {
 // invoice: إعدادات طباعة الفواتير كاملة للجهاز ده (null = الإعدادات الافتراضية للشركة)
 // barcodeLabelId: قالب ملصق الباركود الافتراضي للجهاز ده (null / محذوف = افتراضي الشركة)
 // ============================================================
+// فتح الدرج يدوي من الكاشير (من غير بيع): مين وإمتى (رقابة)
+model DrawerOpenLog {
+  id       Int      @id @default(autoincrement())
+  branchId Int
+  userId   Int
+  openedAt DateTime @default(now())
+  reason   String?  @db.VarChar(200)
+
+  @@index([branchId, openedAt])
+  @@index([userId])
+  @@map("drawer_open_logs")
+}
+
 model DevicePrintSettings {
   deviceKey      String   @id @db.VarChar(40)
   invoice        Json?
   barcodeLabelId Int?
+  // طابعة الإيصالات على الجهاز ده (من صفحة الطابعات) - null = المتصفح
+  receiptPrinterId Int?
+  // فتح الدرج: cash الكاش فقط | cashCard الكاش والشبكة | always كل فاتورة | never لا يفتح
+  drawerMode     String?  @db.VarChar(10)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3636,6 +3653,8 @@ model PrintJob {
   copies      Int                @default(1)
   autoCut     Boolean            @default(true)
   beep        Boolean            @default(false)
+  // فتح الدرج بعد الطباعة (حسب إعداد الجهاز) | jobKind = drawer: فتح الدرج بس
+  openDrawer  Boolean            @default(false)
   priority    Int                @default(0)
   imageData   String?            @db.LongText
   jobStatus   String             @default("queued") @db.VarChar(10)

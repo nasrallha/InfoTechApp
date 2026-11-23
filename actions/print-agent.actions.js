@@ -10,12 +10,14 @@ import {
   deleteAgent,
   jobsStatus,
   listAgents,
+  openCashDrawer,
   retryJob,
   runAgentCommand,
   setAgentActive,
 } from "@/services/print-agent.service";
 
-const manage = { permission: "restaurant.manage" };
+// إعدادات الطباعة (كل الأنشطة) أو إعدادات المطعم
+const manage = { permission: ["printing.update", "restaurant.manage"] };
 const pos = { permission: "sales.pos" };
 
 // ---------- الإعدادات ----------
@@ -73,6 +75,8 @@ export const createPrintJobsAction = async (input) =>
           printerId: idField,
           image: z.string().min(100).max(2_500_000),
           title: z.string().trim().max(150).nullish(),
+          // فتح الدرج بعد الطباعة (حسب إعداد الجهاز)
+          openDrawer: z.boolean().optional(),
         }),
       )
       .min(1)
@@ -84,6 +88,15 @@ export const createPrintJobsAction = async (input) =>
 
 export const printJobsStatusAction = async (ids) =>
   runAction(z.array(idField).max(50), ids, (d, user) => jobsStatus(d, user), pos);
+
+// فتح الدرج يدوي من الكاشير (من غير بيع) - بيتسجل
+export const openDrawerAction = async (input) =>
+  runAction(
+    z.object({ printerId: idField.nullish(), reason: z.string().trim().max(200).nullish() }),
+    input,
+    (d, user) => openCashDrawer(d, user),
+    { permission: "sales.openDrawer" },
+  );
 
 export const retryPrintJobAction = async (id) =>
   runAction(idField, id, (d, user) => retryJob(d, user), pos);

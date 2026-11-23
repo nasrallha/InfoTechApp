@@ -29,6 +29,8 @@ export default function PrintActions({
   size = "large",
   a4Only,
   keepUrl, // لا نشيل ?print=1 من الرابط (لما الطباعة من نفس الشاشة)
+  // طرق دفع البيع الجديد: الدرج بيفتح مع الطباعة التلقائية بس (مش إعادة الطباعة)
+  drawerPayments = null,
 }) {
   const t = useTranslations("Exports");
   const thermal = defaultPaper === "A4" ? "80mm" : defaultPaper;
@@ -40,7 +42,7 @@ export default function PrintActions({
         ? thermal
         : def;
   const [job, setJob] = useState(
-    autoPrint ? { mode: "print", paper: autoPaper } : null,
+    autoPrint ? { mode: "print", paper: autoPaper, auto: true } : null,
   );
   const printing = (paper) => job?.mode === "print" && job.paper === paper;
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -142,7 +144,12 @@ export default function PrintActions({
         }}
       />
       {job?.mode === "print" && (
-        <PrintDocument paperSize={job.paper} onDone={() => setJob(null)}>
+        <PrintDocument
+          paperSize={job.paper}
+          drawerPayments={job.auto ? drawerPayments : null}
+          title={fileName ?? null}
+          onDone={() => setJob(null)}
+        >
           {renderDoc(job.paper)}
         </PrintDocument>
       )}

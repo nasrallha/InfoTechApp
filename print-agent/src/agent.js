@@ -20,7 +20,7 @@ const readline = require("readline");
 const { spawn, execFile } = require("child_process");
 const { PNG } = require("pngjs");
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const APP = "InfoTechPrintAgent";
 const DIR = path.join(process.env.APPDATA || os.homedir(), APP);
 const CONFIG = path.join(DIR, "config.json");
@@ -148,7 +148,10 @@ function pngToEscPos(base64, paperSize) {
   return Buffer.concat(parts);
 }
 
-function wrapJob(body, { autoCut = true, beep = false, copies = 1 } = {}) {
+// فتح الدرج (ESC p m t1 t2): نبضة على السنّة 2 وبعدها السنّة 5 (الدرج متوصّل بأي واحدة منهم)
+const DRAWER_KICK = Buffer.from([ESC, 0x70, 0x00, 0x19, 0xfa, ESC, 0x70, 0x01, 0x19, 0xfa]);
+
+function wrapJob(body, { autoCut = true, beep = false, copies = 1, openDrawer = false } = {}) {
   const one = Buffer.concat([
     Buffer.from([ESC, 0x40]), // تهيئة
     body,
@@ -159,6 +162,8 @@ function wrapJob(body, { autoCut = true, beep = false, copies = 1 } = {}) {
   for (let i = 0; i < Math.max(1, copies); i++) all.push(one);
   // صوت التنبيه (ESC B n t) - أغلب الطابعات الحرارية
   if (beep) all.push(Buffer.from([ESC, 0x42, 0x03, 0x02]));
+  // فتح الدرج بعد الطباعة (حسب إعداد الجهاز في البرنامج)
+  if (openDrawer) all.push(DRAWER_KICK);
   return Buffer.concat(all);
 }
 
@@ -326,6 +331,11 @@ async function runJob(job) {
     return { ms: r.ms };
   }
   if (job.jobKind === "scan") return scanNetwork(job.targetPort || 9100);
+  // فتح الدرج بس (زرار «فتح الدرج» في الكاشير)
+  if (job.jobKind === "drawer") {
+    await sendToPrinter(job, Buffer.concat([Buffer.from([ESC, 0x40]), DRAWER_KICK]));
+    return { ok: true };
+  }
   if (job.jobKind === "test") {
     await sendToPrinter(job, wrapJob(testBody(job), { autoCut: true }));
     return { ok: true };

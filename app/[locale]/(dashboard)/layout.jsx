@@ -12,6 +12,8 @@ import { getCompany } from "@/services/company.service";
 import { CompanyProvider } from "@/components/common/CompanyProvider";
 import DbErrorScreen from "@/components/common/DbErrorScreen";
 import { withDb } from "@/lib/db-guard";
+import { getDevicePrintConfig } from "@/services/invoice-print.service";
+import { DevicePrintProvider } from "@/components/printing/DevicePrintProvider";
 import { getVendor } from "@/lib/vendor";
 import { getSubscription } from "@/lib/subscription";
 
@@ -33,7 +35,7 @@ async function AuthenticatedShell({ children }) {
 
     // مدير النظام: قائمة الفروع ليتنقل بينها من الهيدر
     // + العملة الأساسية للنظام (تظهر في الملصقات والفواتير)
-    const [branches, currency, company, security, vendor, sub] =
+    const [branches, currency, company, security, vendor, sub, devicePrint] =
       await Promise.all([
         getSwitchableBranches(user),
         getBaseCurrency(),
@@ -41,6 +43,8 @@ async function AuthenticatedShell({ children }) {
         getSecuritySettings(),
         getVendor(),
         getSubscription(),
+        // طابعة الإيصالات وفتح الدرج على الجهاز ده
+        getDevicePrintConfig(user).catch(() => null),
       ]);
     return {
       user,
@@ -49,6 +53,7 @@ async function AuthenticatedShell({ children }) {
       company,
       idleMinutes: security.idleMinutes,
       vendor,
+      devicePrint,
       // للتنبيه بس (من غير باقي بيانات الاشتراك)
       subscription: sub
         ? {
@@ -63,8 +68,16 @@ async function AuthenticatedShell({ children }) {
   });
   if (dbError) return <DbErrorScreen {...dbError} />;
 
-  const { user, branches, currency, company, idleMinutes, vendor, subscription } =
-    data;
+  const {
+    user,
+    branches,
+    currency,
+    company,
+    idleMinutes,
+    vendor,
+    subscription,
+    devicePrint,
+  } = data;
 
   // لا نرسل للمتصفح إلا ما تحتاجه الواجهة
   const clientUser = { ...user };
@@ -76,6 +89,7 @@ async function AuthenticatedShell({ children }) {
       <IdleGuard idleMinutes={idleMinutes} />
       <CurrencyProvider currency={currency}>
         <CompanyProvider company={company}>
+          <DevicePrintProvider config={devicePrint}>
           <MainLayout
             branches={branches}
             vendor={vendor}
@@ -83,6 +97,7 @@ async function AuthenticatedShell({ children }) {
           >
             {children}
           </MainLayout>
+          </DevicePrintProvider>
         </CompanyProvider>
       </CurrencyProvider>
     </AuthProvider>

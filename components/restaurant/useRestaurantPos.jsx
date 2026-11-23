@@ -592,7 +592,8 @@ export function useRestaurantPos({
   };
 
   // الفاتورة: على طابعة الكاشير عن طريق الوسيط، وإلا fallback (المتصفح زي الأول)
-  const printReceipt = ({ render, title, fallback }) => {
+  // openDrawer: فتح الدرج بعد الإيصال (حسب إعداد الجهاز وطريقة الدفع)
+  const printReceipt = ({ render, title, fallback, openDrawer = false }) => {
     if (!viaAgent(printerFields(cashierPrinter))) return fallback();
     const paper = cashierPrinter.paperSize === "58mm" ? "58mm" : "80mm";
     setAgentQueue((q) => [
@@ -601,6 +602,7 @@ export function useRestaurantPos({
         key: `r${++ticketSeq}`,
         printerId: cashierPrinter.id,
         title,
+        openDrawer,
         paperSize: paper,
         render: () => render(paper),
         fallback,

@@ -776,7 +776,8 @@
     "LaundryAddItem": "Add item",
     "LaundryServices": "Laundry services",
     "LaundryAddons": "Add-ons",
-    "LaundrySettings": "Subscription settings"
+    "LaundrySettings": "Subscription settings",
+    "Printers": "Printers"
   },
   "Buttons": {
     "AddNewCategory": "Add new category",
@@ -1481,7 +1482,8 @@
     "SizesRequired": "Enter at least one size",
     "VariantsNotForService": "Services have no sizes",
     "TooManyVariants": "Too many sizes × colors (max {max})",
-    "SalesRepInvalid": "The selected sales rep is invalid or inactive"
+    "SalesRepInvalid": "The selected sales rep is invalid or inactive",
+    "PrinterNotFound": "The printer was not found or is inactive in this branch"
   },
   "Headings": {
     "UserPermissionsHeading": "User permissions",
@@ -1738,7 +1740,8 @@
       "rep": "Sales rep (earns commission)",
       "assign": "Choose the invoice sales rep",
       "viewAll": "View other users' documents (sales, returns, quotations, notes and purchases)",
-      "itemSales": "Item sales report"
+      "itemSales": "Item sales report",
+      "openDrawer": "Open the cash drawer manually (logged)"
     }
   },
   "Printing": {
@@ -2536,7 +2539,9 @@
     "PrevSalesNone": "No invoice with this number",
     "ViewSale": "View",
     "Reprint": "Print",
-    "EditSale": "Edit"
+    "EditSale": "Edit",
+    "OpenDrawer": "Open drawer",
+    "OpenDrawerNoPrinter": "To open the drawer, set a receipt printer for this device in print settings, or enable Android printing"
   },
   "Sales": {
     "FreeLineName": "Line description",
@@ -6205,5 +6210,27 @@
     "Customer": "Customer",
     "CashCustomer": "Cash customer",
     "Truncated": "Too many documents; narrow the period to see all details"
+  },
+  "Printers": {
+    "drawer": {
+      "cash": "Cash only",
+      "cashCard": "Cash and card",
+      "always": "Every invoice",
+      "never": "Never"
+    },
+    "Title": "Printers",
+    "Subtitle": "Add each branch's printers: network (IP) or USB through the print agent, or the browser",
+    "DeviceHint": "Each device's receipt printer and cash drawer are set in «Print settings» on the device itself",
+    "DeviceCard": "This device's printer and cash drawer",
+    "Save": "Save",
+    "ReceiptPrinter": "Receipt printer on this device",
+    "ReceiptPrinterHint": "Network or USB printer: receipts print directly through the print agent without the print dialog, and the app controls the drawer. Browser: the print dialog as usual",
+    "Browser": "Browser",
+    "BrowserPrint": "Browser (print dialog)",
+    "NoPrinters": "No printers added for this branch.",
+    "GoPrinters": "Add a printer",
+    "DrawerMode": "Open the drawer after the receipt",
+    "DrawerModeHint": "Works with a network or USB printer or Android printing, and opens only on a new sale, not on reprints. Turn off automatic opening in the Windows printer settings",
+    "DeviceSaved": "Device printer and drawer settings saved"
   }
 }

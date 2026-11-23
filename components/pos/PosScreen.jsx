@@ -16,6 +16,7 @@ import {
 import {
   AppstoreOutlined,
   ArrowRightOutlined,
+  InboxOutlined,
   CalendarOutlined,
   ClearOutlined,
   DeleteOutlined,
@@ -61,6 +62,10 @@ import { useCan } from "@/components/auth/AuthProvider";
 import ProductPicker from "@/components/purchases/ProductPicker";
 import DiscountInput from "@/components/purchases/DiscountInput";
 import PrintDocument from "@/components/printing/PrintDocument";
+import { agentPrinter, useDevicePrint } from "@/components/printing/DevicePrintProvider";
+import { shouldOpenDrawer } from "@/lib/cash-drawer";
+import { androidPrintOn, openDrawerViaRawbt } from "@/lib/android-print";
+import { openDrawerAction } from "@/actions/print-agent.actions";
 import { bookingLines, lineFromProduct } from "@/components/sales/SaleForm";
 import { useModule, useModuleSettings, useNoBarcode } from "@/components/auth/AuthProvider";
 import InvoiceA4 from "@/components/printing/invoice/InvoiceA4";
@@ -202,6 +207,9 @@ export default function PosScreen({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const can = useCan();
   const canDrawer = can("shifts.cashMovement");
+  // فتح الدرج يدوي (بيتسجل) + فتحه بعد إيصال البيع حسب إعداد الجهاز
+  const canOpenDrawer = can("sales.openDrawer");
+  const device = useDevicePrint();
 
   // ---------- السلة ----------
   const [items, setItems] = useState(() =>
@@ -256,6 +264,8 @@ export default function PosScreen({
   const thermalPaper = defaultPaper === "A4" ? "80mm" : defaultPaper;
   const [payPaper, setPayPaper] = useState(defaultPaper);
   const [receiptPaper, setReceiptPaper] = useState(defaultPaper);
+  // طرق دفع البيع الجديد (فتح الدرج) - إعادة الطباعة: null
+  const [receiptDrawer, setReceiptDrawer] = useState(null);
   // الأنشطة اللي من غير باركود: نص السلة الفاضية من غير «امسح الباركود»
   const noBarcode = useNoBarcode();
   const [lastSale, setLastSale] = useState(null);
@@ -304,10 +314,16 @@ export default function PosScreen({
 
   // الفاتورة: المطعم على طابعة الكاشير عن طريق وسيط الطباعة (من غير نافذة)،
   // ولو مفيش وسيط / طابعة: نافذة الطباعة زي الأول
-  const printSale = (doc, paper = defaultPaper) => {
+  // newSale: بيع لسه متسجل ← الدرج بيفتح حسب إعداد الجهاز (إعادة الطباعة: لأ)
+  const printSale = (doc, paper = defaultPaper, { newSale = false } = {}) => {
+    const pays = newSale
+      ? (doc.payments ?? []).map((p) => ({ type: p.paymentMethod?.type, amount: Number(p.amount) }))
+      : null;
     setReceiptPaper(paper);
+    setReceiptDrawer(pays);
     if (!rp.on || paper === "A4") return setReceipt(doc);
     const viaAgent = rp.printReceipt({
+      openDrawer: shouldOpenDrawer(device.drawerMode, pays),
       title: `${tR("Invoice")} ${doc.number ?? ""}`.trim(),
       render: (paper) => (
         <SaleDocument
@@ -657,9 +673,23 @@ export default function PosScreen({
     if (printSettings) {
       const full = await getSaleAction(res.data.id);
       if (full.success && full.data) {
-        printSale(full.data, salePaper);
+        printSale(full.data, salePaper, { newSale: true });
       }
     }
+  };
+
+  // فتح الدرج يدوي: طابعة الجهاز (الوسيط) / أندرويد (RawBT) - والفتح بيتسجل
+  const [openingDrawer, setOpeningDrawer] = useState(false);
+  const openDrawerNow = async () => {
+    const agent = agentPrinter(device);
+    const android = !agent && androidPrintOn();
+    if (!agent && !android) return message.warning(t("OpenDrawerNoPrinter"));
+    setOpeningDrawer(true);
+    const res = await openDrawerAction({ printerId: agent?.id ?? null });
+    setOpeningDrawer(false);
+    if (!res.success) return showActionError(res, tAlerts, locale);
+    if (android) openDrawerViaRawbt();
+    focusSearch();
   };
 
   // ---------- اختصارات الكيبورد ----------
@@ -825,6 +855,12 @@ export default function PosScreen({
             onClick={() => setDrawerOpen(true)}
           >
             <span className="pos-top__label">{t("DrawerCash")}</span>
+          </Button>
+        )}
+        {/* فتح الدرج يدوي من غير بيع (بيتسجل) */}
+        {canOpenDrawer && (
+          <Button ghost icon={<InboxOutlined />} loading={openingDrawer} onClick={openDrawerNow}>
+            <span className="pos-top__label">{t("OpenDrawer")}</span>
           </Button>
         )}
         {/* المنضم: بيخرج من الدرج (صاحبه هو اللي بيقفله) */}
@@ -1451,6 +1487,8 @@ export default function PosScreen({
       {receipt && printSettings && (
         <PrintDocument
           paperSize={receiptPaper}
+          drawerPayments={receiptDrawer}
+          title={receipt.number ? `${tR("Invoice")} ${receipt.number}` : null}
           onDone={() => {
             setReceipt(null);
             focusSearch();

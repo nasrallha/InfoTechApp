@@ -124,6 +124,15 @@ function SavedJob({ job, onClose }) {
             }
             fileName={docNo}
             renderDoc={renderDoc}
+            // بيع / مرتجع جديد: فتح الدرج حسب إعداد الجهاز (مع الطباعة التلقائية)
+            drawerPayments={
+              job.kind === "sale" || job.kind === "return"
+                ? (doc?.payments ?? []).map((p) => ({
+                    type: p.paymentMethod?.type,
+                    amount: Number(p.amount),
+                  }))
+                : null
+            }
           />
         )
       }

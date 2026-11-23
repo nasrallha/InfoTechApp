@@ -178,6 +178,7 @@ const jobSelect = {
   copies: true,
   autoCut: true,
   beep: true,
+  openDrawer: true,
   priority: true,
   imageData: true,
 };
@@ -295,6 +296,8 @@ export async function createPrintJobs(jobs, user) {
         copies: p.copies,
         autoCut: p.autoCut,
         beep: p.beep,
+        // فتح الدرج بعد الطباعة (حسب إعداد الجهاز)
+        openDrawer: Boolean(j.openDrawer),
         priority: p.priority,
         imageData: j.image,
       },
@@ -370,4 +373,44 @@ export async function runAgentCommand({ branchId, kind, host, port, windowsName,
     }
     await new Promise((r) => setTimeout(r, 500));
   }
+}
+
+// ------------------------------------------------------------
+// فتح الدرج يدوي (زرار الكاشير): مهمة «drawer» على طابعة الجهاز + سجل (رقابة)
+// printerId: طابعة إيصالات الجهاز (شبكة / ويندوز) - من غيرها (أندرويد / المتصفح):
+// السجل بس، والجهاز نفسه بيبعت الأمر (RawBT)
+// ------------------------------------------------------------
+export async function openCashDrawer({ printerId, reason }, user) {
+  const branchId = user.branch.id;
+  let queued = false;
+  if (printerId) {
+    const p = await prisma.restaurantPrinter.findFirst({
+      where: { id: printerId, branchId, isActive: true },
+      select: { id: true, name: true, connection: true, host: true, port: true, windowsName: true, paperSize: true },
+    });
+    if (!p || p.connection === "browser") throw new AppError("PrinterNotFound");
+    if (!(await branchOnline(branchId))) throw new AppError("PrintAgentOffline");
+    await prisma.printJob.create({
+      data: {
+        branchId,
+        printerId: p.id,
+        jobKind: "drawer",
+        title: p.name,
+        connection: p.connection,
+        targetHost: p.host,
+        targetPort: p.port,
+        windowsName: p.windowsName,
+        paperSize: p.paperSize,
+        copies: 1,
+        autoCut: false,
+        openDrawer: true,
+        priority: -1,
+      },
+    });
+    queued = true;
+  }
+  await prisma.drawerOpenLog.create({
+    data: { branchId, userId: user.id, reason: reason ? String(reason).slice(0, 200) : null },
+  });
+  return { queued };
 }

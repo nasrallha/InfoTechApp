@@ -21,7 +21,7 @@ const PX_PER_MM = 96 / 25.4;
 //   (نفس شكل الشاشة، والعربي سليم) ← مهمة طباعة على طابعتها
 // - الوسيط مش متصل ← onFallback(item): الشاشة بتطبعه من المتصفح زي الأول
 // - بيتابع المهام: لو طابعة فشلت ← تنبيه باسمها والسبب
-// items: [{ key, printerId, title, paperSize, render: () => JSX }]
+// items: [{ key, printerId, title, paperSize, openDrawer?, render: () => JSX }]
 // ============================================================
 export default function AgentPrinter({ items, onDone, onFallback }) {
   const t = useTranslations("PrintAgent");
@@ -62,6 +62,8 @@ export default function AgentPrinter({ items, onDone, onFallback }) {
             printerId: item.printerId,
             image: dataUrl.slice(dataUrl.indexOf(",") + 1),
             title: item.title ?? null,
+            // فتح الدرج بعد الإيصال (حسب إعداد الجهاز)
+            openDrawer: Boolean(item.openDrawer),
           },
         ]);
         if (!res.success || !res.data.online || !res.data.ids.length) {
@@ -104,7 +106,7 @@ export default function AgentPrinter({ items, onDone, onFallback }) {
 }
 
 // متابعة المهام: بعد 3 ثواني و10 ثواني، واللي فشل بيظهر تنبيه
-function watch(ids, t) {
+export function watch(ids, t) {
   let pending = [...ids];
   const check = async () => {
     const res = await printJobsStatusAction(pending);

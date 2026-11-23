@@ -11,8 +11,10 @@ import {
   saveInvoicePrintSettings,
   saveLetterImage,
   setDeviceBarcodeLabel,
+  saveDevicePrinter,
+  DRAWER_MODES,
 } from "@/services/invoice-print.service";
-import { imageField } from "@/validations/common.schema";
+import { idField, imageField } from "@/validations/common.schema";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCompany } from "@/services/company.service";
@@ -59,6 +61,19 @@ export async function setDeviceBarcodeLabelAction(labelId) {
     labelId,
     (id) => setDeviceBarcodeLabel(id),
     { permission: "barcodes.print" },
+  );
+}
+
+// طابعة الإيصالات وفتح الدرج على الجهاز ده
+export async function saveDevicePrinterAction(input) {
+  return runAction(
+    z.object({
+      receiptPrinterId: idField.nullable(),
+      drawerMode: z.enum(DRAWER_MODES),
+    }),
+    input,
+    (d, user) => saveDevicePrinter(d, user),
+    { permission: "printing.update", refresh: true },
   );
 }
 

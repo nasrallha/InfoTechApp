@@ -213,6 +213,7 @@ const MainLayout = ({
     "/printing/barcode-labels",
     "/printing/barcodes",
     "/printing/invoice",
+    "/printing/printers",
     // كل صفحات الفواتير تلوّن زر "الفواتير"
     "/invoices",
     "/contact",
@@ -612,6 +613,8 @@ const MainLayout = ({
           "InvoicePrinting",
           "printing.view",
         ),
+        // الطابعات (شبكة / USB / المتصفح) ووسيط الطباعة
+        link("/printing/printers", <PrinterOutlined />, "Printers", "printing.view"),
         !noBarcode &&
           link(
             "/printing/barcode-labels",

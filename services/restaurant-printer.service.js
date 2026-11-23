@@ -1,11 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
-import { assertModule } from "@/lib/modules";
 import { runTx } from "@/lib/transaction";
 
 // ============================================================
-// طابعات المطعم (لكل فرع) وتوزيع التحضير
+// الطابعات (لكل فرع - كل الأنشطة) وتوزيع التحضير (المطعم)
 // - طابعة الكاشير: الفاتورة | طابعات التحضير: كل واحدة أقسامها وأصنافها الخاصة
 // - الصنف: طابعاته الخاصة ← طابعات قسمه ← الطابعة الافتراضية للفرع
 // - طريقة التوصيل (شبكة / ويندوز / المتصفح) بيستخدمها وسيط الطباعة،
@@ -41,7 +40,6 @@ const toDTO = ({ categories, products, ...p }) => ({
 
 // شاشة الإعدادات: كل الطابعات (كل الفروع)
 export async function listPrinters() {
-  await assertModule("restaurant");
   const rows = await prisma.restaurantPrinter.findMany({
     orderBy: [{ branchId: "asc" }, { kind: "asc" }, { priority: "asc" }, { name: "asc" }],
     select,
@@ -60,7 +58,6 @@ export async function branchPrinters(branchId) {
 }
 
 export async function savePrinter({ id, categoryIds, productIds, ...data }) {
-  await assertModule("restaurant");
   const branch = await prisma.branch.findUnique({
     where: { id: data.branchId },
     select: { id: true },
@@ -118,7 +115,6 @@ export async function savePrinter({ id, categoryIds, productIds, ...data }) {
 }
 
 export async function deletePrinter(id) {
-  await assertModule("restaurant");
   await prisma.restaurantPrinter.delete({ where: { id } }).catch((e) => {
     if (e?.code === "P2025") throw new AppError("RestaurantPrinterNotFound");
     throw e;

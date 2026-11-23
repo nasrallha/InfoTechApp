@@ -10,6 +10,8 @@ import { getCompany } from "@/services/company.service";
 import { CompanyProvider } from "@/components/common/CompanyProvider";
 import DbErrorScreen from "@/components/common/DbErrorScreen";
 import { withDb } from "@/lib/db-guard";
+import { getDevicePrintConfig } from "@/services/invoice-print.service";
+import { DevicePrintProvider } from "@/components/printing/DevicePrintProvider";
 
 // شاشة الكاشير: شاشة كاملة بدون القائمة الجانبية والهيدر
 // (نفس تسجيل الدخول والعملة مثل باقي البرنامج)
@@ -24,12 +26,14 @@ export default function PosLayout({ children }) {
 async function Shell({ children }) {
   const { data, dbError } = await withDb(async () => {
     const user = await requireUser();
-    const [currency, company, security] = await Promise.all([
+    const [currency, company, security, devicePrint] = await Promise.all([
       getBaseCurrency(),
       getCompany(),
       getSecuritySettings(),
+      // طابعة الإيصالات وفتح الدرج على الجهاز ده
+      getDevicePrintConfig(user).catch(() => null),
     ]);
-    return { user, currency, company, idleMinutes: security.idleMinutes };
+    return { user, currency, company, idleMinutes: security.idleMinutes, devicePrint };
   });
   if (dbError) return <DbErrorScreen {...dbError} />;
 
@@ -39,7 +43,9 @@ async function Shell({ children }) {
     <AuthProvider user={clientUser}>
       <IdleGuard idleMinutes={data.idleMinutes} />
       <CurrencyProvider currency={data.currency}>
-        <CompanyProvider company={data.company}>{children}</CompanyProvider>
+        <CompanyProvider company={data.company}>
+          <DevicePrintProvider config={data.devicePrint}>{children}</DevicePrintProvider>
+        </CompanyProvider>
       </CurrencyProvider>
     </AuthProvider>
   );

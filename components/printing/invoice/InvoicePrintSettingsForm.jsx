@@ -52,6 +52,7 @@ import InvoiceView, { PRINT_AREA } from "./InvoiceView";
 import PrintInvoice from "./PrintInvoice";
 import ScaledBox from "../ScaledBox";
 import AndroidPrintCard from "../AndroidPrintCard";
+import DevicePrinterCard from "../DevicePrinterCard";
 import { sampleA4Doc, sampleInvoice } from "./sampleInvoice";
 import "../printing.css";
 import { actionErrorText } from "@/components/common/actionError";
@@ -93,6 +94,8 @@ function PaperPicker({ value, onChange, disabled, t }) {
 export default function InvoicePrintSettingsForm({
   settings,
   deviceSettings = null,
+  devicePrint = null, // طابعة الإيصالات وفتح الدرج على الجهاز ده
+  printers = [],
   company,
   branch,
   cashierName,
@@ -342,6 +345,9 @@ export default function InvoicePrintSettingsForm({
                 </Row>
                 <p className="text-xs text-slate-400 m-0">{t("MarginsHint")}</p>
               </Card>
+
+              {/* طابعة الإيصالات على الجهاز ده + فتح الدرج */}
+              <DevicePrinterCard printers={printers} config={devicePrint} canEdit={canEdit} />
 
               {/* طباعة أندرويد (RawBT): إعداد الجهاز ده بس */}
               <AndroidPrintCard paper={preview.paperSize} />

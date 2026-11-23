@@ -6,8 +6,10 @@ import { can } from "@/lib/permissions";
 import { getPageAccess } from "@/lib/auth";
 import {
   getDeviceInvoiceSettings,
+  getDevicePrintConfig,
   getInvoicePrintSettings,
 } from "@/services/invoice-print.service";
+import { branchPrinters } from "@/services/restaurant-printer.service";
 import { getCompany } from "@/services/company.service";
 import InvoicePrintSettingsForm from "@/components/printing/invoice/InvoicePrintSettingsForm";
 import NoAccess from "@/components/common/NoAccess";
@@ -19,18 +21,28 @@ async function InvoicePrintContent() {
   if (!allowed) return <NoAccess />;
 
   await connection();
-  const [settings, deviceSettings, company, locale] = await Promise.all([
+  const [settings, deviceSettings, company, locale, devicePrint, printers] = await Promise.all([
     // الإعدادات الافتراضية (الشركة) + إعدادات الجهاز ده (لو ليه)
     getInvoicePrintSettings({ device: false }),
     getDeviceInvoiceSettings(),
     getCompany(),
     getLocale(),
+    // طابعة الإيصالات وفتح الدرج على الجهاز ده + طابعات الفرع
+    getDevicePrintConfig(user),
+    branchPrinters(user.branch.id),
   ]);
 
   return (
     <InvoicePrintSettingsForm
       settings={settings}
       deviceSettings={deviceSettings}
+      devicePrint={devicePrint}
+      printers={printers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        connection: p.connection,
+        paperSize: p.paperSize,
+      }))}
       company={company}
       branch={user.branch}
       cashierName={locale === "ar" ? user.arFullname : user.enFullname}

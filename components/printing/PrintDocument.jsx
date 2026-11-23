@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PRINT_AREA } from "./invoice/InvoiceView";
+import { useTranslations } from "next-intl";
 import { androidPrintable, printViaRawbt } from "@/lib/android-print";
+import { shouldOpenDrawer } from "@/lib/cash-drawer";
+import { agentPrinter, useDevicePrint } from "./DevicePrintProvider";
+import { printViaAgent } from "./agentPrint";
+import { watch } from "./AgentPrinter";
 import "./printing.css";
 
 const PX_PER_MM = 96 / 25.4;
@@ -34,12 +39,25 @@ export function imagesReady(node, maxMs = 4000) {
 //   على طول من غير نافذة، ولو فشل الرسم: نافذة الطباعة زي الأول
 // ============================================================
 // margin: هامش صفحة A4 بالمللي (التقارير الطويلة: كل صفحة لها هامش)
+// - طابعة الإيصالات على الجهاز (شبكة / ويندوز): الإيصال الحراري بيروح لوسيط الطباعة
+//   على طول، ولو الوسيط مش متصل: نافذة الطباعة زي الأول
+// drawerPayments: طرق دفع البيع الجديد [{ type, amount }] ← فتح الدرج حسب إعداد الجهاز
+//   (فاضي = مستند مش بيع جديد، زي إعادة الطباعة ← الدرج مايفتحش)
 export default function PrintDocument({
   paperSize,
   children,
   onDone,
   margin = 0,
+  drawerPayments = null,
+  title = null,
 }) {
+  const device = useDevicePrint();
+  const tAgent = useTranslations("PrintAgent");
+  // آخر قيم (من غير ما الطباعة تتعاد لو اتغيّروا)
+  const deviceRef = useRef({ device, drawerPayments, title, tAgent });
+  useEffect(() => {
+    deviceRef.current = { device, drawerPayments, title, tAgent };
+  });
   const [root, setRoot] = useState(null);
   const [pageCss, setPageCss] = useState(null);
   const page = useRef(null);
@@ -73,11 +91,37 @@ export default function PrintDocument({
         await document.fonts?.ready;
         await imagesReady(page.current);
         if (cancelled) return;
+        const thermal = paperSize === "80mm" || paperSize === "58mm";
+        const cur = deviceRef.current;
+        const openDrawer = shouldOpenDrawer(cur.device?.drawerMode, cur.drawerPayments);
+        // طابعة الإيصالات على الجهاز (شبكة / ويندوز) ← وسيط الطباعة (ومعاه فتح الدرج)
+        const agent = thermal ? agentPrinter(cur.device) : null;
+        if (agent && page.current) {
+          root.style.visibility = "visible";
+          try {
+            const ids = await printViaAgent(page.current, {
+              paperSize,
+              printerId: agent.id,
+              title: cur.title,
+              openDrawer,
+            });
+            if (ids) {
+              watch(ids, cur.tAgent);
+              if (!cancelled) setTimeout(finish, 300);
+              return;
+            }
+          } catch (e) {
+            console.error("[agent-print]", e);
+          } finally {
+            root.style.visibility = "";
+          }
+          if (cancelled) return;
+        }
         if (androidPrintable(paperSize) && page.current) {
           // العنصر مخفي (visibility) ← يبان بره الشاشة وقت الرسم بس
           root.style.visibility = "visible";
           try {
-            await printViaRawbt(page.current, paperSize);
+            await printViaRawbt(page.current, paperSize, { openDrawer });
             if (!cancelled) setTimeout(finish, 300);
             return;
           } catch (e) {
