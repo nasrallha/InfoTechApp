@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCurrency } from "@/components/common/CurrencyProvider";
 import { useCompany } from "@/components/common/CompanyProvider";
 import A4Frame, { BilingualHeader, useA4 } from "@/components/printing/A4Frame";
@@ -56,6 +56,7 @@ export function ContractingHead({ title, sub }) {
 export default function CertificatePrint({ cert: x }) {
   const t = useTranslations("Contracting");
   const { amount: money } = useCurrency();
+  const locale = useLocale();
   const c = x.contract;
   const sub = c.kind === "sub";
   // المستخلص السريع (من غير عقد): من غير رقم عقد ولا مشروع ولا الموقف التراكمي
@@ -84,6 +85,18 @@ export default function CertificatePrint({ cert: x }) {
     ],
     x.penalty > 0 && [t("DelayPenalty"), `- ${money(x.penalty)}`, "minus"],
     [t("NetPayable"), money(x.netPayable), "net"],
+    // الختامي: الإفراج عن الضمان المحجوز من المستخلصات السابقة
+    x.release && [t("RetentionReleased"), money(x.release.amount)],
+    x.release && [t("TotalWithRelease"), money(x.netPayable + x.release.amount), "net"],
+  ].filter(Boolean);
+
+  // طريقة السداد: المدفوع على الفاتورة بطرقه + الآجل + الإفراج عن الضمان
+  const nmOf = (m) => (locale === "en" ? m.enName || m.arName : m.arName);
+  const paidRows = [
+    ...(x.invoice?.payments ?? []).map((p) => [nmOf(p), money(p.amount)]),
+    x.invoice?.credit > 0 && [t("OnCredit"), money(x.invoice.credit)],
+    x.retention > 0 && [t("RetentionHeldOnInvoice"), money(x.retention)],
+    x.release && [`${t("RetentionReleased")}${nmOf(x.release) ? ` (${nmOf(x.release)})` : ""}`, money(x.release.amount)],
   ].filter(Boolean);
 
   const cumulative = [
@@ -293,6 +306,29 @@ export default function CertificatePrint({ cert: x }) {
           </table>
           )}
         </div>
+
+        {/* طريقة السداد */}
+        {paidRows.length > 0 && (
+          <div className="ctp__bottom">
+            <table className="ctp__sum">
+              <thead>
+                <tr>
+                  <th colSpan={2}>{t("PaymentDetails")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paidRows.map(([label, v], i) => (
+                  <tr key={`${label}-${i}`}>
+                    <td>{label}</td>
+                    <td>
+                      <bdi>{v}</bdi>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {x.notes && (
           <div style={{ marginTop: "2mm" }}>

@@ -6108,7 +6108,17 @@
     "SubContractsValue": "قيمة عقود المقاولين الآخرين",
     "PlannedMargin": "الربح المتوقع",
     "SubCertified": "منفّذ المقاولين الآخرين",
-    "ActualMargin": "الربح المحقق"
+    "ActualMargin": "الربح المحقق",
+    "ReleaseRetentionHint": "يُسجَّل سند قبض بالمبلغ المحجوز من المستخلصات السابقة بطريقة الدفع المختارة، ولا يُحجز ضمان من هذا المستخلص",
+    "ReleaseRetentionHintSub": "يُسجَّل سند صرف بالمبلغ المحجوز من المستخلصات السابقة بطريقة الدفع المختارة، ولا يُحجز ضمان من هذا المستخلص",
+    "ReleaseMethod": "طريقة دفع الإفراج",
+    "RetentionReleased": "الإفراج عن حجز الضمان",
+    "TotalWithRelease": "الإجمالي المستحق مع الإفراج",
+    "RetentionReleasedMsg": "تم الإفراج عن حجز الضمان {v}",
+    "RetentionReleaseFailed": "حُفظ المستخلص، وتعذّر الإفراج عن الضمان؛ سجّله من صفحة العقد",
+    "PaymentDetails": "طريقة السداد",
+    "RetentionHeldOnInvoice": "حجز الضمان (يُحصَّل عند الإفراج)",
+    "ReleaseRetentionFinal": "الإفراج عن حجز الضمان المحجوز ({v})"
   },
   "InvoiceSearch": {
     "Button": "بحث عن فاتورة",

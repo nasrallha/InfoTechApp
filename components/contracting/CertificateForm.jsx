@@ -91,6 +91,12 @@ export default function CertificateForm({ contract: c, paymentMethods = [], unit
   const [periodFrom, setPeriodFrom] = useState(last?.periodTo ?? c.startDate ?? null);
   const [periodTo, setPeriodTo] = useState(today());
   const [isFinal, setIsFinal] = useState(false);
+  // الختامي: الإفراج عن حجز الضمان المحجوز (بسند بطريقة الدفع المختارة)
+  const heldRetention = Math.max(0, Number(pos?.retentionLeft) || 0);
+  const [releaseRetention, setReleaseRetention] = useState(false);
+  const [releaseMethodId, setReleaseMethodId] = useState(paymentMethods[0]?.id ?? null);
+  const [releaseReference, setReleaseReference] = useState("");
+  const releasing = isFinal && releaseRetention;
   const [qty, setQty] = useState({}); // itemId ← الكمية الحالية
   const [extra, setExtra] = useState([]); // البنود الحرة (بالكميات)
   const [lump, setLump] = useState([{ ...freeLine(), description: `${t("WorksDoneCert")} ${seq}` }]);
@@ -140,7 +146,7 @@ export default function CertificateForm({ contract: c, paymentMethods = [], unit
     advanceLeft: pos.advanceLeft,
     isFinal,
     recovery,
-    retention,
+    retention: releasing ? 0 : retention,
     penalty,
     decimals,
   });
@@ -175,6 +181,10 @@ export default function CertificateForm({ contract: c, paymentMethods = [], unit
     if (pays && needsRef && !reference.trim()) return message.error(tAlerts("RequiredField"));
     if (payStatus === "partial" && !(paidAmount > 0 && paidAmount <= calc.net))
       return message.error(t("PaidNowRange", { total: money(calc.net) }));
+    const releaseNeedsRef = paymentMethods.find((m) => m.id === releaseMethodId)?.requiresReference;
+    if (releasing && heldRetention > 0 && !releaseMethodId) return message.error(tAlerts("RequiredField"));
+    if (releasing && heldRetention > 0 && releaseNeedsRef && !releaseReference.trim())
+      return message.error(tAlerts("RequiredField"));
     setSaving(true);
     const res = await createCertificateAction({
       contractId: c.id,
@@ -202,10 +212,16 @@ export default function CertificateForm({ contract: c, paymentMethods = [], unit
       paymentMethodId: pays ? methodId : null,
       reference: pays ? reference || null : null,
       paidAmount: payStatus === "partial" ? paidAmount : null,
+      releaseRetention: releasing && heldRetention > 0,
+      releaseMethodId: releasing && heldRetention > 0 ? releaseMethodId : null,
+      releaseReference: releasing ? releaseReference || null : null,
     });
     setSaving(false);
     if (!res.success) return showActionError(res, tAlerts, locale);
     message.success(t("CertSaved"));
+    if (res.data.releasedRetention > 0)
+      message.success(t("RetentionReleasedMsg", { v: money(res.data.releasedRetention) }));
+    if (res.data.releaseFailed) message.warning(t("RetentionReleaseFailed"));
     setDone(res.data);
   };
 
@@ -344,6 +360,12 @@ export default function CertificateForm({ contract: c, paymentMethods = [], unit
     [`${t("Retention")} ${c.retentionPct}%`, -calc.retention, "retention"],
     [t("DelayPenalty"), -calc.penalty, "penalty"],
     [t("NetPayable"), calc.net, "net"],
+    ...(releasing && heldRetention > 0
+      ? [
+          [t("RetentionReleased"), heldRetention, "bold"],
+          [t("TotalWithRelease"), calc.net + heldRetention, "net"],
+        ]
+      : []),
   ];
 
   return (
@@ -403,6 +425,40 @@ export default function CertificateForm({ contract: c, paymentMethods = [], unit
             <Tooltip title={t("FinalHint")}>
               <QuestionCircleOutlined />
             </Tooltip>
+            {/* الختامي: الإفراج عن الضمان المحجوز من المستخلصات السابقة */}
+            {isFinal && heldRetention > 0 && (
+              <div className="mt-2">
+                <Checkbox checked={releaseRetention} onChange={(e) => setReleaseRetention(e.target.checked)}>
+                  {t("ReleaseRetentionFinal", { v: money(heldRetention) })}
+                </Checkbox>
+                <Tooltip title={t(sub ? "ReleaseRetentionHintSub" : "ReleaseRetentionHint")}>
+                  <QuestionCircleOutlined />
+                </Tooltip>
+                {releaseRetention && (
+                  <Space wrap size={6} className="mt-1">
+                    <Select
+                      size="small"
+                      style={{ minWidth: 180 }}
+                      value={releaseMethodId ?? undefined}
+                      onChange={setReleaseMethodId}
+                      placeholder={t("ReleaseMethod")}
+                      options={paymentMethods.map((m) => ({ value: m.id, label: nameOfMethod(m) }))}
+                    />
+                    {paymentMethods.find((m) => m.id === releaseMethodId)?.requiresReference && (
+                      <Input
+                        size="small"
+                        maxLength={100}
+                        dir="ltr"
+                        style={{ width: 160 }}
+                        placeholder={t("Reference")}
+                        value={releaseReference}
+                        onChange={(e) => setReleaseReference(e.target.value)}
+                      />
+                    )}
+                  </Space>
+                )}
+              </div>
+            )}
           </Col>
         </Row>
       </Card>

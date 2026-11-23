@@ -6108,7 +6108,17 @@
     "SubContractsValue": "Other contractors’ contract value",
     "PlannedMargin": "Planned margin",
     "SubCertified": "Other contractors’ certified",
-    "ActualMargin": "Actual margin"
+    "ActualMargin": "Actual margin",
+    "ReleaseRetentionHint": "A receipt voucher is recorded for the retention held from previous certificates using the chosen payment method, and no retention is held from this certificate",
+    "ReleaseRetentionHintSub": "A payment voucher is recorded for the retention held from previous certificates using the chosen payment method, and no retention is held from this certificate",
+    "ReleaseMethod": "Release payment method",
+    "RetentionReleased": "Retention released",
+    "TotalWithRelease": "Total due with release",
+    "RetentionReleasedMsg": "Retention {v} released",
+    "RetentionReleaseFailed": "The certificate was saved but the retention release failed; record it from the contract page",
+    "PaymentDetails": "Payment details",
+    "RetentionHeldOnInvoice": "Retention (due on release)",
+    "ReleaseRetentionFinal": "Release the held retention ({v})"
   },
   "InvoiceSearch": {
     "Button": "Find invoice",

@@ -382,8 +382,9 @@ export async function createCertificate(data, user) {
     },
     certificates: {
       orderBy: { seq: "desc" },
-      select: { seq: true, isFinal: true, recovery: true, cancelled: true },
+      select: { seq: true, isFinal: true, recovery: true, retention: true, cancelled: true },
     },
+    payments: { where: { kind: "retention" }, select: { amount: true } },
   });
   if (c.status !== "active") throw new AppError("ContractNotActive");
   if (c.certificates.some((x) => x.isFinal && !x.cancelled)) throw new AppError("ContractFinalized");
@@ -464,13 +465,25 @@ export async function createCertificate(data, user) {
   // الاسترداد المكتوب أكبر من باقي الدفعة المقدمة ← الضريبة هتقل غلط
   if (!c.isDirect && data.recovery != null && data.recovery > advanceLeft + 1e-9)
     throw new AppError("RecoveryOverAdvance", { left: advanceLeft }, { recovery: "RecoveryOverAdvance" });
+  // الإفراج عن حجز الضمان مع الختامي: المحجوز من المستخلصات السابقة (ناقص اللي اتفرج عنه)
+  const release = Boolean(data.isFinal && data.releaseRetention);
+  const retentionLeft = release
+    ? round(
+        c.certificates.filter((x) => !x.cancelled).reduce((s, x) => s + n(x.retention), 0) -
+          c.payments.reduce((s, p) => s + n(p.amount), 0),
+        decimals,
+      )
+    : 0;
+  if (release && retentionLeft > 0 && !data.releaseMethodId)
+    throw new AppError("RequiredField", null, { releaseMethodId: "RequiredField" });
   const calc = certificateCalc({
     amounts: valued.map((l) => l.amount),
     contract: { recoveryPct: n(c.recoveryPct), retentionPct: n(c.retentionPct), taxRate: n(c.taxRate) },
     advanceLeft,
     isFinal: data.isFinal,
     recovery: data.recovery,
-    retention: data.retention,
+    // الختامي مع الإفراج عن الضمان: مفيش ضمان يتحجز من المستخلص ده
+    retention: release ? 0 : data.retention,
     penalty: data.penalty,
     decimals,
   });
@@ -610,8 +623,54 @@ export async function createCertificate(data, user) {
     if (error?.code === "P2002") throw new AppError("CertificateConflict");
     throw error;
   }
+  // الإفراج عن حجز الضمان (سند قبض / صرف بطريقة الدفع المختارة) ← مربوط بالمستخلص
+  let releasedRetention = 0;
+  let releaseFailed = false;
+  if (release && retentionLeft > 0) {
+    try {
+      const pay = await addPayment(
+        {
+          contractId: c.id,
+          kind: "retention",
+          amount: retentionLeft,
+          paymentMethodId: data.releaseMethodId,
+          reference: data.releaseReference ?? null,
+          notes: `مستخلص ختامي رقم ${certDocNo}`,
+        },
+        user,
+      );
+      await prisma.constructionCertificate.update({
+        where: { id: certificateId },
+        data: { releasedRetention: retentionLeft, releasePaymentId: pay.paymentId },
+      });
+      releasedRetention = retentionLeft;
+    } catch {
+      // المستخلص اتسجل، والإفراج يتعمل من صفحة العقد
+      releaseFailed = true;
+    }
+  }
   const zatca = doc.saleId ? await afterSaleSaved(doc.saleId, {}).catch(() => null) : null;
-  return { id: certificateId, seq, docNo: certDocNo, ...doc, zatca };
+  return { id: certificateId, seq, docNo: certDocNo, ...doc, zatca, releasedRetention, releaseFailed };
+}
+
+// الإفراج مع المستخلص: المبلغ وطريقة الدفع (من السند)
+async function releaseInfo(x) {
+  if (!(n(x.releasedRetention) > 0)) return null;
+  const p = x.releasePaymentId
+    ? await prisma.constructionPayment.findUnique({
+        where: { id: x.releasePaymentId },
+        select: { voucher: { select: { paymentMethod: { select: { arName: true, enName: true } } } } },
+      })
+    : null;
+  const m = p?.voucher?.paymentMethod;
+  return { amount: n(x.releasedRetention), arName: m?.arName ?? "", enName: m?.enName ?? "" };
+}
+
+// دفعة الإفراج اللي اتعملت مع المستخلص الختامي ← بتتمسح معاه (حذف / إلغاء)
+async function dropReleasePayment(paymentId, user) {
+  if (!paymentId) return;
+  const p = await prisma.constructionPayment.findUnique({ where: { id: paymentId }, select: { id: true } });
+  if (p) await deletePayment(p.id, user);
 }
 
 // ------------------------------------------------------------
@@ -837,6 +896,7 @@ export async function cancelCertificate(id, user) {
       saleId: true,
       purchaseId: true,
       penaltyVoucherId: true,
+      releasePaymentId: true,
       contract: { select: { id: true, kind: true, branchId: true, number: true, docCode: true, isDirect: true } },
     },
   });
@@ -883,6 +943,8 @@ export async function cancelCertificate(id, user) {
       ? [prisma.constructionContract.update({ where: { id: c.id }, data: { status: "active" } })]
       : []),
   ]);
+  // الإفراج اللي اتعمل مع المستخلص: الضمان يرجع محجوز (لو مينفعش يتمسح بيفضل)
+  await dropReleasePayment(x.releasePaymentId, user).catch(() => {});
   // المرتجع (إشعار دائن) للهيئة: نفس اللي بيحصل بعد حفظ أي مرتجع
   const zatca = x.saleId ? await afterSaleSaved(returnDocId, {}).catch(() => null) : null;
   return { id: x.id, returnDocId, zatca };
@@ -1125,6 +1187,7 @@ export async function deleteCertificate(id, user) {
       saleId: true,
       purchaseId: true,
       penaltyVoucherId: true,
+      releasePaymentId: true,
       contract: {
         select: {
           id: true,
@@ -1146,13 +1209,25 @@ export async function deleteCertificate(id, user) {
     const signed = await prisma.zatcaDocument.findUnique({ where: { saleId: x.saleId }, select: { id: true } });
     if (signed) throw new AppError("ZatcaInvoiceLocked");
   }
+  // سند الغرامة وسند الإفراج (بتوع المستخلص نفسه) مش «سداد تاني»
+  const releaseVoucherId = x.releasePaymentId
+    ? ((
+        await prisma.constructionPayment.findUnique({
+          where: { id: x.releasePaymentId },
+          select: { voucherId: true },
+        })
+      )?.voucherId ?? null)
+    : null;
+  const ownVouchers = [x.penaltyVoucherId, releaseVoucherId].filter(Boolean);
   const otherPaid = await prisma.voucherAllocation.count({
     where: {
       ...(x.saleId ? { saleId: x.saleId } : { purchaseId: x.purchaseId }),
-      ...(x.penaltyVoucherId ? { voucherId: { not: x.penaltyVoucherId } } : {}),
+      ...(ownVouchers.length ? { voucherId: { notIn: ownVouchers } } : {}),
     },
   });
   if (otherPaid) throw new AppError("InvoiceHasSettlements");
+
+  await dropReleasePayment(x.releasePaymentId, user);
 
   if (x.penaltyVoucherId) await deleteVoucher(x.penaltyVoucherId, actingUser(user, c.branchId));
   await dropDoc(c, user, { saleId: x.saleId, purchaseId: x.purchaseId });
@@ -1188,6 +1263,8 @@ export async function getCertificate(id, user) {
       retention: true,
       penalty: true,
       netPayable: true,
+      releasedRetention: true,
+      releasePaymentId: true,
       notes: true,
       clientRef: true,
       cancelled: true,
@@ -1202,7 +1279,15 @@ export async function getCertificate(id, user) {
           docCode: true,
           totalAmount: true,
           remainingAmount: true,
-          payments: { take: 1, select: { paymentMethodId: true, reference: true } },
+          payments: {
+            orderBy: { id: "asc" },
+            select: {
+              paymentMethodId: true,
+              reference: true,
+              amount: true,
+              paymentMethod: { select: { arName: true, enName: true } },
+            },
+          },
         },
       },
       purchase: {
@@ -1214,7 +1299,15 @@ export async function getCertificate(id, user) {
           supplierInvoiceNo: true,
           totalAmount: true,
           remainingAmount: true,
-          payments: { take: 1, select: { paymentMethodId: true, reference: true } },
+          payments: {
+            orderBy: { id: "asc" },
+            select: {
+              paymentMethodId: true,
+              reference: true,
+              amount: true,
+              paymentMethod: { select: { arName: true, enName: true } },
+            },
+          },
         },
       },
       certLines: {
@@ -1346,8 +1439,18 @@ export async function getCertificate(id, user) {
         total: n(inv.totalAmount),
         paid: round(n(inv.totalAmount) - n(inv.remainingAmount), 2),
         payment: inv.payments?.[0] ?? null,
+        // طرق الدفع على الفاتورة (الطباعة) + الآجل (من غير الضمان)
+        payments: (inv.payments ?? []).map((p) => ({
+          arName: p.paymentMethod?.arName ?? "",
+          enName: p.paymentMethod?.enName ?? "",
+          amount: n(p.amount),
+          reference: p.reference ?? null,
+        })),
+        credit: Math.max(0, round(n(inv.remainingAmount) - n(x.retention), 2)),
       };
     })(),
+    // الإفراج عن حجز الضمان مع المستخلص الختامي (المبلغ + طريقة الدفع)
+    release: await releaseInfo(x),
     rows,
     extra,
     // المستخلصات السابقة (تراكمي) للملخص
@@ -1432,8 +1535,10 @@ export async function addPayment(data, user) {
     },
     actingUser(user, c.branchId),
   );
+  let paymentId;
   try {
-    await prisma.constructionPayment.create({
+    ({ id: paymentId } = await prisma.constructionPayment.create({
+      select: { id: true },
       data: {
         contractId: c.id,
         kind: data.kind,
@@ -1443,12 +1548,12 @@ export async function addPayment(data, user) {
         notes: data.notes,
         createdById: user.id,
       },
-    });
+    }));
   } catch (error) {
     await deleteVoucher(v.id, actingUser(user, c.branchId)).catch(() => {});
     throw error;
   }
-  return { voucherId: v.id };
+  return { voucherId: v.id, paymentId };
 }
 
 // حذف دفعة (السند بيتمسح معاها)

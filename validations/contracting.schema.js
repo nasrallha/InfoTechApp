@@ -181,6 +181,10 @@ export const certificateSchema = z.object({
   paidAmount: moneyIn.nullish().transform((v) => (v == null ? null : v)),
   // رقم المستخلص عند العميل (اختياري)
   clientRef: optionalText(60),
+  // المستخلص الختامي: الإفراج عن حجز الضمان (بطريقة دفع) - ضمان المستخلص نفسه = صفر
+  releaseRetention: z.boolean().default(false),
+  releaseMethodId: idField.nullish().transform((v) => v ?? null),
+  releaseReference: optionalText(100),
 });
 
 // ------------------------------------------------------------

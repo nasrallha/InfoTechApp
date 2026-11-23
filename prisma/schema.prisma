@@ -4363,6 +4363,10 @@ model ConstructionCertificate {
   retention    Decimal @default(0) @db.Decimal(18, 4)
   penalty      Decimal @default(0) @db.Decimal(18, 4)
   netPayable   Decimal @default(0) @db.Decimal(18, 4)
+  // الختامي: الإفراج عن حجز الضمان المحجوز من المستخلصات السابقة مع المستخلص نفسه
+  // (سند قبض / صرف في construction_payments بنوع retention ← بيتلغي مع المستخلص)
+  releasedRetention Decimal @default(0) @db.Decimal(18, 4)
+  releasePaymentId  Int?
 
   // رقم المستخلص عند العميل (المستخلص السريع)
   clientRef   String? @db.VarChar(60)

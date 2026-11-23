@@ -180,6 +180,9 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
   const docDate = new Date(doc.date);
   // فاتورة مقاولات (الدفعة المقدمة / مستخلص)
   const ct = doc.contracting ?? null;
+  // حجز الضمان في فاتورة المستخلص (مش «آجل»: بيتحصّل عند الإفراج) + الآجل الفعلي
+  const certRetention = isReturn ? 0 : Number(ct?.cert?.retention ?? 0);
+  const creditLeft = Number(doc.remainingAmount ?? 0) - certRetention;
   const biMeta = [
     [isNote ? "رقم الإشعار" : "رقم الفاتورة", isNote ? "Note No" : "Invoice No", <bdi key="n">{number}</bdi>],
     ["التاريخ", "Date", <bdi key="d">{formatDay(docDate.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }))}</bdi>],
@@ -615,7 +618,8 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
                 <div className="a4__words-qr a4__qr--empty" />
               ))}
           </div>
-          {payments.length > 0 && (
+          {/* طرق الدفع + الآجل (حتى لو الفاتورة آجل بالكامل) + حجز الضمان في فاتورة المستخلص */}
+          {!isQuotation && (payments.length > 0 || creditLeft > 0.0001 || certRetention > 0) && (
             <div className="a4__payments">
               {payments.map((p) => (
                 <div key={p.id} className="a4__kv">
@@ -626,14 +630,20 @@ export default function InvoiceA4({ kind, doc, company, settings }) {
                 </div>
               ))}
               {/* فاتورة مستخلص: حجز الضمان مش «متبقي» (بيتحصّل عند الإفراج) */}
-              {doc.remainingAmount - (ct?.cert?.retention ?? 0) > 0.0001 && (
+              {creditLeft > 0.0001 && (
                 <div className="a4__kv">
                   <span>
                     {isReturn
                       ? L("على الحساب", "To account")
                       : L("المتبقي (آجل)", "Balance due (credit)")}
                   </span>
-                  <b>{money(doc.remainingAmount - (ct?.cert?.retention ?? 0))}</b>
+                  <b>{money(creditLeft)}</b>
+                </div>
+              )}
+              {certRetention > 0 && (
+                <div className="a4__kv">
+                  <span>{L("حجز الضمان (يُحصَّل عند الإفراج)", "Retention (due on release)")}</span>
+                  <b>{money(certRetention)}</b>
                 </div>
               )}
             </div>
